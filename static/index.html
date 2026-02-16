@@ -1,0 +1,1157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FitTrack Pro - Dashboard</title>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Sora:wght@600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+  <link rel="stylesheet" href="/static/styles.css">
+  <style>
+    .fire-container {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      transition: transform 0.2s;
+    }
+
+    .fire-container:hover {
+      transform: scale(1.05);
+    }
+
+    .fire-icon {
+      font-size: 19px;
+      transition: color 0.8s ease, transform 0.8s ease;
+      flex-shrink: 0;
+    }
+
+    .fire-icon.animate {
+      animation: fireBurn 2s ease-in-out;
+    }
+
+    @keyframes fireBurn {
+      0% {
+        color: inherit;
+        transform: scale(1);
+      }
+      50% {
+        color: #ff6600;
+        transform: scale(1.5);
+      }
+      100% {
+        color: inherit;
+        transform: scale(1);
+      }
+    }
+
+    .fire-text {
+      display: inline-block;
+      position: relative;
+    }
+
+    .fire-text span {
+      display: inline-block;
+      transition: color 0.3s ease;
+    }
+
+    .fire-text span.glint {
+      color: #ff6600;
+    }
+
+    .fire-text span.fade {
+      animation: glintFade 0.4s ease-out forwards;
+    }
+
+    @keyframes glintFade {
+      0% {
+        color: #ff6600;
+      }
+      100% {
+        color: inherit;
+      }
+    }
+
+    .pie-icon {
+      font-size: 19px;
+      opacity: 1;
+      transition: opacity 0.3s ease;
+      flex-shrink: 0;
+    }
+
+    .pie-icon.animate {
+      animation: fadeInOut 2s ease-in-out;
+    }
+
+    @keyframes fadeInOut {
+      0% {
+        opacity: 1;
+      }
+      50% {
+        opacity: 0;
+      }
+      100% {
+        opacity: 1;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="demo-user-selector" class="demo-user-selector">
+    <div class="demo-user-shell">
+      <h1>Choose a Demo User</h1>
+      <p>Select a temporary test profile to continue.</p>
+      <div id="demo-user-cards" class="demo-user-cards"></div>
+    </div>
+  </div>
+
+  <div id="demo-onboarding" class="demo-user-selector hidden">
+    <div class="demo-user-shell">
+      <h1>Setup Your Demo Experience</h1>
+      <p id="demo-onboarding-subtitle">Choose what you want to see in the app.</p>
+      <form id="demo-onboarding-form" class="demo-onboarding-form">
+        <label><input id="pref-projects" type="checkbox" checked> Do you want the Projects section?</label>
+        <label><input id="pref-workout" type="checkbox" checked> Do you want Workout tracking?</label>
+        <label><input id="pref-nutrition" type="checkbox" checked> Do you want Nutrition tracking?</label>
+        <button type="submit" class="projects-btn projects-btn-primary">Continue to Dashboard</button>
+      </form>
+    </div>
+  </div>
+
+  <div id="app-wrapper" class="app-wrapper">
+    <!-- SIDEBAR -->
+    <div class="sidebar">
+      <div class="logo-area">
+        <div class="logo"><span>FitTrack</span> Pro</div>
+        <div class="logo-tagline">Track your progress</div>
+      </div>
+      
+      <div class="nav-section">
+        <div class="nav-item active" onclick="triggerPieAnimation(); showPage('dashboard');">
+          <i class="fas fa-chart-pie pie-icon" id="pieIcon"></i> Dashboard
+        </div>
+        <div class="nav-item" onclick="triggerFireAnimation(); showPage('streaks');">
+          <div class="fire-container" id="fireContainer">
+            <i class="fas fa-fire fire-icon" id="fireIcon"></i>
+            <span class="fire-text" id="fireText">Streaks & Points</span>
+          </div>
+        </div>
+        <div class="nav-item" onclick="showPage('tasks')">
+          <i class="fas fa-check-circle"></i> My Tasks
+        </div>
+        <div class="nav-item" data-feature="projects" onclick="showPage('projects')">
+          <i class="fas fa-layer-group"></i> Projects
+        </div>
+        <div class="nav-item" data-feature="workout" onclick="showPage('workout')">
+          <i class="fas fa-dumbbell"></i> Workout Log
+        </div>
+        <div class="nav-item" data-feature="nutrition" onclick="showPage('nutrition')">
+          <i class="fas fa-utensils"></i> Nutrition
+        </div>
+        <div class="nav-item" onclick="showPage('statistics')">
+          <i class="fas fa-chart-line"></i> Statistics
+        </div>
+        <div class="nav-item" onclick="showPage('calendar')">
+          <i class="fas fa-calendar-alt"></i> Calendar
+        </div>
+      </div>
+      
+      <!-- Streak Card -->
+      <div class="streak-mini-card">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+          <div>
+            <div class="streak-mini-title"><i class="fas fa-fire" style="margin-right: 5px;"></i> Current Streak</div>
+            <div class="streak-mini-number">12 Days</div>
+            <div class="streak-mini-label">Keep going! You're doing amazing!</div>
+          </div>
+          <div style="text-align: right;">
+            <div style="font-size: 0.75rem; font-weight: 600; color: rgba(255, 255, 255, 0.9);"><i class="fas fa-star" style="margin-right: 4px;"></i>Level 15</div>
+            <div style="font-size: 1.4rem; font-weight: 700; color: white; margin-top: 2px;">2,450</div>
+            <div style="font-size: 0.75rem; font-weight: 600; color: rgba(255, 255, 255, 0.9);">Points</div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Upgrade Button -->
+      <div style="margin-top: 28px; padding: 16px 14px; background: rgba(255, 255, 255, 0.1); border-radius: 16px; text-align: center; color: white; font-size: 0.85rem; font-weight: 600; cursor: pointer;">
+        <i class="fas fa-star" style="margin-right: 6px;"></i> Upgrade to Pro
+      </div>
+    </div>
+
+    <!-- MAIN CONTENT -->
+    <div class="main-content">
+      <div class="global-topbar">
+        <div class="global-topbar-title">
+          <h2>FitTrack Workspace</h2>
+          <p>Track goals, workouts, and progress from one place.</p>
+        </div>
+        <div class="profile-menu-wrap" id="profile-menu-wrap">
+          <button id="profile-menu-btn" class="profile-menu-btn" type="button" aria-haspopup="menu" aria-expanded="false">
+            <span class="profile-menu-avatar"><i class="fas fa-user"></i></span>
+            <span class="profile-menu-meta">
+              <strong id="top-profile-name">Alex Johnson</strong>
+              <small id="top-profile-email">alex.johnson@email.com</small>
+            </span>
+            <i class="fas fa-chevron-down"></i>
+          </button>
+          <div id="profile-menu-panel" class="profile-menu-panel" role="menu" aria-hidden="true">
+            <div class="profile-menu-head">
+              <span class="profile-menu-avatar large"><i class="fas fa-user"></i></span>
+              <div>
+                <strong id="top-profile-head-name">Alex Johnson</strong>
+                <small id="top-profile-head-email">alex.johnson@email.com</small>
+              </div>
+            </div>
+            <button class="profile-menu-item" type="button" data-action="open-profile-page">
+              <i class="fas fa-user-circle"></i> View Profile
+            </button>
+            <button class="profile-menu-item" type="button" data-action="open-settings-page">
+              <i class="fas fa-gear"></i> Settings
+            </button>
+            <button class="profile-menu-item" type="button" data-action="customize-layout">
+              <i class="fas fa-sliders"></i> Customize Layout
+            </button>
+            <div class="profile-menu-theme">
+              <div class="profile-menu-theme-label">
+                <i class="fas fa-moon"></i>
+                <span>Dark Mode</span>
+              </div>
+              <label class="theme-toggle" for="theme-toggle-input">
+                <input id="theme-toggle-input" type="checkbox">
+                <span class="theme-toggle-slider"></span>
+              </label>
+            </div>
+            <button class="profile-menu-item" type="button" data-action="sign-out">
+              <i class="fas fa-right-from-bracket"></i> Sign Out
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Dashboard Page -->
+      <div id="dashboard" class="page-section active">
+        <div class="dash-shell">
+          <div class="dash-head">
+            <h1 id="dash-welcome-title">Welcome back, Alex!</h1>
+            <p id="dash-goal-line">Keep pushing toward your 70kg goal!</p>
+          </div>
+
+          <div class="dash-streak-banner">
+            <div class="dash-streak-left">
+              <div class="dash-streak-icon-wrap"><i class="fas fa-fire"></i></div>
+              <div>
+                <p>Current Streak</p>
+                <h3 id="dash-streak-value">12 Days</h3>
+                <span>Keep going! You're doing amazing!</span>
+              </div>
+            </div>
+            <div class="dash-streak-right">
+              <div><i class="fas fa-trophy"></i> <span>Level 15</span></div>
+              <div><i class="fas fa-bolt"></i> <span>2,450 Points</span></div>
+            </div>
+          </div>
+
+          <div class="dash-stats-grid">
+            <article class="dash-stat-card">
+              <div class="dash-stat-icon blue"><i class="fas fa-clock"></i></div>
+              <div>
+                <p>Today's Time</p>
+                <h4 id="dash-stat-time">00h 00m 00s</h4>
+              </div>
+              <i class="fas fa-arrow-trend-up dash-stat-trend"></i>
+            </article>
+            <article id="dash-stat-card-workouts" data-feature="workout" class="dash-stat-card">
+              <div class="dash-stat-icon green"><i class="fas fa-dumbbell"></i></div>
+              <div>
+                <p>Weekly Workouts</p>
+                <h4 id="dash-stat-workouts">0/5</h4>
+              </div>
+              <i class="fas fa-arrow-trend-up dash-stat-trend"></i>
+              <div class="dash-mini-bar"><div id="dash-workout-bar"></div></div>
+            </article>
+            <article id="dash-stat-card-goals" class="dash-stat-card">
+              <div class="dash-stat-icon purple"><i class="fas fa-bullseye"></i></div>
+              <div>
+                <p>Goals Completed</p>
+                <h4 id="dash-stat-goals">0/0</h4>
+              </div>
+              <i class="fas fa-arrow-trend-up dash-stat-trend"></i>
+            </article>
+            <article class="dash-stat-card">
+              <div class="dash-stat-icon orange"><i class="fas fa-fire"></i></div>
+              <div>
+                <p>Calories Burned</p>
+                <h4 id="dash-stat-burned">0</h4>
+              </div>
+              <i class="fas fa-arrow-trend-up dash-stat-trend"></i>
+            </article>
+          </div>
+
+          <div class="dash-grid-two">
+            <div class="dash-panel">
+              <h3>Coming up Activities</h3>
+              <div id="dash-activity-list" class="dash-activity-list"></div>
+            </div>
+
+            <div class="dash-panel">
+              <div class="dash-panel-head">
+                <h3>Quick Actions</h3>
+                <div class="dash-quick-head-tools">
+                  <span id="dash-timer-pill" class="dash-timer-pill">Timer off</span>
+                  <div id="dash-action-picker" class="dash-action-picker">
+                    <button id="dash-action-picker-btn" class="dash-action-picker-btn" type="button" aria-expanded="false" aria-haspopup="menu" title="Customize quick actions">
+                      <i class="fas fa-gear"></i>
+                    </button>
+                    <div id="dash-action-picker-panel" class="dash-action-picker-panel" role="menu" aria-hidden="true">
+                      <h4>Select actions to display (max 3)</h4>
+                      <div id="dash-action-option-list" class="dash-action-option-list"></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div id="dash-actions" class="dash-actions"></div>
+              <div class="dash-progress-wrap">
+                <h4>Today's Progress</h4>
+                <div id="dash-progress-row-tasks" class="dash-progress-row">
+                  <div><span class="dot blue"></span><span>Tasks</span></div>
+                  <span id="dash-progress-tasks-label">0/0</span>
+                </div>
+                <div class="dash-progress-bar"><div id="dash-progress-tasks-bar" class="blue"></div></div>
+                <div id="dash-progress-row-workout" data-feature="workout" class="dash-progress-row">
+                  <div><span class="dot green"></span><span>Workout</span></div>
+                  <span id="dash-progress-workout-label">0/1</span>
+                </div>
+                <div class="dash-progress-bar"><div id="dash-progress-workout-bar" class="green"></div></div>
+                <div data-feature="nutrition" class="dash-progress-row">
+                  <div><span class="dot orange"></span><span>Nutrition</span></div>
+                  <span id="dash-progress-nutrition-label">0/2200 cal</span>
+                </div>
+                <div data-feature="nutrition" class="dash-progress-bar"><div id="dash-progress-nutrition-bar" class="orange"></div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Streaks & Points Page -->
+      <div id="streaks" class="page-section">
+        <div class="streaks-shell">
+          <div class="streaks-head">
+            <h1>Streaks & Points</h1>
+            <p>Track your consistency and earn rewards</p>
+          </div>
+
+          <div class="streaks-top-grid">
+            <article class="streaks-stat-card orange">
+              <i class="fas fa-fire"></i>
+              <div>
+                <p>Current Streak</p>
+                <h3 id="streaks-current">12 Days</h3>
+                <span>Keep it up!</span>
+              </div>
+            </article>
+            <article class="streaks-stat-card pink">
+              <i class="fas fa-trophy"></i>
+              <div>
+                <p>Longest Streak</p>
+                <h3 id="streaks-longest">28 Days</h3>
+                <span>Personal best!</span>
+              </div>
+            </article>
+            <article class="streaks-stat-card blue">
+              <i class="fas fa-star"></i>
+              <div>
+                <p>Total Points</p>
+                <h3 id="streaks-points">2,450</h3>
+                <span>Amazing progress!</span>
+              </div>
+            </article>
+            <article class="streaks-stat-card green">
+              <i class="fas fa-bolt"></i>
+              <div>
+                <p>Level</p>
+                <h3 id="streaks-level">Level 15</h3>
+                <span id="streaks-level-next">150 to level 16</span>
+              </div>
+            </article>
+          </div>
+
+          <div class="streaks-mid-grid">
+            <section class="streaks-panel">
+              <h3>Level Progress</h3>
+              <div class="streaks-level-ring" id="streaks-level-ring" style="--pct:65;">
+                <div class="streaks-level-inner">
+                  <strong id="streaks-level-num">15</strong>
+                  <span>Level</span>
+                </div>
+              </div>
+              <div class="streaks-level-progress-line">
+                <div class="streaks-level-progress-head"><span>Progress to Level 16</span><span id="streaks-level-pct">65%</span></div>
+                <div class="streaks-bar"><div id="streaks-level-bar" style="width:65%;"></div></div>
+                <p id="streaks-level-note">150 more points needed</p>
+              </div>
+            </section>
+
+            <section class="streaks-panel">
+              <h3>Your Streak</h3>
+              <div id="streaks-calendar" class="streaks-calendar"></div>
+              <div class="streaks-chain-note">
+                <p>Don't break the chain!</p>
+                <span>Complete an activity today to continue your streak</span>
+              </div>
+            </section>
+
+            <section class="streaks-panel">
+              <h3>Points System</h3>
+              <div class="streaks-points-legend">
+                <div><span class="dot high"></span><label>High Priority</label><strong>40-50 pts</strong></div>
+                <div><span class="dot medium"></span><label>Medium Priority</label><strong>20-35 pts</strong></div>
+                <div><span class="dot low"></span><label>Low Priority</label><strong>10-20 pts</strong></div>
+              </div>
+              <div class="streaks-bonus">
+                <h4>Bonus Points</h4>
+                <ul>
+                  <li>Daily streak: +10 pts/day</li>
+                  <li>Complete all goals: +50 pts</li>
+                  <li>Early morning workout: +15 pts</li>
+                  <li>Perfect nutrition day: +25 pts</li>
+                </ul>
+              </div>
+            </section>
+          </div>
+
+          <section class="streaks-panel">
+            <h3>Recent Point Activities</h3>
+            <div id="streaks-activity-list" class="streaks-activity-list"></div>
+          </section>
+
+          <section class="streaks-panel">
+            <h3>Achievements</h3>
+            <div id="streaks-achievements" class="streaks-achievement-grid"></div>
+          </section>
+        </div>
+      </div>
+
+      <!-- My Tasks Page -->
+      <div id="tasks" class="page-section">
+        <div class="tasks-shell">
+          <div class="tasks-head-row">
+            <div>
+              <h2>My Tasks</h2>
+              <p>Organize and track all your tasks</p>
+            </div>
+            <div class="tasks-head-actions">
+              <button id="task-filter-today-btn" class="tasks-btn tasks-btn-soft">
+                <i class="fas fa-filter"></i> Today's Tasks
+              </button>
+              <button id="add-task-btn" class="tasks-btn tasks-btn-primary">
+                <i class="fas fa-plus"></i> Add Task
+              </button>
+            </div>
+          </div>
+
+          <div class="tasks-progress-panel">
+            <p id="tasks-progress-label">Active Tasks</p>
+            <h3><span id="tasks-progress-remaining">0</span> tasks remaining</h3>
+            <span><span id="tasks-progress-completed">0</span> tasks completed</span>
+          </div>
+
+          <section class="tasks-group">
+            <h3>Active Tasks (<span id="active-count">0</span>)</h3>
+            <div id="active-tasks-container" class="tasks-list"></div>
+          </section>
+
+          <section class="tasks-group">
+            <h3>Overdue Tasks (<span id="overdue-count">0</span>)</h3>
+            <div id="overdue-tasks-container" class="tasks-list"></div>
+          </section>
+
+          <section id="completed-tasks-section" class="tasks-group">
+            <button id="toggle-completed-btn" class="tasks-completed-toggle" type="button">
+              Completed Tasks (<span id="completed-count">0</span>)
+              <i id="completed-chevron" class="fas fa-chevron-up"></i>
+            </button>
+            <div id="completed-tasks-container" class="tasks-list"></div>
+          </section>
+        </div>
+      </div>
+
+      <!-- Add Task Modal -->
+      <div id="layout-customize-modal" class="layout-customize-modal" style="display: none;">
+        <div class="layout-customize-card">
+          <div class="layout-customize-head">
+            <h3>Customize Layout</h3>
+            <button id="layout-customize-close" type="button" class="layout-customize-close">&times;</button>
+          </div>
+          <p>Choose which sections you want visible.</p>
+          <form id="layout-customize-form" class="layout-customize-form">
+            <label><input id="layout-pref-projects" type="checkbox"> Projects section</label>
+            <label><input id="layout-pref-workout" type="checkbox"> Workout section</label>
+            <label><input id="layout-pref-nutrition" type="checkbox"> Nutrition section</label>
+            <div class="layout-customize-actions">
+              <button id="layout-customize-cancel" type="button" class="projects-btn projects-btn-soft">Cancel</button>
+              <button type="submit" class="projects-btn projects-btn-primary">Save Layout</button>
+            </div>
+          </form>
+        </div>
+      </div>
+      <div id="add-task-modal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.5); z-index: 1000; align-items: center; justify-content: center;">
+        <div style="background: white; border-radius: 12px; padding: 32px; max-width: 500px; width: 90%; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+            <h3 style="font-size: 1.3rem; font-weight: 700; color: #0f172a; margin: 0;">Create New Task</h3>
+            <button id="close-task-modal" style="background: none; border: none; font-size: 1.5rem; cursor: pointer; color: #64748b;">&times;</button>
+          </div>
+          
+          <form id="add-task-form" style="display: flex; flex-direction: column; gap: 16px;">
+            <div>
+              <label style="display: block; font-weight: 600; color: #0f172a; margin-bottom: 8px; font-size: 0.95rem;">Task Title</label>
+              <input type="text" id="task-title-input" placeholder="Enter task name" style="width: 100%; padding: 12px; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 0.95rem; box-sizing: border-box; font-family: inherit;" required>
+            </div>
+            
+            <div>
+              <label style="display: block; font-weight: 600; color: #0f172a; margin-bottom: 8px; font-size: 0.95rem;">Priority</label>
+              <select id="task-priority-select" style="width: 100%; padding: 12px; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 0.95rem; box-sizing: border-box; font-family: inherit;">
+                <option value="low">Low</option>
+                <option value="medium" selected>Medium</option>
+                <option value="high">High</option>
+              </select>
+            </div>
+            
+            <div>
+              <label style="display: block; font-weight: 600; color: #0f172a; margin-bottom: 8px; font-size: 0.95rem;">Due Date</label>
+              <select id="task-due-select" style="width: 100%; padding: 12px; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 0.95rem; box-sizing: border-box; font-family: inherit;">
+                <option value="1">In 1 hour</option>
+                <option value="3">In 3 hours</option>
+                <option value="6">In 6 hours</option>
+                <option value="24" selected>In 1 day</option>
+                <option value="72">In 3 days</option>
+                <option value="custom">Custom date & time</option>
+              </select>
+              <input type="datetime-local" id="custom-datetime-input" style="display: none; width: 100%; padding: 12px; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 0.95rem; box-sizing: border-box; margin-top: 8px;">
+            </div>
+
+            <div>
+              <label style="display: block; font-weight: 600; color: #0f172a; margin-bottom: 8px; font-size: 0.95rem;">Repeat</label>
+              <select id="task-repeat-select" style="width: 100%; padding: 12px; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 0.95rem; box-sizing: border-box; font-family: inherit;">
+                <option value="none" selected>No repeat</option>
+                <option value="daily">Daily</option>
+                <option value="weekly">Weekly</option>
+                <option value="monthly">Monthly</option>
+              </select>
+            </div>
+            
+            <div style="display: flex; gap: 12px;">
+              <button type="button" id="cancel-task-btn" style="flex: 1; padding: 12px; border: 1px solid #e2e8f0; border-radius: 8px; cursor: pointer; font-weight: 600; background: white; color: #0f172a;">Cancel</button>
+              <button type="submit" style="flex: 1; padding: 12px; background: #2563eb; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 600;">Create Task</button>
+            </div>
+          </form>
+        </div>
+      </div>
+      <div id="task-edit-modal" class="task-edit-modal" aria-hidden="true">
+        <div class="task-edit-card" role="dialog" aria-modal="true" aria-labelledby="task-edit-title">
+          <div class="task-edit-head">
+            <h3 id="task-edit-title">Edit Task</h3>
+            <button id="task-edit-close-btn" type="button" class="task-edit-close-btn" aria-label="Close edit task modal">&times;</button>
+          </div>
+          <form id="task-edit-form" class="task-edit-form">
+            <div>
+              <label class="task-edit-label" for="task-edit-title-input">Task Name</label>
+              <input id="task-edit-title-input" class="task-edit-input" type="text" required>
+            </div>
+
+            <div>
+              <label class="task-edit-label" for="task-edit-priority-select">Priority</label>
+              <select id="task-edit-priority-select" class="task-edit-input">
+                <option value="low">Low</option>
+                <option value="medium">Medium</option>
+                <option value="high">High</option>
+              </select>
+            </div>
+
+            <div>
+              <label class="task-edit-label" for="task-edit-due-select">Due Date</label>
+              <select id="task-edit-due-select" class="task-edit-input">
+                <option value="1">In 1 hour</option>
+                <option value="3">In 3 hours</option>
+                <option value="6">In 6 hours</option>
+                <option value="24">In 1 day</option>
+                <option value="72">In 3 days</option>
+                <option value="custom" selected>Custom date & time</option>
+              </select>
+              <input id="task-edit-custom-datetime-input" class="task-edit-input" type="datetime-local">
+            </div>
+
+            <div>
+              <label class="task-edit-label" for="task-edit-repeat-select">Repeat</label>
+              <select id="task-edit-repeat-select" class="task-edit-input">
+                <option value="none">No repeat</option>
+                <option value="daily">Daily</option>
+                <option value="weekly">Weekly</option>
+                <option value="monthly">Monthly</option>
+                <option value="interval">Every X days</option>
+              </select>
+              <input id="task-edit-repeat-interval-input" class="task-edit-input" type="number" min="2" step="1" value="2" style="display:none;">
+            </div>
+
+            <div class="task-edit-actions">
+              <button id="task-edit-cancel-btn" type="button" class="tasks-btn tasks-btn-soft">Cancel</button>
+              <button id="task-edit-save-btn" type="submit" class="tasks-btn tasks-btn-primary">Save</button>
+            </div>
+          </form>
+        </div>
+      </div>
+      <!-- Projects Page -->
+      <div id="projects" data-feature="projects" class="page-section">
+        <div class="projects-shell">
+          <div class="projects-head-row">
+            <div>
+              <h2>Projects</h2>
+              <p>Manage your projects with tasks and time tracking</p>
+            </div>
+            <button id="projects-new-btn" class="projects-btn projects-btn-primary">
+              <i class="fas fa-plus"></i> New Project
+            </button>
+          </div>
+
+          <div class="projects-stats-grid">
+            <article class="projects-stat-card">
+              <p>Total Projects</p>
+              <h3 id="projects-total-count">0</h3>
+            </article>
+            <article class="projects-stat-card">
+              <p>Total Tasks</p>
+              <h3 id="projects-task-count">0</h3>
+            </article>
+            <article class="projects-stat-card">
+              <p>Total Time Tracked</p>
+              <h3 id="projects-time-count">0h 0m</h3>
+            </article>
+          </div>
+
+          <div id="projects-create-panel" class="projects-panel projects-collapsed">
+            <h3>Create New Project</h3>
+            <form id="projects-create-form" class="projects-create-form">
+              <input id="projects-name-input" type="text" placeholder="Project name (e.g., Fitness App Development)" required>
+              <textarea id="projects-desc-input" rows="3" placeholder="Description"></textarea>
+              <div class="projects-form-actions">
+                <button type="submit" class="projects-btn projects-btn-primary">Create Project</button>
+                <button id="projects-cancel-btn" type="button" class="projects-btn projects-btn-soft">Cancel</button>
+              </div>
+            </form>
+          </div>
+
+          <div id="projects-list" class="projects-list"></div>
+        </div>
+      </div>
+      <!-- Workout Log Page -->
+      <div id="workout" data-feature="workout" class="page-section">
+        <div class="workout-shell">
+          <div class="workout-head-row">
+            <div>
+              <h2>Workout</h2>
+              <p>What workout should you do next?</p>
+            </div>
+            <div class="workout-head-actions">
+              <button id="workout-toggle-templates-btn" class="workout-btn purple"><i class="fas fa-file-alt"></i> Templates</button>
+              <button id="workout-toggle-new-btn" class="workout-btn blue"><i class="fas fa-plus"></i> New Workout</button>
+            </div>
+          </div>
+
+          <div id="workout-today-card" class="workout-today-card"></div>
+
+          <div class="workout-stats-grid">
+            <article class="workout-stat-card">
+              <div class="workout-stat-head"><p>This Week Progress</p><i class="fas fa-dumbbell"></i></div>
+              <h3><span id="workout-week-count">0</span> / <span id="workout-week-target">5</span></h3>
+              <div class="workout-stat-bar"><div id="workout-week-bar"></div></div>
+            </article>
+            <article class="workout-stat-card">
+              <div class="workout-stat-head"><p>Consistency</p><i class="fas fa-car-battery"></i></div>
+              <div id="workout-consistency-battery" class="workout-battery"></div>
+              <span id="workout-consistency-note">Green: done, Yellow: missed, Red: 2+ misses</span>
+              <span id="workout-consistency-achievement"></span>
+            </article>
+          </div>
+
+          <div id="workout-focus-card" class="workout-focus-card"></div>
+
+          <div id="workout-templates-panel" class="workout-panel workout-collapsed">
+            <div class="workout-panel-head">
+              <h3>Workout Templates</h3>
+              <button id="workout-show-template-save" class="workout-btn soft">Save Current as Template</button>
+            </div>
+            <div id="workout-save-template-form" class="workout-collapsed workout-inline-form">
+              <input id="workout-template-name-input" type="text" placeholder="Template name">
+              <select id="workout-template-source-select"></select>
+              <button id="workout-save-template-btn" class="workout-btn blue" type="button">Save Template</button>
+            </div>
+            <div id="workout-templates-grid" class="workout-templates-grid"></div>
+          </div>
+
+          <div id="workout-new-panel" class="workout-panel workout-collapsed">
+            <h3>Create New Workout</h3>
+            <div class="workout-inline-form">
+              <input id="workout-new-name" type="text" placeholder="Workout name (e.g., Push Day)">
+              <input id="workout-new-muscles" type="text" placeholder="Muscle group (e.g., Chest, Triceps)">
+              <input id="workout-new-duration" type="number" min="10" step="5" placeholder="Estimated minutes">
+              <button id="workout-create-btn" class="workout-btn blue" type="button">Create Workout</button>
+            </div>
+          </div>
+
+          <div class="workout-panel">
+            <h3>Workout Routine</h3>
+            <div id="workout-routine-list" class="workout-routine-list"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Nutrition Page -->
+      <div id="nutrition" data-feature="nutrition" class="page-section">
+        <div class="nutrition-shell">
+          <div class="nutrition-header-row">
+            <div>
+              <h2>Nutrition Tracking</h2>
+              <p>Monitor your daily nutrition intake</p>
+            </div>
+            <div class="nutrition-header-actions">
+              <button id="nutrition-toggle-form-btn" class="nutrition-btn nutrition-btn-blue">
+                <i class="fas fa-plus"></i> Log Meal
+              </button>
+            </div>
+          </div>
+
+          <div class="nutrition-goals-panel">
+            <div class="nutrition-goals-head">
+              <div class="nutrition-goals-icon"><i class="fas fa-bullseye"></i></div>
+              <div>
+                <p class="nutrition-goals-label">Your Nutrition Goals</p>
+                <h3 id="nutrition-goal-title">Balanced Nutrition for Progress</h3>
+              </div>
+            </div>
+            <div class="nutrition-goal-toggle-wrap">
+              <p>Weight Goal</p>
+              <div class="nutrition-goal-toggle-static">
+                <span id="nutrition-goal-mode-label">Maintain</span>
+                <small>Set in Profile</small>
+              </div>
+            </div>
+            <div class="nutrition-goals-grid">
+              <div><span>Daily Calories</span><strong id="nutrition-goal-calories">2200</strong></div>
+              <div><span>Protein</span><strong id="nutrition-goal-protein">140g</strong></div>
+              <div><span>Carbs</span><strong id="nutrition-goal-carbs">250g</strong></div>
+              <div><span>Fats</span><strong id="nutrition-goal-fats">60g</strong></div>
+            </div>
+          </div>
+
+          <div class="nutrition-today-card">
+            <div class="nutrition-card-head">
+              <h3>Today's Nutrition</h3>
+              <span id="nutrition-today-date"></span>
+            </div>
+            <div class="nutrition-today-grid">
+              <div><strong id="nutrition-today-calories">0</strong><span>Calories</span></div>
+              <div><strong id="nutrition-today-protein">0g</strong><span>Protein</span></div>
+              <div><strong id="nutrition-today-carbs">0g</strong><span>Carbs</span></div>
+              <div><strong id="nutrition-today-fats">0g</strong><span>Fats</span></div>
+            </div>
+            <div class="nutrition-calorie-progress">
+              <div class="nutrition-calorie-progress-row">
+                <span>Calories</span>
+              </div>
+              <div class="nutrition-calorie-progress-bar">
+                <div id="nutrition-calorie-progress-fill"></div>
+              </div>
+            </div>
+            <div class="nutrition-calorie-progress">
+              <div class="nutrition-calorie-progress-row">
+                <span>Protein</span>
+              </div>
+              <div class="nutrition-calorie-progress-bar">
+                <div id="nutrition-protein-progress-fill"></div>
+              </div>
+            </div>
+            <div class="nutrition-calorie-progress">
+              <div class="nutrition-calorie-progress-row">
+                <span>Carbs</span>
+              </div>
+              <div class="nutrition-calorie-progress-bar">
+                <div id="nutrition-carbs-progress-fill"></div>
+              </div>
+            </div>
+            <div class="nutrition-calorie-progress">
+              <div class="nutrition-calorie-progress-row">
+                <span>Fats</span>
+              </div>
+              <div class="nutrition-calorie-progress-bar">
+                <div id="nutrition-fats-progress-fill"></div>
+              </div>
+            </div>
+          </div>
+
+          <div id="nutrition-saved-meals-section" class="nutrition-block">
+            <h3>Saved Meals</h3>
+            <div id="nutrition-saved-meals-grid" class="nutrition-saved-grid"></div>
+          </div>
+
+          <div id="nutrition-profile-gate-msg" class="nutrition-block nutrition-collapsed">
+            <div class="nutrition-empty">Complete your profile to calculate calorie targets</div>
+          </div>
+
+          <div id="nutrition-form-section" class="nutrition-block nutrition-collapsed">
+            <h3>Log New Meal</h3>
+            <form id="nutrition-form" class="nutrition-form">
+              <div class="nutrition-form-grid">
+                <div>
+                  <label for="nutrition-form-meal">Meal Type</label>
+                  <select id="nutrition-form-meal" required>
+                    <option value="breakfast">Breakfast</option>
+                    <option value="lunch">Lunch</option>
+                    <option value="dinner">Dinner</option>
+                    <option value="snack">Snack</option>
+                    <option value="other">Other</option>
+                  </select>
+                </div>
+                <div>
+                  <label for="nutrition-form-food">Food Name</label>
+                  <input id="nutrition-form-food" type="text" placeholder="e.g., White Rice Breakfast" required>
+                </div>
+              </div>
+              <div class="nutrition-form-grid">
+                <div>
+                  <label for="nutrition-form-mode">Log Mode</label>
+                  <select id="nutrition-form-mode" required>
+                    <option value="manual">Manual Entry</option>
+                    <option value="builder">Build from Foods</option>
+                  </select>
+                </div>
+              </div>
+              <div id="nutrition-manual-fields" class="nutrition-form-grid nutrition-form-macros">
+                <div>
+                  <label for="nutrition-form-calories">Calories</label>
+                  <input id="nutrition-form-calories" type="number" min="0" required>
+                </div>
+                <div>
+                  <label for="nutrition-form-protein">Protein (g)</label>
+                  <input id="nutrition-form-protein" type="number" min="0" step="0.1" required>
+                </div>
+                <div>
+                  <label for="nutrition-form-carbs">Carbs (g)</label>
+                  <input id="nutrition-form-carbs" type="number" min="0" step="0.1" required>
+                </div>
+                <div>
+                  <label for="nutrition-form-fats">Fats (g)</label>
+                  <input id="nutrition-form-fats" type="number" min="0" step="0.1" required>
+                </div>
+              </div>
+              <div id="nutrition-builder-fields" class="nutrition-builder nutrition-collapsed">
+                <div class="nutrition-builder-grid">
+                  <div>
+                    <label for="nutrition-builder-category">Category</label>
+                    <select id="nutrition-builder-category">
+                      <option value="carbohydrates">Carbohydrates</option>
+                      <option value="proteins">Proteins</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label for="nutrition-builder-food">Food Item</label>
+                    <select id="nutrition-builder-food"></select>
+                  </div>
+                  <div>
+                    <label for="nutrition-builder-grams"><span id="nutrition-builder-qty-label">Quantity (g)</span></label>
+                    <input id="nutrition-builder-grams" type="number" min="1" step="1" value="100" placeholder="100">
+                  </div>
+                  <div class="nutrition-builder-add-wrap">
+                    <button id="nutrition-builder-add-btn" type="button" class="nutrition-btn nutrition-btn-soft">Add Food</button>
+                  </div>
+                </div>
+                <div id="nutrition-builder-list" class="nutrition-builder-list"></div>
+                <div id="nutrition-builder-totals" class="nutrition-builder-totals"></div>
+              </div>
+              <div class="nutrition-form-builder-note">
+                <small>Build from Foods calculates macros per 100g and saves as a regular meal entry.</small>
+              </div>
+              <div class="nutrition-form-actions">
+                <button type="submit" class="nutrition-btn nutrition-btn-blue">Add Meal</button>
+                <button type="button" id="nutrition-save-meal-btn" class="nutrition-btn nutrition-btn-purple">
+                  <i class="fas fa-bookmark"></i> Save Meal
+                </button>
+                <button type="button" id="nutrition-cancel-form-btn" class="nutrition-btn nutrition-btn-soft">Cancel</button>
+              </div>
+            </form>
+          </div>
+
+          <div class="nutrition-block">
+            <h3>Meal History</h3>
+            <div id="nutrition-history-list" class="nutrition-history-list"></div>
+          </div>
+        </div>
+      </div>
+      <!-- Statistics Page -->
+      <div id="statistics" class="page-section">
+        <div class="statistics-shell">
+          <div class="statistics-head">
+            <h2>Statistics & Analytics</h2>
+            <p>Track your progress and performance</p>
+          </div>
+
+          <div class="statistics-summary-grid" id="statistics-summary-grid"></div>
+
+          <div class="statistics-two-grid">
+            <section class="statistics-panel">
+              <h3>Weekly Activity</h3>
+              <div id="statistics-weekly-legend" class="statistics-legend-inline"></div>
+              <div id="statistics-weekly-bars" class="statistics-bars"></div>
+            </section>
+            <section class="statistics-panel">
+              <h3>Workout Distribution</h3>
+              <div class="statistics-pie-wrap">
+                <div id="statistics-workout-pie" class="statistics-pie"></div>
+                <div id="statistics-workout-legend" class="statistics-legend"></div>
+              </div>
+            </section>
+          </div>
+
+          <div class="statistics-two-grid">
+            <section class="statistics-panel">
+              <h3>Weekly Nutrition Intake</h3>
+              <div class="statistics-chart-wrap">
+                <svg id="statistics-nutrition-svg" class="statistics-line-svg" viewBox="0 0 680 280" preserveAspectRatio="none"></svg>
+                <div id="statistics-nutrition-labels" class="statistics-x-labels"></div>
+              </div>
+            </section>
+            <section class="statistics-panel">
+              <h3>Macro Distribution</h3>
+              <div class="statistics-pie-wrap">
+                <div id="statistics-macro-pie" class="statistics-pie"></div>
+                <div id="statistics-macro-legend" class="statistics-legend"></div>
+              </div>
+            </section>
+          </div>
+
+          <section class="statistics-panel">
+            <h3>6-Month Progress</h3>
+            <div class="statistics-chart-wrap">
+              <svg id="statistics-monthly-svg" class="statistics-line-svg tall" viewBox="0 0 680 320" preserveAspectRatio="none"></svg>
+              <div id="statistics-monthly-labels" class="statistics-x-labels"></div>
+            </div>
+          </section>
+        </div>
+      </div>
+      <!-- Calendar Page -->
+      <div id="calendar" class="page-section">
+        <div class="calendar-shell">
+          <div class="calendar-title-row">
+            <div>
+              <h2>Calendar</h2>
+              <p>View tasks by date and plan quickly.</p>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="calendar-head">
+              <button id="calendar-prev-month" class="calendar-nav-btn" type="button"><i class="fas fa-chevron-left"></i></button>
+              <h3 id="calendar-month-label"><i class="fas fa-calendar-alt"></i> Month</h3>
+              <button id="calendar-next-month" class="calendar-nav-btn" type="button"><i class="fas fa-chevron-right"></i></button>
+            </div>
+            <div id="calendar-grid" class="calendar-grid"></div>
+          </div>
+
+          <div class="card calendar-detail-card" style="margin-top: 24px;">
+            <div class="card-header">
+              <h3><i class="fas fa-tasks"></i> <span id="calendar-selected-label">Tasks for today</span></h3>
+              <button id="calendar-mark-important-btn" class="calendar-open-task" type="button">
+                <i class="fas fa-star"></i> Mark Important
+              </button>
+            </div>
+            <div id="calendar-task-list"></div>
+          </div>
+
+          <div class="card calendar-add-card" style="margin-top: 24px;">
+            <div class="card-header">
+              <h3><i class="fas fa-plus"></i> Add Task From Calendar</h3>
+            </div>
+            <form id="calendar-quick-add-form" class="calendar-quick-add">
+              <input id="calendar-add-title" type="text" placeholder="Task title" required>
+              <select id="calendar-add-priority">
+                <option value="medium">Medium Priority</option>
+                <option value="high">High Priority</option>
+                <option value="low">Low Priority</option>
+              </select>
+              <input id="calendar-add-date" type="date" required>
+              <input id="calendar-add-time" type="time" value="09:00" required>
+              <button class="calendar-open-task" type="submit">Add Task</button>
+            </form>
+          </div>
+        </div>
+      </div>
+
+      <!-- Profile / Settings Page -->
+      <div id="profile" class="page-section">
+        <div class="profile-shell">
+          <div class="profile-head">
+            <h2>Settings & Profile</h2>
+            <p>Manage account details, body stats, and fitness preferences.</p>
+          </div>
+
+          <div class="profile-main-grid">
+            <section class="profile-card">
+              <h3>Personal Information</h3>
+              <div class="profile-form-grid">
+                <label><span>Full Name</span><input id="profile-full-name" type="text"></label>
+                <label><span>Email</span><input id="profile-email" type="email"></label>
+                <label><span>Date of Birth</span><input id="profile-dob" type="date"></label>
+              </div>
+            </section>
+
+            <aside class="profile-hero">
+              <div class="profile-hero-avatar"><i class="fas fa-user"></i></div>
+              <h4 id="profile-hero-name">Alex Johnson</h4>
+              <p id="profile-hero-member">Member since Jan 2024</p>
+              <div class="profile-hero-stats">
+                <div><strong id="profile-hero-workouts">0</strong><span>Total Workouts</span></div>
+                <div><strong id="profile-hero-goals">0</strong><span>Goals Achieved</span></div>
+              </div>
+            </aside>
+          </div>
+
+          <div class="profile-main-grid">
+            <section class="profile-card">
+              <h3>Physical Stats</h3>
+              <div class="profile-form-grid three">
+                <label><span>Height (cm)</span><input id="profile-height" type="number" min="50"></label>
+                <label><span>Age (years)</span><input id="profile-age" type="number" min="10" max="120" step="1" required></label>
+                <label><span>Current Weight (kg)</span><input id="profile-current-weight" type="number" min="20" step="0.5"></label>
+                <label>
+                  <span>Gender (optional)</span>
+                  <select id="profile-gender">
+                    <option value="Prefer not to say">Prefer not to say</option>
+                    <option value="Male">Male</option>
+                    <option value="Female">Female</option>
+                  </select>
+                </label>
+              </div>
+            </section>
+
+            <section class="profile-card profile-quick">
+              <h3>Quick Stats</h3>
+              <div class="profile-quick-list">
+                <div><i class="fas fa-ruler-vertical blue"></i><span>Height</span><strong id="profile-quick-height">--</strong></div>
+                <div><i class="fas fa-weight-scale green"></i><span>Current Weight</span><strong id="profile-quick-current">--</strong></div>
+                <div><i class="fas fa-bullseye purple"></i><span>Target Weight</span><strong id="profile-quick-target">--</strong></div>
+              </div>
+            </section>
+          </div>
+
+          <section class="profile-card">
+            <h3>Fitness Preferences</h3>
+            <div class="profile-form-grid">
+              <label>
+                <span>Fitness Level</span>
+                <select id="profile-level">
+                  <option value="Beginner">Beginner</option>
+                  <option value="Intermediate">Intermediate</option>
+                  <option value="Advanced">Advanced</option>
+                </select>
+              </label>
+              <label>
+                <span>Primary Goal</span>
+                <select id="profile-goal">
+                  <option value="Weight Loss">Weight Loss</option>
+                  <option value="Muscle Gain">Muscle Gain</option>
+                  <option value="Maintain Fitness">Maintain Fitness</option>
+                </select>
+              </label>
+              <label>
+                <span>Weight Plan</span>
+                <select id="profile-weight-goal">
+                  <option value="loss">Weight Loss</option>
+                  <option value="maintain">Weight Stability</option>
+                  <option value="gain">Weight Gain</option>
+                </select>
+              </label>
+              <label id="profile-target-weight-wrap">
+                <span>Target Weight (kg)</span>
+                <input id="profile-target-weight" type="number" min="20" step="0.5">
+              </label>
+              <label>
+                <span>Theme</span>
+                <select id="profile-theme">
+                  <option value="light">Light</option>
+                  <option value="dark">Dark</option>
+                </select>
+              </label>
+            </div>
+            <div class="profile-actions">
+              <small id="profile-validation-msg" style="display:none; color:#dc2626; font-weight:600; margin-right:10px;"></small>
+              <button id="profile-save-btn" class="projects-btn projects-btn-primary" type="button">
+                <i class="fas fa-save"></i> Save Profile
+              </button>
+            </div>
+          </section>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div id="dash-floating-timer" class="dash-floating-timer" aria-live="polite">
+    <div class="dash-floating-timer-clock">
+      <i class="fas fa-clock"></i>
+      <strong id="dash-floating-timer-value">00h 00m 00s</strong>
+    </div>
+    <button id="dash-floating-timer-toggle" type="button" class="dash-floating-timer-toggle">
+      <i class="fas fa-stopwatch"></i>
+      <span>Start Timer</span>
+    </button>
+  </div>
+  <script src="/static/script.js"></script>
+  <script>
+    function triggerFireAnimation() {
+      const fireIcon = document.getElementById('fireIcon');
+      const fireText = document.getElementById('fireText');
+
+      if (!fireIcon || !fireText) return;
+
+      if (fireText.querySelector('span') === null) {
+        const text = fireText.textContent;
+        fireText.innerHTML = text.split('').map(char =>
+          char === ' ' ? ' ' : `<span>${char}</span>`
+        ).join('');
+      }
+
+      const letters = fireText.querySelectorAll('span');
+
+      fireIcon.classList.remove('animate');
+      void fireIcon.offsetWidth;
+      fireIcon.classList.add('animate');
+      setTimeout(() => fireIcon.classList.remove('animate'), 2000);
+
+      letters.forEach((letter, index) => {
+        letter.classList.remove('glint', 'fade');
+        const delay = index * 80;
+
+        setTimeout(() => {
+          letter.classList.add('glint');
+
+          setTimeout(() => {
+            letter.classList.remove('glint');
+            letter.classList.add('fade');
+
+            setTimeout(() => {
+              letter.classList.remove('fade');
+            }, 400);
+          }, 250);
+        }, delay);
+      });
+    }
+
+    function triggerPieAnimation() {
+      const pieIcon = document.getElementById('pieIcon');
+      if (!pieIcon) return;
+
+      pieIcon.classList.remove('animate');
+      void pieIcon.offsetWidth;
+      pieIcon.classList.add('animate');
+      setTimeout(() => pieIcon.classList.remove('animate'), 2000);
+    }
+  </script>
+</body>
+</html>
