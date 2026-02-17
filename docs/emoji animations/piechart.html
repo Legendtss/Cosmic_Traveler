@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard Rotation Animation</title>
+    <!-- Font Awesome CDN -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style>
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background: #f5f5f5;
+        }
+
+        .dashboard-container {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 24px;
+            cursor: pointer;
+            padding: 20px;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            transition: transform 0.2s;
+        }
+
+        .dashboard-container:hover {
+            transform: scale(1.05);
+        }
+
+        .pie-icon {
+            font-size: 32px;
+            color: #2196F3;
+            transition: transform 0.3s ease;
+        }
+
+        /* Rotation animation */
+        .pie-icon.animate {
+            animation: rotate 1.5s ease-in-out;
+        }
+
+        @keyframes rotate {
+            0% {
+                transform: rotate(0deg);
+            }
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        /* Text styling */
+        .dashboard-text {
+            color: #333;
+        }
+    </style>
+</head>
+<body>
+    <div class="dashboard-container" id="dashboardContainer">
+        <i class="fas fa-chart-pie pie-icon" id="pieIcon"></i>
+        <span class="dashboard-text">Dashboard</span>
+    </div>
+
+    <script>
+        const dashboardContainer = document.getElementById('dashboardContainer');
+        const pieIcon = document.getElementById('pieIcon');
+
+        dashboardContainer.addEventListener('click', function() {
+            // Remove and re-add animation
+            pieIcon.classList.remove('animate');
+            void pieIcon.offsetWidth;
+            pieIcon.classList.add('animate');
+            
+            setTimeout(() => {
+                pieIcon.classList.remove('animate');
+            }, 1500);
+        });
+    </script>
+</body>
+</html>

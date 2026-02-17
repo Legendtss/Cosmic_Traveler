@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Statistics Animation</title>
+    <!-- Font Awesome CDN -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style>
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background: #f5f5f5;
+        }
+
+        .stats-container {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 24px;
+            cursor: pointer;
+            padding: 20px;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            transition: transform 0.2s;
+        }
+
+        .stats-container:hover {
+            transform: scale(1.05);
+        }
+
+        .chart-wrapper {
+            position: relative;
+            display: inline-block;
+            width: 50px;
+            height: 40px;
+        }
+
+        .chart-icon {
+            font-size: 32px;
+            color: #9C27B0;
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 2;
+        }
+
+        /* Data pulse dots */
+        .data-dot {
+            position: absolute;
+            width: 6px;
+            height: 6px;
+            background: #9C27B0;
+            border-radius: 50%;
+            opacity: 0;
+        }
+
+        .dot-1 {
+            left: 5px;
+            bottom: 8px;
+        }
+
+        .dot-2 {
+            left: 15px;
+            bottom: 18px;
+        }
+
+        .dot-3 {
+            left: 25px;
+            bottom: 12px;
+        }
+
+        .dot-4 {
+            right: 5px;
+            bottom: 25px;
+        }
+
+        /* Activate animation */
+        .chart-wrapper.animate .chart-icon {
+            animation: chartGlow 2s ease-in-out;
+        }
+
+        .chart-wrapper.animate .dot-1 {
+            animation: dotPulse 2s ease-out 0s;
+        }
+
+        .chart-wrapper.animate .dot-2 {
+            animation: dotPulse 2s ease-out 0.2s;
+        }
+
+        .chart-wrapper.animate .dot-3 {
+            animation: dotPulse 2s ease-out 0.4s;
+        }
+
+        .chart-wrapper.animate .dot-4 {
+            animation: dotPulse 2s ease-out 0.6s;
+        }
+
+        @keyframes chartGlow {
+            0%, 100% {
+                color: #9C27B0;
+                filter: drop-shadow(0 0 0 transparent);
+            }
+            50% {
+                color: #BA68C8;
+                filter: drop-shadow(0 0 10px #BA68C8);
+            }
+        }
+
+        @keyframes dotPulse {
+            0% {
+                opacity: 0;
+                transform: scale(0) translateY(0);
+            }
+            30% {
+                opacity: 1;
+                transform: scale(1.5) translateY(-5px);
+            }
+            60% {
+                opacity: 1;
+                transform: scale(1) translateY(-10px);
+            }
+            100% {
+                opacity: 0;
+                transform: scale(0.5) translateY(-20px);
+            }
+        }
+
+        /* Text styling */
+        .stats-text {
+            color: #333;
+        }
+    </style>
+</head>
+<body>
+    <div class="stats-container" id="statsContainer">
+        <div class="chart-wrapper" id="chartWrapper">
+            <i class="fas fa-chart-line chart-icon"></i>
+            <div class="data-dot dot-1"></div>
+            <div class="data-dot dot-2"></div>
+            <div class="data-dot dot-3"></div>
+            <div class="data-dot dot-4"></div>
+        </div>
+        <span class="stats-text">Statistics</span>
+    </div>
+
+    <script>
+        const statsContainer = document.getElementById('statsContainer');
+        const chartWrapper = document.getElementById('chartWrapper');
+
+        statsContainer.addEventListener('click', function() {
+            chartWrapper.classList.remove('animate');
+            void chartWrapper.offsetWidth;
+            chartWrapper.classList.add('animate');
+            
+            setTimeout(() => {
+                chartWrapper.classList.remove('animate');
+            }, 2000);
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Workout Animation - Strength Bars</title>
+    <!-- Font Awesome CDN -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style>
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background: #f5f5f5;
+        }
+
+        .workout-container {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 24px;
+            cursor: pointer;
+            padding: 20px;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            transition: transform 0.2s;
+        }
+
+        .workout-container:hover {
+            transform: scale(1.05);
+        }
+
+        .dumbbell-wrapper {
+            position: relative;
+            display: inline-block;
+            width: 60px;
+            height: 40px;
+        }
+
+        .dumbbell-icon {
+            font-size: 32px;
+            color: #FF5722;
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 2;
+        }
+
+        /* Strength bars on sides */
+        .strength-bar {
+            position: absolute;
+            width: 4px;
+            background: #FF5722;
+            border-radius: 2px;
+            opacity: 0;
+            top: 50%;
+        }
+
+        .bar-left-1 {
+            left: 0;
+            height: 15px;
+            transform: translateY(-50%);
+        }
+
+        .bar-left-2 {
+            left: 6px;
+            height: 25px;
+            transform: translateY(-50%);
+        }
+
+        .bar-left-3 {
+            left: 12px;
+            height: 35px;
+            transform: translateY(-50%);
+        }
+
+        .bar-right-1 {
+            right: 0;
+            height: 15px;
+            transform: translateY(-50%);
+        }
+
+        .bar-right-2 {
+            right: 6px;
+            height: 25px;
+            transform: translateY(-50%);
+        }
+
+        .bar-right-3 {
+            right: 12px;
+            height: 35px;
+            transform: translateY(-50%);
+        }
+
+        /* Activate animation */
+        .dumbbell-wrapper.animate .strength-bar {
+            animation: barRise 0.4s ease-out forwards;
+        }
+
+        .dumbbell-wrapper.animate .bar-left-1,
+        .dumbbell-wrapper.animate .bar-right-1 {
+            animation-delay: 0s;
+        }
+
+        .dumbbell-wrapper.animate .bar-left-2,
+        .dumbbell-wrapper.animate .bar-right-2 {
+            animation-delay: 0.15s;
+        }
+
+        .dumbbell-wrapper.animate .bar-left-3,
+        .dumbbell-wrapper.animate .bar-right-3 {
+            animation-delay: 0.3s;
+        }
+
+        .dumbbell-wrapper.animate .dumbbell-icon {
+            animation: iconPulse 1.2s ease-in-out;
+        }
+
+        @keyframes barRise {
+            0% {
+                opacity: 0;
+                transform: translateY(-50%) scaleY(0);
+            }
+            50% {
+                opacity: 1;
+                transform: translateY(-50%) scaleY(1.2);
+            }
+            80% {
+                opacity: 1;
+                transform: translateY(-50%) scaleY(1);
+            }
+            100% {
+                opacity: 0;
+                transform: translateY(-50%) scaleY(1);
+            }
+        }
+
+        @keyframes iconPulse {
+            0%, 100% {
+                color: #FF5722;
+            }
+            50% {
+                color: #FF9800;
+            }
+        }
+
+        /* Text styling */
+        .workout-text {
+            color: #333;
+        }
+    </style>
+</head>
+<body>
+    <div class="workout-container" id="workoutContainer">
+        <div class="dumbbell-wrapper" id="dumbbellWrapper">
+            <div class="strength-bar bar-left-1"></div>
+            <div class="strength-bar bar-left-2"></div>
+            <div class="strength-bar bar-left-3"></div>
+            <i class="fas fa-dumbbell dumbbell-icon"></i>
+            <div class="strength-bar bar-right-1"></div>
+            <div class="strength-bar bar-right-2"></div>
+            <div class="strength-bar bar-right-3"></div>
+        </div>
+        <span class="workout-text">Workout Log</span>
+    </div>
+
+    <script>
+        const workoutContainer = document.getElementById('workoutContainer');
+        const dumbbellWrapper = document.getElementById('dumbbellWrapper');
+
+        workoutContainer.addEventListener('click', function() {
+            dumbbellWrapper.classList.remove('animate');
+            void dumbbellWrapper.offsetWidth;
+            dumbbellWrapper.classList.add('animate');
+            
+            setTimeout(() => {
+                dumbbellWrapper.classList.remove('animate');
+            }, 1500);
+        });
+    </script>
+</body>
+</html>

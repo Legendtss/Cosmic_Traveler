@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nutrition Animation</title>
+    <!-- Font Awesome CDN -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style>
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background: #f5f5f5;
+        }
+
+        .nutrition-container {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 24px;
+            cursor: pointer;
+            padding: 20px;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            transition: transform 0.2s;
+        }
+
+        .nutrition-container:hover {
+            transform: scale(1.05);
+        }
+
+        .utensils-wrapper {
+            position: relative;
+            display: inline-block;
+        }
+
+        .utensils-icon {
+            font-size: 32px;
+            color: #4CAF50;
+            position: relative;
+            z-index: 2;
+        }
+
+        /* Energy ring */
+        .energy-ring {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 40px;
+            height: 40px;
+            border: 3px solid #4CAF50;
+            border-radius: 50%;
+            opacity: 0;
+            z-index: 1;
+        }
+
+        /* Activate animation */
+        .utensils-wrapper.animate .utensils-icon {
+            animation: powerGlow 2s ease-in-out;
+        }
+
+        .utensils-wrapper.animate .energy-ring {
+            animation: energyPulse 2s ease-out;
+        }
+
+        @keyframes powerGlow {
+            0%, 100% {
+                color: #4CAF50;
+                filter: drop-shadow(0 0 0 transparent);
+                transform: scale(1);
+            }
+            50% {
+                color: #8BC34A;
+                filter: drop-shadow(0 0 15px #8BC34A);
+                transform: scale(1.15);
+            }
+        }
+
+        @keyframes energyPulse {
+            0% {
+                width: 40px;
+                height: 40px;
+                opacity: 0;
+                border-color: #4CAF50;
+            }
+            30% {
+                opacity: 1;
+                border-color: #8BC34A;
+            }
+            100% {
+                width: 100px;
+                height: 100px;
+                opacity: 0;
+                border-color: #CDDC39;
+            }
+        }
+
+        /* Text styling */
+        .nutrition-text {
+            color: #333;
+        }
+    </style>
+</head>
+<body>
+    <div class="nutrition-container" id="nutritionContainer">
+        <div class="utensils-wrapper" id="utensilsWrapper">
+            <i class="fas fa-utensils utensils-icon"></i>
+            <div class="energy-ring"></div>
+        </div>
+        <span class="nutrition-text">Nutrition</span>
+    </div>
+
+    <script>
+        const nutritionContainer = document.getElementById('nutritionContainer');
+        const utensilsWrapper = document.getElementById('utensilsWrapper');
+
+        nutritionContainer.addEventListener('click', function() {
+            utensilsWrapper.classList.remove('animate');
+            void utensilsWrapper.offsetWidth;
+            utensilsWrapper.classList.add('animate');
+            
+            setTimeout(() => {
+                utensilsWrapper.classList.remove('animate');
+            }, 2000);
+        });
+    </script>
+</body>
+</html>
