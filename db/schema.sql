@@ -26,6 +26,7 @@ CREATE TABLE IF NOT EXISTS tasks (
   project_id INTEGER,
   title TEXT NOT NULL,
   description TEXT NOT NULL DEFAULT '',
+  tags_json TEXT NOT NULL DEFAULT '[]',
   category TEXT NOT NULL DEFAULT 'general',
   priority TEXT NOT NULL DEFAULT 'medium' CHECK (priority IN ('low','medium','high')),
   completed INTEGER NOT NULL DEFAULT 0 CHECK (completed IN (0,1)),

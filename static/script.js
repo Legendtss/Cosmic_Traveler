@@ -4,17 +4,15 @@
 
 // Page Navigation
 const NAV_ICON_ANIMATION_CLASSES = [
-  'icon-anim-dumbbell',
   'icon-anim-task',
-  'icon-anim-layers',
-  'icon-anim-calendar'
+  'icon-anim-project',
+  'icon-anim-workout'
 ];
 
 function navIconAnimationClass(pageName) {
-  if (pageName === 'workout') return 'icon-anim-dumbbell';
   if (pageName === 'tasks') return 'icon-anim-task';
-  if (pageName === 'projects') return 'icon-anim-layers';
-  if (pageName === 'calendar') return 'icon-anim-calendar';
+  if (pageName === 'projects') return 'icon-anim-project';
+  if (pageName === 'workout') return 'icon-anim-workout';
   return '';
 }
 
@@ -28,6 +26,14 @@ function triggerNavIconAnimation(icon, pageName) {
   // Force reflow so animation can replay on each click.
   void icon.offsetWidth;
   icon.classList.add(animClass);
+
+  const timeoutMs = Number(icon.getAttribute('data-nav-anim-timeout') || 0);
+  if (timeoutMs > 0) {
+    setTimeout(() => {
+      icon.classList.remove(animClass);
+    }, timeoutMs);
+    return;
+  }
 
   icon.addEventListener('animationend', () => {
     icon.classList.remove(animClass);
@@ -62,8 +68,13 @@ function showPage(pageName) {
   if (navItem) {
     navItem.classList.add('active');
 
-    const icon = navItem.querySelector('i');
-    triggerNavIconAnimation(icon, pageName);
+    const animTargets = navItem.querySelectorAll('[data-nav-anim-target]');
+    if (animTargets.length) {
+      animTargets.forEach((target) => triggerNavIconAnimation(target, pageName));
+    } else {
+      const icon = navItem.querySelector('i');
+      triggerNavIconAnimation(icon, pageName);
+    }
   }
 
   openDashboardActionPicker(false);
@@ -944,13 +955,44 @@ const TASK_ENHANCEMENTS_KEY_BASE = 'fittrack_task_enhancements_v1';
 function taskEnhancementsStorageKey() {
   return activeDemoUserId ? (TASK_ENHANCEMENTS_KEY_BASE + '_' + activeDemoUserId) : TASK_ENHANCEMENTS_KEY_BASE;
 }
+const TASK_LAYOUT_KEY_BASE = 'fittrack_tasks_layout_v1';
+const EISENHOWER_QUADRANTS = [
+  { key: 'urgent_important', title: 'Urgent & Important' },
+  { key: 'important_not_urgent', title: 'Important but Not Urgent' },
+  { key: 'urgent_not_important', title: 'Urgent but Not Important' },
+  { key: 'not_urgent_not_important', title: 'Not Urgent & Not Important' }
+];
+
+function taskLayoutStorageKey() {
+  return activeDemoUserId ? (TASK_LAYOUT_KEY_BASE + '_' + activeDemoUserId) : TASK_LAYOUT_KEY_BASE;
+}
+
+function loadTaskLayoutPreference() {
+  try {
+    const stored = String(localStorage.getItem(taskLayoutStorageKey()) || '').toLowerCase();
+    return stored === 'matrix' || stored === 'tag' ? stored : 'list';
+  } catch (_err) {
+    return 'list';
+  }
+}
+
+function saveTaskLayoutPreference(layout) {
+  try {
+    localStorage.setItem(taskLayoutStorageKey(), layout === 'matrix' || layout === 'tag' ? layout : 'list');
+  } catch (_err) {
+    // no-op
+  }
+}
+
 const taskUiState = {
   showTodayOnly: false,
   showCompleted: true,
+  layout: 'list',
   expanded: new Set(),
   editingTaskId: null,
   isEditModalOpen: false,
-  tasks: []
+  tasks: [],
+  draggingTaskId: null
 };
 let taskEnhancements = {};
 
@@ -979,14 +1021,63 @@ function saveTaskEnhancements() {
 function getTaskEnhancement(taskId) {
   const key = String(taskId);
   if (!taskEnhancements[key]) {
-    taskEnhancements[key] = { subtasks: [], dueAt: null, repeat: 'none', completedDates: {}, completedAtDates: {} };
+    taskEnhancements[key] = { subtasks: [], dueAt: null, repeat: 'none', completedDates: {}, completedAtDates: {}, eisenhowerQuadrant: '', tags: [] };
   } else {
     taskEnhancements[key].subtasks = Array.isArray(taskEnhancements[key].subtasks) ? taskEnhancements[key].subtasks : [];
     taskEnhancements[key].completedDates = taskEnhancements[key].completedDates || {};
     taskEnhancements[key].completedAtDates = taskEnhancements[key].completedAtDates || {};
     taskEnhancements[key].repeat = taskEnhancements[key].repeat || 'none';
+    taskEnhancements[key].eisenhowerQuadrant = String(taskEnhancements[key].eisenhowerQuadrant || '').toLowerCase();
+    taskEnhancements[key].tags = normalizeTaskTags(taskEnhancements[key].tags);
   }
   return taskEnhancements[key];
+}
+
+function isValidEisenhowerQuadrant(value) {
+  return EISENHOWER_QUADRANTS.some((q) => q.key === value);
+}
+
+function getTaskQuadrant(task) {
+  const fromTask = String(task?.eisenhowerQuadrant || '').toLowerCase();
+  if (isValidEisenhowerQuadrant(fromTask)) return fromTask;
+  const ext = getTaskEnhancement(task?.id);
+  const fromExt = String(ext.eisenhowerQuadrant || '').toLowerCase();
+  return isValidEisenhowerQuadrant(fromExt) ? fromExt : '';
+}
+
+function normalizeTaskTags(tags) {
+  if (!Array.isArray(tags)) return [];
+  const seen = new Set();
+  const cleaned = [];
+  tags.forEach((tag) => {
+    const next = String(tag || '').trim().toLowerCase();
+    if (!next || seen.has(next)) return;
+    seen.add(next);
+    cleaned.push(next);
+  });
+  return cleaned;
+}
+
+function parseTaskTagsInput(raw) {
+  return normalizeTaskTags(
+    String(raw || '')
+      .split(',')
+      .map((part) => part.trim())
+      .filter(Boolean)
+  );
+}
+
+function formatTagLabel(tag) {
+  const val = String(tag || '').trim();
+  if (!val) return '';
+  return val.charAt(0).toUpperCase() + val.slice(1);
+}
+
+function getTaskTags(task) {
+  const taskTags = normalizeTaskTags(task?.tags);
+  if (taskTags.length) return taskTags;
+  const ext = getTaskEnhancement(task?.id);
+  return normalizeTaskTags(ext.tags);
 }
 
 function taskDueAt(task) {
@@ -1157,10 +1248,14 @@ function dateTimeLocalValue(dateInput) {
   return `${y}-${m}-${day}T${hh}:${mm}`;
 }
 
-function taskCardHtml(task) {
+function taskCardHtml(task, options = {}) {
+  const usePriorityClass = options.usePriorityClass !== false;
+  const isDraggable = !!options.draggable && !task.completed;
+  const extraClass = String(options.extraClass || '');
   const expanded = taskUiState.expanded.has(task.id);
   const occDate = task.__occurrenceDate || '';
   const subtasks = Array.isArray(task.subtasks) ? task.subtasks : [];
+  const tags = getTaskTags(task);
   const completedSubtasks = subtasks.filter(s => s.completed).length;
   const hasExtra = subtasks.length > 0 || (task.description || '').trim().length > 0;
   const remaining = taskTimeRemaining(task);
@@ -1182,7 +1277,12 @@ function taskCardHtml(task) {
   `).join('');
 
   return `
-    <article class="task-card-v2 ${priorityClass(task.priority)} ${task.completed ? 'is-completed' : ''} ${task.__state === 'overdue' ? 'is-overdue' : ''}" data-occ-date="${occDate}">
+    <article
+      class="task-card-v2 ${usePriorityClass ? priorityClass(task.priority) : ''} ${task.completed ? 'is-completed' : ''} ${task.__state === 'overdue' ? 'is-overdue' : ''} ${extraClass}"
+      data-occ-date="${occDate}"
+      data-task-card-id="${task.id}"
+      ${isDraggable ? `draggable="true" data-task-drag-id="${task.id}"` : ''}
+    >
       <div class="task-row-main">
         <div class="task-main-left">
           <button class="task-main-check ${task.completed ? 'is-done' : ''}" data-action="toggle-task" data-task-id="${task.id}" data-occ-date="${task.__occurrenceDate || ''}">
@@ -1190,6 +1290,7 @@ function taskCardHtml(task) {
           </button>
           <div>
             <h4 class="${task.completed ? 'is-done' : ''}">${escapeHtml(task.title)}</h4>
+            ${tags.length ? `<div class="task-tag-pills">${tags.map(tag => `<span class="task-tag-pill">#${escapeHtml(formatTagLabel(tag))}</span>`).join('')}</div>` : ''}
             <div class="task-main-meta">
               <span><i class="fas fa-calendar-alt"></i> ${formatTaskDue(task)}</span>
               ${remaining ? `<span class="${remaining === 'Overdue' ? 'is-overdue' : 'is-remaining'}"><i class="fas fa-clock"></i> ${remaining}</span>` : ''}
@@ -1254,37 +1355,42 @@ function isTaskCompletedForOccurrence(taskId, occDate) {
   return isTaskOccurrenceDone(task, key);
 }
 
-function renderTasks(tasks) {
+function renderTaskViewToggleState() {
+  const listBtn = document.getElementById('tasks-view-list-btn');
+  const matrixBtn = document.getElementById('tasks-view-matrix-btn');
+  const tagBtn = document.getElementById('tasks-view-tag-btn');
+  if (!listBtn || !matrixBtn || !tagBtn) return;
+  const isList = taskUiState.layout === 'list';
+  const isMatrix = taskUiState.layout === 'matrix';
+  const isTag = taskUiState.layout === 'tag';
+  listBtn.classList.toggle('is-active', isList);
+  matrixBtn.classList.toggle('is-active', isMatrix);
+  tagBtn.classList.toggle('is-active', isTag);
+  listBtn.setAttribute('aria-selected', isList ? 'true' : 'false');
+  matrixBtn.setAttribute('aria-selected', isMatrix ? 'true' : 'false');
+  tagBtn.setAttribute('aria-selected', isTag ? 'true' : 'false');
+}
+
+function renderTasksLayoutVisibility() {
+  const listLayout = document.getElementById('tasks-list-layout');
+  const matrixSection = document.getElementById('tasks-matrix-section');
+  const tagSection = document.getElementById('tasks-tag-section');
+  const isList = taskUiState.layout === 'list';
+  const isMatrix = taskUiState.layout === 'matrix';
+  const isTag = taskUiState.layout === 'tag';
+  if (listLayout) listLayout.style.display = isList ? '' : 'none';
+  if (matrixSection) matrixSection.style.display = isMatrix ? 'block' : 'none';
+  if (tagSection) tagSection.style.display = isTag ? 'block' : 'none';
+  renderTaskViewToggleState();
+}
+
+function renderTasksListView({ sortedActive, sortedOverdue, sortedCompleted }) {
   const activeContainer = document.getElementById('active-tasks-container');
   const overdueContainer = document.getElementById('overdue-tasks-container');
   const completedContainer = document.getElementById('completed-tasks-container');
-  const activeCount = document.getElementById('active-count');
-  const overdueCount = document.getElementById('overdue-count');
-  const completedCount = document.getElementById('completed-count');
-  const progressRemaining = document.getElementById('tasks-progress-remaining');
-  const progressCompleted = document.getElementById('tasks-progress-completed');
-  const progressLabel = document.getElementById('tasks-progress-label');
   const completedSection = document.getElementById('completed-tasks-section');
   const completedChevron = document.getElementById('completed-chevron');
-
   if (!activeContainer || !overdueContainer || !completedContainer) return;
-
-  const renderable = materializeTasksForRender(tasks);
-  const active = renderable.filter(t => t.__state === 'active');
-  const overdue = renderable.filter(t => t.__state === 'overdue');
-  const completed = renderable.filter(t => t.__state === 'completed');
-  const filteredActive = taskUiState.showTodayOnly ? active.filter(t => isTodayDate(taskDueAt(t))) : active;
-  const filteredOverdue = taskUiState.showTodayOnly ? overdue.filter(t => isTodayDate(taskDueAt(t))) : overdue;
-  const sortedActive = [...filteredActive].sort((a, b) => taskDueAt(a).getTime() - taskDueAt(b).getTime());
-  const sortedOverdue = [...filteredOverdue].sort((a, b) => taskDueAt(a).getTime() - taskDueAt(b).getTime());
-  const sortedCompleted = [...completed].sort((a, b) => taskDueAt(b).getTime() - taskDueAt(a).getTime());
-
-  if (activeCount) activeCount.textContent = String(sortedActive.length);
-  if (overdueCount) overdueCount.textContent = String(sortedOverdue.length);
-  if (completedCount) completedCount.textContent = String(completed.length);
-  if (progressRemaining) progressRemaining.textContent = String(sortedActive.length + sortedOverdue.length);
-  if (progressCompleted) progressCompleted.textContent = String(completed.length);
-  if (progressLabel) progressLabel.textContent = taskUiState.showTodayOnly ? "Today's Open Tasks" : 'Open Tasks';
 
   activeContainer.innerHTML = sortedActive.length
     ? sortedActive.map(taskCardHtml).join('')
@@ -1306,12 +1412,166 @@ function renderTasks(tasks) {
   }
 }
 
+function renderTasksMatrixView({ sortedActive, sortedOverdue }) {
+  const matrixSection = document.getElementById('tasks-matrix-section');
+  if (!matrixSection) return;
+
+  const openTasks = [...sortedOverdue, ...sortedActive].sort((a, b) => taskDueAt(a).getTime() - taskDueAt(b).getTime());
+  const groups = {};
+  EISENHOWER_QUADRANTS.forEach((q) => {
+    groups[q.key] = [];
+  });
+  let unassigned = [];
+  let hasAnyAssignedQuadrant = false;
+
+  openTasks.forEach((task) => {
+    const quadrant = getTaskQuadrant(task);
+    if (quadrant && groups[quadrant]) {
+      groups[quadrant].push(task);
+      hasAnyAssignedQuadrant = true;
+    } else {
+      unassigned.push(task);
+    }
+  });
+
+  // Failsafe: if nothing is assigned yet, show open tasks in a default quadrant.
+  if (!hasAnyAssignedQuadrant && openTasks.length) {
+    groups.urgent_important = [...openTasks];
+    unassigned = [];
+  }
+
+  const unassignedHtml = unassigned.length
+    ? `
+      <section class="tasks-matrix-unassigned">
+        <header>
+          <h4>Unassigned Tasks</h4>
+          <span>${unassigned.length}</span>
+        </header>
+        <div class="tasks-matrix-unassigned-list">
+          ${unassigned.map((task) => taskCardHtml(task, { usePriorityClass: false, draggable: true, extraClass: 'task-matrix-card' })).join('')}
+        </div>
+      </section>
+    `
+    : '';
+
+  const quadrantsHtml = EISENHOWER_QUADRANTS.map((q) => {
+    const cards = groups[q.key];
+    return `
+      <section class="tasks-matrix-quadrant tasks-matrix-quadrant--${q.key}" data-eisenhower-dropzone="${q.key}">
+        <header class="tasks-matrix-quadrant-head">
+          <h4>${q.title}</h4>
+          <span>${cards.length}</span>
+        </header>
+        <div class="tasks-matrix-dropzone">
+          ${cards.length
+            ? cards.map((task) => taskCardHtml(task, { usePriorityClass: false, draggable: true, extraClass: 'task-matrix-card' })).join('')
+            : '<div class="tasks-empty-state">Drop tasks here</div>'}
+        </div>
+      </section>
+    `;
+  }).join('');
+
+  matrixSection.innerHTML = `
+    <div class="tasks-matrix-board">
+      <div class="tasks-matrix-axis tasks-matrix-axis-urgent">Urgent &uarr;</div>
+      <div class="tasks-matrix-axis tasks-matrix-axis-important">Important &rarr;</div>
+      ${unassignedHtml}
+      <div class="tasks-matrix-grid">
+        ${quadrantsHtml}
+      </div>
+    </div>
+  `;
+}
+
+function renderTasksTagView({ sortedActive, sortedOverdue }) {
+  const tagSection = document.getElementById('tasks-tag-section');
+  if (!tagSection) return;
+
+  const tagViewTasks = [...sortedOverdue, ...sortedActive]
+    .filter(task => task.__state !== 'completed')
+    .filter(task => {
+      const tags = getTaskTags(task);
+      return Array.isArray(tags) && tags.length > 0;
+    });
+
+  const tagSet = new Set();
+  tagViewTasks.forEach((task) => {
+    getTaskTags(task).forEach((tag) => tagSet.add(tag));
+  });
+  const tags = [...tagSet].sort((a, b) => a.localeCompare(b));
+
+  if (!tags.length) {
+    tagSection.innerHTML = '<div class="tasks-empty-state">No tagged active tasks available.</div>';
+    return;
+  }
+
+  tagSection.innerHTML = `
+    <div class="tasks-tag-columns" aria-label="Task tags">
+      ${tags.map((tag) => {
+        const taggedTasks = tagViewTasks.filter(task => getTaskTags(task).includes(tag));
+        return `
+          <section class="tasks-tag-column">
+            <header class="tasks-tag-column-head">#${escapeHtml(formatTagLabel(tag))} <span>${taggedTasks.length}</span></header>
+            <div class="tasks-list">
+              ${taggedTasks.length
+                ? taggedTasks.map((task) => taskCardHtml(task)).join('')
+                : '<div class="tasks-empty-state">No tasks for this tag.</div>'}
+            </div>
+          </section>
+        `;
+      }).join('')}
+    </div>
+  `;
+}
+
+function renderTasks(tasks) {
+  const activeContainer = document.getElementById('active-tasks-container');
+  const overdueContainer = document.getElementById('overdue-tasks-container');
+  const completedContainer = document.getElementById('completed-tasks-container');
+  const activeCount = document.getElementById('active-count');
+  const overdueCount = document.getElementById('overdue-count');
+  const completedCount = document.getElementById('completed-count');
+  const progressRemaining = document.getElementById('tasks-progress-remaining');
+  const progressCompleted = document.getElementById('tasks-progress-completed');
+  const progressLabel = document.getElementById('tasks-progress-label');
+  if (!activeContainer || !overdueContainer || !completedContainer) return;
+
+  const renderable = materializeTasksForRender(tasks);
+  const active = renderable.filter(t => t.__state === 'active');
+  const overdue = renderable.filter(t => t.__state === 'overdue');
+  const completed = renderable.filter(t => t.__state === 'completed');
+  const filteredActive = taskUiState.showTodayOnly ? active.filter(t => isTodayDate(taskDueAt(t))) : active;
+  const filteredOverdue = taskUiState.showTodayOnly ? overdue.filter(t => isTodayDate(taskDueAt(t))) : overdue;
+  const sortedActive = [...filteredActive].sort((a, b) => taskDueAt(a).getTime() - taskDueAt(b).getTime());
+  const sortedOverdue = [...filteredOverdue].sort((a, b) => taskDueAt(a).getTime() - taskDueAt(b).getTime());
+  const sortedCompleted = [...completed].sort((a, b) => taskDueAt(b).getTime() - taskDueAt(a).getTime());
+
+  if (activeCount) activeCount.textContent = String(sortedActive.length);
+  if (overdueCount) overdueCount.textContent = String(sortedOverdue.length);
+  if (completedCount) completedCount.textContent = String(completed.length);
+  if (progressRemaining) progressRemaining.textContent = String(sortedActive.length + sortedOverdue.length);
+  if (progressCompleted) progressCompleted.textContent = String(completed.length);
+  if (progressLabel) progressLabel.textContent = taskUiState.showTodayOnly ? "Today's Open Tasks" : 'Open Tasks';
+  renderTasksLayoutVisibility();
+  if (taskUiState.layout === 'matrix') {
+    renderTasksMatrixView({ sortedActive, sortedOverdue });
+    return;
+  }
+  if (taskUiState.layout === 'tag') {
+    renderTasksTagView({ sortedActive, sortedOverdue });
+    return;
+  }
+  renderTasksListView({ sortedActive, sortedOverdue, sortedCompleted });
+}
+
 // ========================================
 // Tasks API Functions
 // ========================================
 
 async function loadTasks() {
   try {
+    taskUiState.layout = loadTaskLayoutPreference();
+    renderTaskViewToggleState();
     let tasks;
     if (activeDemoUserId) {
       tasks = getActiveUserTasksData();
@@ -1326,8 +1586,12 @@ async function loadTasks() {
         ...t,
         description: t.description || '',
         subtasks: Array.isArray(ext.subtasks) ? ext.subtasks : [],
+        tags: normalizeTaskTags(Array.isArray(t.tags) ? t.tags : ext.tags),
         dueAt: t.dueAt || ext.dueAt || null,
-        completedAt: t.completedAt || null
+        completedAt: t.completedAt || null,
+        eisenhowerQuadrant: isValidEisenhowerQuadrant(String(t.eisenhowerQuadrant || '').toLowerCase())
+          ? String(t.eisenhowerQuadrant || '').toLowerCase()
+          : (isValidEisenhowerQuadrant(String(ext.eisenhowerQuadrant || '').toLowerCase()) ? String(ext.eisenhowerQuadrant || '').toLowerCase() : '')
       };
     });
     renderTasks(taskUiState.tasks);
@@ -1342,7 +1606,7 @@ async function loadTasks() {
     renderTasks(taskUiState.tasks);
   }
 }
-async function addTask(title, priority, dueHours, repeat, customDateTime) {
+async function addTask(title, priority, dueHours, repeat, customDateTime, tags = []) {
   try {
     const dueDate = new Date(Date.now() + dueHours * 60 * 60 * 1000);
     const dueAt = customDateTime ? new Date(customDateTime) : dueDate;
@@ -1371,6 +1635,7 @@ async function addTask(title, priority, dueHours, repeat, customDateTime) {
       ext.repeat = repeat || 'none';
       ext.completedDates = ext.completedDates || {};
       ext.completedAtDates = ext.completedAtDates || {};
+      ext.tags = normalizeTaskTags(tags);
       saveTaskEnhancements();
       await loadTasks();
       const modal = document.getElementById('add-task-modal');
@@ -1384,6 +1649,7 @@ async function addTask(title, priority, dueHours, repeat, customDateTime) {
       body: JSON.stringify({
         title: title,
         priority: priority || 'medium',
+        tags: normalizeTaskTags(tags),
         date: taskDate,
         dueAt: dueAt.toISOString(),
         category: repeat || 'general',
@@ -1399,6 +1665,7 @@ async function addTask(title, priority, dueHours, repeat, customDateTime) {
       ext.repeat = repeat || 'none';
       ext.completedDates = ext.completedDates || {};
       ext.completedAtDates = ext.completedAtDates || {};
+      ext.tags = normalizeTaskTags(tags);
       saveTaskEnhancements();
       await loadTasks();
       const modal = document.getElementById('add-task-modal');
@@ -1502,11 +1769,34 @@ function updateTaskEnhancement(taskId, updater) {
   saveTaskEnhancements();
 }
 
+function persistTaskQuadrant(taskId, quadrant) {
+  if (!isValidEisenhowerQuadrant(quadrant)) return;
+  updateTaskEnhancement(taskId, (ext) => {
+    ext.eisenhowerQuadrant = quadrant;
+  });
+
+  taskUiState.tasks = taskUiState.tasks.map((task) => (
+    Number(task.id) === Number(taskId)
+      ? { ...task, eisenhowerQuadrant: quadrant }
+      : task
+  ));
+
+  if (activeDemoUserId) {
+    const tasks = getActiveUserTasksData().map((task) => (
+      Number(task.id) === Number(taskId)
+        ? { ...task, eisenhowerQuadrant: quadrant }
+        : task
+    ));
+    setActiveUserTasksData(tasks);
+  }
+}
+
 function taskEditModalElements() {
   return {
     modal: document.getElementById('task-edit-modal'),
     form: document.getElementById('task-edit-form'),
     titleInput: document.getElementById('task-edit-title-input'),
+    tagsInput: document.getElementById('task-edit-tags-input'),
     prioritySelect: document.getElementById('task-edit-priority-select'),
     dueSelect: document.getElementById('task-edit-due-select'),
     dueCustomInput: document.getElementById('task-edit-custom-datetime-input'),
@@ -1553,6 +1843,7 @@ function openTaskEditModal(taskId) {
   const {
     modal,
     titleInput,
+    tagsInput,
     prioritySelect,
     dueSelect,
     dueCustomInput,
@@ -1566,6 +1857,7 @@ function openTaskEditModal(taskId) {
 
   const repeatCfg = getTaskRepeatConfig(task);
   titleInput.value = task.title || '';
+  if (tagsInput) tagsInput.value = getTaskTags(task).join(', ');
   prioritySelect.value = ['low', 'medium', 'high'].includes(task.priority) ? task.priority : 'medium';
   dueSelect.value = 'custom';
   dueCustomInput.value = dateTimeLocalValue(taskDueAt(task));
@@ -1617,6 +1909,7 @@ async function saveTaskEditModalChanges() {
 
   const {
     titleInput,
+    tagsInput,
     prioritySelect,
     dueSelect,
     dueCustomInput,
@@ -1628,6 +1921,7 @@ async function saveTaskEditModalChanges() {
   if (!titleInput || !prioritySelect || !dueSelect || !dueCustomInput || !repeatSelect || !repeatIntervalInput) return;
 
   const title = titleInput.value.trim();
+  const tags = parseTaskTagsInput(tagsInput?.value || '');
   const priority = String(prioritySelect.value || 'medium');
   const dueMode = String(dueSelect.value || 'custom');
   const repeatMode = String(repeatSelect.value || 'none');
@@ -1657,6 +1951,7 @@ async function saveTaskEditModalChanges() {
   if (saveBtn) saveBtn.disabled = true;
   const ok = await updateTask(taskId, {
     title,
+    tags,
     priority,
     dueAt: dueAtIso,
     date: dueKey,
@@ -1672,6 +1967,7 @@ async function saveTaskEditModalChanges() {
   updateTaskEnhancement(taskId, ext => {
     ext.dueAt = dueAtIso;
     ext.repeat = repeatValue;
+    ext.tags = tags;
   });
 
   closeTaskEditModal();
@@ -1707,12 +2003,15 @@ function setupTaskEditModal() {
 
 function setupTaskInteractions() {
   loadTaskEnhancements();
+  taskUiState.layout = loadTaskLayoutPreference();
   setupTaskEditModal();
 
   const todayBtn = document.getElementById('task-filter-today-btn');
   const completedBtn = document.getElementById('toggle-completed-btn');
+  const viewButtons = Array.from(document.querySelectorAll('[data-task-view]'));
   const tasksPage = document.getElementById('tasks');
   if (!tasksPage) return;
+  renderTaskViewToggleState();
 
   if (todayBtn) {
     todayBtn.addEventListener('click', () => {
@@ -1725,12 +2024,77 @@ function setupTaskInteractions() {
     });
   }
 
+  if (viewButtons.length) {
+    viewButtons.forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const nextView = String(btn.getAttribute('data-task-view') || '').toLowerCase();
+        taskUiState.layout = nextView === 'matrix' || nextView === 'tag' ? nextView : 'list';
+        saveTaskLayoutPreference(taskUiState.layout);
+        renderTasks(taskUiState.tasks);
+      });
+    });
+  }
+
   if (completedBtn) {
     completedBtn.addEventListener('click', () => {
       taskUiState.showCompleted = !taskUiState.showCompleted;
       renderTasks(taskUiState.tasks);
     });
   }
+
+  tasksPage.addEventListener('dragstart', (e) => {
+    if (taskUiState.layout !== 'matrix') return;
+    const card = e.target?.closest?.('[data-task-drag-id]');
+    if (!card) return;
+    const taskId = String(card.getAttribute('data-task-drag-id') || '');
+    if (!taskId) return;
+    taskUiState.draggingTaskId = taskId;
+    card.classList.add('is-dragging');
+    if (e.dataTransfer) {
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', taskId);
+    }
+  });
+
+  tasksPage.addEventListener('dragend', (e) => {
+    const card = e.target?.closest?.('[data-task-drag-id]');
+    if (card) card.classList.remove('is-dragging');
+    taskUiState.draggingTaskId = null;
+    tasksPage.querySelectorAll('[data-eisenhower-dropzone].is-drag-over').forEach((zone) => {
+      zone.classList.remove('is-drag-over');
+    });
+  });
+
+  tasksPage.addEventListener('dragover', (e) => {
+    if (taskUiState.layout !== 'matrix') return;
+    const zone = e.target?.closest?.('[data-eisenhower-dropzone]');
+    if (!zone) return;
+    e.preventDefault();
+    zone.classList.add('is-drag-over');
+    if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+  });
+
+  tasksPage.addEventListener('dragleave', (e) => {
+    const zone = e.target?.closest?.('[data-eisenhower-dropzone]');
+    if (!zone) return;
+    const related = e.relatedTarget;
+    if (related && zone.contains(related)) return;
+    zone.classList.remove('is-drag-over');
+  });
+
+  tasksPage.addEventListener('drop', (e) => {
+    if (taskUiState.layout !== 'matrix') return;
+    const zone = e.target?.closest?.('[data-eisenhower-dropzone]');
+    if (!zone) return;
+    e.preventDefault();
+    zone.classList.remove('is-drag-over');
+    const quadrant = String(zone.getAttribute('data-eisenhower-dropzone') || '').toLowerCase();
+    if (!isValidEisenhowerQuadrant(quadrant)) return;
+    const draggedTaskId = String((e.dataTransfer && e.dataTransfer.getData('text/plain')) || taskUiState.draggingTaskId || '');
+    if (!draggedTaskId) return;
+    persistTaskQuadrant(draggedTaskId, quadrant);
+    renderTasks(taskUiState.tasks);
+  });
 
   tasksPage.addEventListener('click', async (e) => {
     if (taskUiState.isEditModalOpen) return;
@@ -1740,6 +2104,7 @@ function setupTaskInteractions() {
 
     const card = button.closest('.task-card-v2');
     const action = button.getAttribute('data-action');
+
     const taskId = Number(button.getAttribute('data-task-id'));
     const occDate = button.getAttribute('data-occ-date') || card?.getAttribute('data-occ-date') || null;
     if (!taskId) return;
@@ -5147,10 +5512,38 @@ const DEFAULT_STATISTICS_STATE = {
     { name: 'Protein', value: 30, color: '#EF4444' },
     { name: 'Carbs', value: 45, color: '#3B82F6' },
     { name: 'Fats', value: 25, color: '#F59E0B' }
-  ]
+  ],
+  taskTotals: {
+    total: 0,
+    completed: 0,
+    open: 0,
+    overdue: 0
+  }
 };
 
 let statisticsState = deepClone(DEFAULT_STATISTICS_STATE);
+
+function getEnabledStatisticsModules() {
+  const profileModules = profileState && typeof profileState.enabledModules === 'object'
+    ? profileState.enabledModules
+    : null;
+  if (profileModules) {
+    return {
+      workout: !!profileModules.workout,
+      nutrition: !!profileModules.nutrition,
+      tasks: !!profileModules.tasks
+    };
+  }
+
+  const prefs = typeof getCurrentLayoutPreferencesForActiveUser === 'function'
+    ? getCurrentLayoutPreferencesForActiveUser()
+    : (activeDemoFeaturePrefs || {});
+  return {
+    workout: !!prefs.showWorkout,
+    nutrition: !!prefs.showNutrition,
+    tasks: !!prefs.showProjects
+  };
+}
 
 function updateStatisticsForActiveUser() {
   const tasks = activeDemoUserId ? getActiveUserTasksData() : (Array.isArray(taskUiState.tasks) ? taskUiState.tasks : []);
@@ -5244,60 +5637,123 @@ function updateStatisticsForActiveUser() {
     ]
     : deepClone(DEFAULT_STATISTICS_STATE.macroDistribution);
 
+  const taskRenderable = materializeTasksForRender(tasks);
+  const overdueTaskCount = taskRenderable.filter(t => t.__state === 'overdue').length;
+  const completedTaskCount = tasks.filter(t => !!t.completed || !!t.completedAt).length;
+  const totalTaskCount = tasks.length;
+  const openTaskCount = Math.max(0, totalTaskCount - completedTaskCount);
+
   statisticsState = {
     weeklyData,
     workoutTypeData,
     monthlyProgress,
     nutritionData,
-    macroDistribution
+    macroDistribution,
+    taskTotals: {
+      total: totalTaskCount,
+      completed: completedTaskCount,
+      open: openTaskCount,
+      overdue: overdueTaskCount
+    }
   };
 }
-function statisticsSummaryCards() {
+function statisticsSummaryCards(enabledModules) {
   const weeklyWorkouts = statisticsState.weeklyData.reduce((sum, row) => sum + row.workouts, 0);
   const totalMinutes = statisticsState.weeklyData.reduce((sum, row) => sum + row.time, 0);
   const totalCalories = statisticsState.weeklyData.reduce((sum, row) => sum + row.calories, 0);
+  const weeklyCaloriesIntake = statisticsState.nutritionData.reduce((sum, row) => sum + (Number(row.calories) || 0), 0);
+  const avgProtein = Math.round(
+    statisticsState.nutritionData.reduce((sum, row) => sum + (Number(row.protein) || 0), 0)
+    / Math.max(statisticsState.nutritionData.length, 1)
+  );
   const avgDuration = Math.round(totalMinutes / Math.max(weeklyWorkouts, 1));
   const hours = (totalMinutes / 60).toFixed(1);
-  return [
-    {
+  const cards = [];
+
+  if (enabledModules.workout) {
+    cards.push({
       icon: 'fa-wave-square',
       color: 'blue',
       title: 'This Week',
       value: `${weeklyWorkouts} Workouts`,
       note: '+25% from last week',
       noteClass: ''
-    },
-    {
+    });
+    cards.push({
       icon: 'fa-clock',
       color: 'green',
       title: 'Total Time',
       value: `${hours} Hours`,
       note: '+15% from last week',
       noteClass: ''
-    },
-    {
+    });
+    cards.push({
       icon: 'fa-fire',
       color: 'orange',
       title: 'Calories',
       value: `${totalCalories.toLocaleString()} kcal`,
       note: '+18% from last week',
       noteClass: ''
-    },
-    {
+    });
+    cards.push({
       icon: 'fa-heart-pulse',
       color: 'purple',
       title: 'Avg. Duration',
       value: `${avgDuration} minutes`,
       note: 'per workout',
       noteClass: 'neutral'
-    }
-  ];
+    });
+  }
+
+  if (enabledModules.nutrition) {
+    cards.push({
+      icon: 'fa-utensils',
+      color: 'orange',
+      title: 'Weekly Intake',
+      value: `${weeklyCaloriesIntake.toLocaleString()} kcal`,
+      note: 'nutrition total',
+      noteClass: 'neutral'
+    });
+    cards.push({
+      icon: 'fa-drumstick-bite',
+      color: 'green',
+      title: 'Avg Protein',
+      value: `${avgProtein} g/day`,
+      note: 'weekly average',
+      noteClass: 'neutral'
+    });
+  }
+
+  if (enabledModules.tasks) {
+    cards.push({
+      icon: 'fa-list-check',
+      color: 'blue',
+      title: 'Open Tasks',
+      value: `${statisticsState.taskTotals.open}`,
+      note: `${statisticsState.taskTotals.overdue} overdue`,
+      noteClass: statisticsState.taskTotals.overdue > 0 ? '' : 'neutral'
+    });
+    cards.push({
+      icon: 'fa-check-double',
+      color: 'purple',
+      title: 'Completed',
+      value: `${statisticsState.taskTotals.completed}`,
+      note: `${statisticsState.taskTotals.total} total tasks`,
+      noteClass: 'neutral'
+    });
+  }
+
+  return cards;
 }
 
-function renderStatisticsSummary() {
+function renderStatisticsSummary(enabledModules) {
   const grid = document.getElementById('statistics-summary-grid');
   if (!grid) return;
-  const cards = statisticsSummaryCards();
+  const cards = statisticsSummaryCards(enabledModules);
+  if (!cards.length) {
+    grid.innerHTML = '';
+    return;
+  }
   grid.innerHTML = cards.map((card, index) => `
     <article class="statistics-summary-card" style="--stat-delay:${80 + (index * 70)}ms;">
       <div class="statistics-summary-top">
@@ -5312,35 +5768,45 @@ function renderStatisticsSummary() {
   `).join('');
 }
 
-function renderStatisticsBars() {
+function renderStatisticsBars(enabledModules) {
   const bars = document.getElementById('statistics-weekly-bars');
   const legend = document.getElementById('statistics-weekly-legend');
   if (!bars) return;
   const stackHeight = 220;
-  const maxTotalRaw = Math.max(...statisticsState.weeklyData.map(row => row.workouts + row.nutrition + row.tasks), 1);
+  const includeWorkout = !!enabledModules.workout;
+  const includeNutrition = !!enabledModules.nutrition;
+  const includeTasks = !!enabledModules.tasks;
+
+  const maxTotalRaw = Math.max(...statisticsState.weeklyData.map((row) => {
+    let total = 0;
+    if (includeWorkout) total += row.workouts;
+    if (includeNutrition) total += row.nutrition;
+    if (includeTasks) total += row.tasks;
+    return total;
+  }), 1);
   const maxTotal = Math.max(1, Math.ceil(maxTotalRaw * 1.05));
   const yAxisMax = Math.max(1, Math.ceil(maxTotalRaw));
   const yTicks = Array.from({ length: 5 }, (_, i) => Math.round((yAxisMax * (4 - i)) / 4));
   if (legend) {
-    legend.innerHTML = `
-      <span style="--stat-delay:260ms;"><i class="dot blue"></i> Workouts</span>
-      <span style="--stat-delay:320ms;"><i class="dot green"></i> Nutrition</span>
-      <span style="--stat-delay:380ms;"><i class="dot purple"></i> Tasks</span>
-    `;
+    const legendItems = [];
+    if (includeWorkout) legendItems.push('<span style="--stat-delay:260ms;"><i class="dot blue"></i> Workouts</span>');
+    if (includeNutrition) legendItems.push('<span style="--stat-delay:320ms;"><i class="dot green"></i> Nutrition</span>');
+    if (includeTasks) legendItems.push('<span style="--stat-delay:380ms;"><i class="dot purple"></i> Tasks</span>');
+    legend.innerHTML = legendItems.join('');
   }
   const barCols = statisticsState.weeklyData.map((row, index) => {
     const workouts = Number(row.workouts) || 0;
     const nutrition = Number(row.nutrition) || 0;
     const tasks = Number(row.tasks) || 0;
-    const workoutPx = Math.max(0, Math.round((workouts / maxTotal) * stackHeight));
-    const nutritionPx = Math.max(0, Math.round((nutrition / maxTotal) * stackHeight));
-    const tasksPx = Math.max(0, Math.round((tasks / maxTotal) * stackHeight));
+    const workoutPx = includeWorkout ? Math.max(0, Math.round((workouts / maxTotal) * stackHeight)) : 0;
+    const nutritionPx = includeNutrition ? Math.max(0, Math.round((nutrition / maxTotal) * stackHeight)) : 0;
+    const tasksPx = includeTasks ? Math.max(0, Math.round((tasks / maxTotal) * stackHeight)) : 0;
     return `
       <div class="statistics-bar-col">
         <div class="statistics-stack" title="Workouts: ${workouts}, Nutrition: ${nutrition}, Tasks: ${tasks}">
-          <div class="statistics-seg purple" style="height:${tasksPx}px; animation-delay:${index * 0.06}s"></div>
-          <div class="statistics-seg green" style="height:${nutritionPx}px; animation-delay:${index * 0.06 + 0.02}s"></div>
-          <div class="statistics-seg blue" style="height:${workoutPx}px; animation-delay:${index * 0.06 + 0.04}s"></div>
+          ${includeTasks ? `<div class="statistics-seg purple" style="height:${tasksPx}px; animation-delay:${index * 0.06}s"></div>` : ''}
+          ${includeNutrition ? `<div class="statistics-seg green" style="height:${nutritionPx}px; animation-delay:${index * 0.06 + 0.02}s"></div>` : ''}
+          ${includeWorkout ? `<div class="statistics-seg blue" style="height:${workoutPx}px; animation-delay:${index * 0.06 + 0.04}s"></div>` : ''}
         </div>
         <span class="statistics-bar-label">${row.day}</span>
       </div>
@@ -5355,6 +5821,103 @@ function renderStatisticsBars() {
       ${barCols}
     </div>
   `;
+}
+
+function renderStatisticsTaskOverview() {
+  const wrap = document.getElementById('statistics-task-overview');
+  if (!wrap) return;
+  wrap.innerHTML = `
+    <div class="statistics-task-metric">
+      <span>Open Tasks</span>
+      <strong>${statisticsState.taskTotals.open}</strong>
+    </div>
+    <div class="statistics-task-metric">
+      <span>Completed</span>
+      <strong>${statisticsState.taskTotals.completed}</strong>
+    </div>
+    <div class="statistics-task-metric">
+      <span>Overdue</span>
+      <strong>${statisticsState.taskTotals.overdue}</strong>
+    </div>
+    <div class="statistics-task-metric">
+      <span>Total Tasks</span>
+      <strong>${statisticsState.taskTotals.total}</strong>
+    </div>
+  `;
+}
+
+function renderStatisticsDynamicLayout(enabledModules) {
+  const container = document.getElementById('statistics-dynamic-content');
+  if (!container) return;
+
+  const noneEnabled = !enabledModules.workout && !enabledModules.nutrition && !enabledModules.tasks;
+  if (noneEnabled) {
+    container.innerHTML = `
+      <section class="statistics-panel statistics-empty-state">
+        Enable modules in Profile to see statistics.
+      </section>
+    `;
+    return;
+  }
+
+  const rows = [];
+  if (enabledModules.workout) {
+    rows.push(`
+      <div class="statistics-two-grid">
+        <section class="statistics-panel">
+          <h3>Weekly Activity</h3>
+          <div id="statistics-weekly-legend" class="statistics-legend-inline"></div>
+          <div id="statistics-weekly-bars" class="statistics-bars"></div>
+        </section>
+        <section class="statistics-panel">
+          <h3>Workout Distribution</h3>
+          <div class="statistics-pie-wrap">
+            <div id="statistics-workout-pie" class="statistics-pie"></div>
+            <div id="statistics-workout-legend" class="statistics-legend"></div>
+          </div>
+        </section>
+      </div>
+      <section class="statistics-panel">
+        <h3>6-Month Progress</h3>
+        <div class="statistics-chart-wrap">
+          <svg id="statistics-monthly-svg" class="statistics-line-svg tall" viewBox="0 0 680 320" preserveAspectRatio="none"></svg>
+          <div id="statistics-monthly-labels" class="statistics-x-labels"></div>
+        </div>
+      </section>
+    `);
+  }
+
+  if (enabledModules.nutrition) {
+    rows.push(`
+      <div class="statistics-two-grid">
+        <section class="statistics-panel">
+          <h3>Weekly Nutrition Intake</h3>
+          <div class="statistics-chart-wrap">
+            <svg id="statistics-nutrition-svg" class="statistics-line-svg" viewBox="0 0 680 280" preserveAspectRatio="none"></svg>
+            <div id="statistics-nutrition-labels" class="statistics-x-labels"></div>
+          </div>
+        </section>
+        <section class="statistics-panel">
+          <h3>Macro Distribution</h3>
+          <div class="statistics-pie-wrap">
+            <div id="statistics-macro-pie" class="statistics-pie"></div>
+            <div id="statistics-macro-legend" class="statistics-legend"></div>
+          </div>
+        </section>
+      </div>
+    `);
+  }
+
+  if (enabledModules.tasks) {
+    rows.push(`
+      <section class="statistics-panel">
+        <h3>Task Overview</h3>
+        <div id="statistics-task-overview" class="statistics-task-overview-grid"></div>
+      </section>
+    `);
+  }
+
+  container.innerHTML = rows.join('');
 }
 
 function renderStatisticsPie(pieEl, legendEl, data) {
@@ -5570,20 +6133,33 @@ function renderMonthlyLineChart() {
 }
 
 function renderStatistics() {
-  renderStatisticsSummary();
-  renderStatisticsBars();
-  renderStatisticsPie(
-    document.getElementById('statistics-workout-pie'),
-    document.getElementById('statistics-workout-legend'),
-    statisticsState.workoutTypeData
-  );
-  renderStatisticsPie(
-    document.getElementById('statistics-macro-pie'),
-    document.getElementById('statistics-macro-legend'),
-    statisticsState.macroDistribution
-  );
-  renderNutritionAreaChart();
-  renderMonthlyLineChart();
+  const enabledModules = getEnabledStatisticsModules();
+  renderStatisticsSummary(enabledModules);
+  renderStatisticsDynamicLayout(enabledModules);
+
+  if (enabledModules.workout) {
+    renderStatisticsBars(enabledModules);
+    renderStatisticsPie(
+      document.getElementById('statistics-workout-pie'),
+      document.getElementById('statistics-workout-legend'),
+      statisticsState.workoutTypeData
+    );
+    renderMonthlyLineChart();
+  }
+
+  if (enabledModules.nutrition) {
+    renderStatisticsPie(
+      document.getElementById('statistics-macro-pie'),
+      document.getElementById('statistics-macro-legend'),
+      statisticsState.macroDistribution
+    );
+    renderNutritionAreaChart();
+  }
+
+  if (enabledModules.tasks) {
+    renderStatisticsTaskOverview();
+  }
+
   animateStatisticsEntry();
 }
 
@@ -5735,7 +6311,39 @@ function loadProfileState() {
           ? 'gain'
           : 'maintain';
     }
+    // Sanitize core numeric fields to avoid invalid profile state locking nutrition.
+    if (!Number.isFinite(Number(profileState.age)) || Number(profileState.age) <= 0) {
+      profileState.age = defaultProfile.age;
+    }
+    if (!Number.isFinite(Number(profileState.height)) || Number(profileState.height) <= 0) {
+      profileState.height = defaultProfile.height;
+    }
+    if (!Number.isFinite(Number(profileState.currentWeight)) || Number(profileState.currentWeight) <= 0) {
+      profileState.currentWeight = defaultProfile.currentWeight;
+    }
+    const ruleGoal = effectiveWeightRuleGoal(profileState.goal, profileState.weightGoal);
+    if (ruleGoal === 'maintain') {
+      profileState.targetWeight = profileState.currentWeight;
+    } else if (!Number.isFinite(Number(profileState.targetWeight)) || Number(profileState.targetWeight) <= 0) {
+      profileState.targetWeight = ruleGoal === 'loss'
+        ? Math.max(1, profileState.currentWeight - 5)
+        : profileState.currentWeight + 5;
+    }
+    const validation = validateProfileWeights({
+      goal: profileState.goal,
+      weightGoal: profileState.weightGoal,
+      currentWeight: profileState.currentWeight,
+      targetWeight: profileState.targetWeight
+    });
+    if (!validation.valid) {
+      profileState.targetWeight = ruleGoal === 'loss'
+        ? Math.max(1, profileState.currentWeight - 5)
+        : ruleGoal === 'gain'
+          ? profileState.currentWeight + 5
+          : profileState.currentWeight;
+    }
     profileState = { ...profileState, ...calculateProfileHealthMetrics(profileState) };
+    persistProfileState();
   } catch (_err) {
     profileState = { ...defaultProfile };
   }
@@ -5978,12 +6586,22 @@ function refreshCalculatedProfileMetricsFromForm(persist = false) {
     ...currentProfileFormValues()
   };
   const metrics = calculateProfileHealthMetrics(draft);
-  profileState = {
+  const nextState = {
     ...profileState,
     ...draft,
     ...metrics
   };
-  if (persist) persistProfileState();
+  const validation = validateProfileWeights({
+    goal: nextState.goal,
+    weightGoal: nextState.weightGoal,
+    currentWeight: nextState.currentWeight,
+    targetWeight: nextState.targetWeight
+  });
+  const canApplyDraft = isProfileCoreDataComplete(nextState) && validation.valid;
+  if (persist || canApplyDraft) {
+    profileState = nextState;
+    if (persist) persistProfileState();
+  }
   syncNutritionGoalWithProfile();
   renderNutritionUI();
   updateNutritionAccessState();
@@ -6225,6 +6843,7 @@ function setupTaskModal() {
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     const titleInput = document.getElementById('task-title-input');
+    const tagsInput = document.getElementById('task-tags-input');
     const priorityInput = document.getElementById('task-priority-select');
     const dueInput = document.getElementById('task-due-select');
     const repeatInput = document.getElementById('task-repeat-select');
@@ -6245,12 +6864,14 @@ function setupTaskModal() {
         priorityInput ? priorityInput.value : 'medium',
         dueHours,
         repeatInput ? repeatInput.value : 'none',
-        customDateInput ? customDateInput.value : null
+        customDateInput ? customDateInput.value : null,
+        parseTaskTagsInput(tagsInput?.value || '')
       );
       
       form.reset();
       if (dueSelect) dueSelect.value = '24';
       if (customDateInput) customDateInput.style.display = 'none';
+      if (tagsInput) tagsInput.value = '';
     }
   });
 }
@@ -6301,14 +6922,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     await runInitStep('loadActiveUserDataViews', () => loadActiveUserDataViews());
   }
 
-  window.addEventListener('beforeunload', () => {
-    if (dashboardState.timerRunning) {
-      dashboardState.timerRunning = false;
-      if (dashboardState.timerInterval) clearInterval(dashboardState.timerInterval);
-      dashboardState.timerInterval = null;
-    }
-  });
-
   window.addEventListener('focus', () => {
     if (activeDemoUserId && !findDemoUserById(activeDemoUserId)) {
       console.warn('Invalid demo user detected - clearing session');
@@ -6319,8 +6932,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
   window.addEventListener('beforeunload', () => {
-    if (dashboardState.timerRunning || dashboardState.timerInterval) {
-      if (dashboardState.timerInterval) clearInterval(dashboardState.timerInterval);
+    dashboardState.timerRunning = false;
+    if (dashboardState.timerInterval) {
+      clearInterval(dashboardState.timerInterval);
+      dashboardState.timerInterval = null;
     }
     taskUiState.expanded.clear();
   });

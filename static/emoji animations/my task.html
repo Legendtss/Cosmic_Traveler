@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Task Strikethrough Animation</title>
+    <!-- Font Awesome CDN -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style>
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background: #f5f5f5;
+        }
+
+        .task-container {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 24px;
+            cursor: pointer;
+            padding: 20px;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            transition: transform 0.2s;
+        }
+
+        .task-container:hover {
+            transform: scale(1.05);
+        }
+
+        .check-icon {
+            font-size: 32px;
+            color: #4CAF50;
+        }
+
+        /* Text wrapper with strikethrough effect */
+        .task-text-wrapper {
+            position: relative;
+            display: inline-block;
+        }
+
+        .task-text {
+            color: #333;
+            transition: opacity 1s ease, color 1s ease;
+        }
+
+        /* Strikethrough line */
+        .strikethrough {
+            position: absolute;
+            top: 50%;
+            left: 0;
+            width: 0;
+            height: 2px;
+            background: #333;
+            transform: translateY(-50%);
+            transition: width 1s ease;
+        }
+
+        /* Animation states */
+        .task-text-wrapper.complete .task-text {
+            opacity: 0.4;
+            color: #999;
+        }
+
+        .task-text-wrapper.complete .strikethrough {
+            width: 100%;
+        }
+    </style>
+</head>
+<body>
+    <div class="task-container" id="taskContainer">
+        <i class="fas fa-check-circle check-icon"></i>
+        <div class="task-text-wrapper" id="taskWrapper">
+            <span class="task-text">My Tasks</span>
+            <div class="strikethrough"></div>
+        </div>
+    </div>
+
+    <script>
+        const taskContainer = document.getElementById('taskContainer');
+        const taskWrapper = document.getElementById('taskWrapper');
+
+        taskContainer.addEventListener('click', function() {
+            // Toggle complete state
+            if (taskWrapper.classList.contains('complete')) {
+                taskWrapper.classList.remove('complete');
+            } else {
+                taskWrapper.classList.add('complete');
+            }
+        });
+    </script>
+</body>
+</html>

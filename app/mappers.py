@@ -6,10 +6,19 @@ def map_task(row):
     due_at = f"{date_value}T23:59:00" if date_value else None
     completed = bool(row["completed"])
     completed_at = row["updated_at"] if completed else None
+    tags = []
+    try:
+        tags = json.loads(row["tags_json"] or "[]")
+    except (TypeError, ValueError, KeyError):
+        tags = []
+    if not isinstance(tags, list):
+        tags = []
+    tags = [str(t).strip().lower() for t in tags if str(t).strip()]
     return {
         "id": row["id"],
         "title": row["title"],
         "description": row["description"],
+        "tags": tags,
         "category": row["category"],
         "priority": row["priority"],
         "completed": completed,

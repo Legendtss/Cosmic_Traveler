@@ -15,6 +15,20 @@ def _default_user_id():
     return current_app.config["DEFAULT_USER_ID"]
 
 
+def _normalize_tags(value):
+    if not isinstance(value, list):
+        return []
+    out = []
+    seen = set()
+    for raw in value:
+        tag = str(raw or "").strip().lower()
+        if not tag or tag in seen:
+            continue
+        seen.add(tag)
+        out.append(tag)
+    return out
+
+
 @web_bp.route("/")
 def index():
     return send_from_directory(str(current_app.config["STATIC_DIR"]), "index.html")
@@ -97,17 +111,19 @@ def create_task():
         due_date = today_str()
 
     created_at = now_iso()
+    tags = _normalize_tags(req_data.get("tags"))
     cursor = db.execute(
         """
         INSERT INTO tasks
-        (user_id, project_id, title, description, category, priority, completed, date, time_spent, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        (user_id, project_id, title, description, tags_json, category, priority, completed, date, time_spent, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             _default_user_id(),
             req_data.get("project_id"),
             title,
             req_data.get("description", ""),
+            json.dumps(tags),
             req_data.get("category", "general"),
             priority,
             0,
@@ -141,6 +157,9 @@ def update_task(task_id):
     priority = req_data.get("priority", row["priority"])
     completed = req_data.get("completed", bool(row["completed"]))
     time_spent = req_data.get("time_spent", row["time_spent"])
+    tags_json = row["tags_json"] if "tags_json" in row.keys() else "[]"
+    if "tags" in req_data:
+        tags_json = json.dumps(_normalize_tags(req_data.get("tags")))
     due_at = req_data.get("due_at") or req_data.get("dueAt")
     due_date = req_data.get("date", row["date"])
     if isinstance(due_at, str) and due_at:
@@ -152,12 +171,13 @@ def update_task(task_id):
     db.execute(
         """
         UPDATE tasks
-        SET title = ?, description = ?, category = ?, priority = ?, completed = ?, date = ?, time_spent = ?, updated_at = ?
+        SET title = ?, description = ?, tags_json = ?, category = ?, priority = ?, completed = ?, date = ?, time_spent = ?, updated_at = ?
         WHERE id = ? AND user_id = ?
         """,
         (
             title,
             description,
+            tags_json,
             category,
             priority,
             1 if completed else 0,

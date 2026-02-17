@@ -51,6 +51,14 @@ def init_schema(conn):
         conn.executescript(f.read())
 
 
+def ensure_tasks_tags_column(conn):
+    cols = conn.execute("PRAGMA table_info(tasks)").fetchall()
+    names = {row["name"] for row in cols}
+    if "tags_json" in names:
+        return
+    conn.execute("ALTER TABLE tasks ADD COLUMN tags_json TEXT NOT NULL DEFAULT '[]'")
+
+
 def ensure_default_user(conn):
     conn.execute(
         """
@@ -105,11 +113,12 @@ def migrate_json_to_sqlite(conn):
             conn.execute(
                 """
                 INSERT INTO tasks
-                (id, user_id, project_id, title, description, category, priority, completed, date, time_spent, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                (id, user_id, project_id, title, description, tags_json, category, priority, completed, date, time_spent, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(id) DO UPDATE SET
                   title=excluded.title,
                   description=excluded.description,
+                  tags_json=excluded.tags_json,
                   category=excluded.category,
                   priority=excluded.priority,
                   completed=excluded.completed,
@@ -123,6 +132,7 @@ def migrate_json_to_sqlite(conn):
                     t.get("project_id"),
                     t["title"],
                     t.get("description", ""),
+                    json.dumps(t.get("tags", []) if isinstance(t.get("tags"), list) else []),
                     t.get("category", "general"),
                     priority,
                     1 if t.get("completed") else 0,
@@ -230,10 +240,10 @@ def init_app_data(app):
     try:
         with app.app_context():
             init_schema(conn)
+            ensure_tasks_tags_column(conn)
             if should_migrate_json(conn):
                 migrate_json_to_sqlite(conn)
             ensure_default_user(conn)
         conn.commit()
     finally:
         conn.close()
-
