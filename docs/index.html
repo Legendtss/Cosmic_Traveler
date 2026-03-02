@@ -1015,10 +1015,70 @@
               <p>Monitor your daily nutrition intake</p>
             </div>
             <div class="nutrition-header-actions">
+              <button id="nutrition-ai-toggle-btn" class="nutrition-btn nutrition-btn-green" onclick="toggleAIMealLog()">
+                <i class="fas fa-robot"></i> AI Log
+              </button>
               <button id="nutrition-toggle-form-btn" class="nutrition-btn nutrition-btn-blue">
                 <i class="fas fa-plus"></i> Log Meal
               </button>
             </div>
+          </div>
+
+          <!-- AI Meal Logging Panel (2-Step Confirmation Flow) -->
+          <div id="nutrition-ai-panel" class="nutrition-block nutrition-collapsed">
+            <div class="nutrition-ai-header">
+              <div class="nutrition-ai-icon"><i class="fas fa-robot"></i></div>
+              <div>
+                <h3>AI Meal Logger</h3>
+                <p>Type what you ate — review matches before logging</p>
+              </div>
+            </div>
+            <!-- Step 1: Input -->
+            <div id="ai-step-input" class="nutrition-ai-form">
+              <div class="nutrition-form-grid">
+                <div>
+                  <label for="ai-meal-type">Meal Type</label>
+                  <select id="ai-meal-type">
+                    <option value="breakfast">Breakfast</option>
+                    <option value="lunch">Lunch</option>
+                    <option value="dinner">Dinner</option>
+                    <option value="snack">Snack</option>
+                  </select>
+                </div>
+                <div style="flex:2">
+                  <label for="ai-food-input">What did you eat?</label>
+                  <input id="ai-food-input" type="text" placeholder="e.g., 2 eggs and 1 cup cooked white rice" autocomplete="off">
+                </div>
+              </div>
+              <div class="nutrition-form-actions">
+                <button type="button" id="ai-detect-btn" class="nutrition-btn nutrition-btn-green" onclick="submitAIDetect()">
+                  <i class="fas fa-search"></i> Detect Foods
+                </button>
+                <button type="button" class="nutrition-btn nutrition-btn-soft" onclick="toggleAIMealLog()">Cancel</button>
+              </div>
+            </div>
+            <!-- Status / loading -->
+            <div id="ai-meal-status" class="nutrition-ai-status nutrition-collapsed"></div>
+            <!-- Step 2: Confirmation table -->
+            <div id="ai-step-confirm" class="nutrition-ai-confirm nutrition-collapsed">
+              <div class="nutrition-ai-confirm-header">
+                <h4><i class="fas fa-check-circle"></i> Review Detected Foods</h4>
+                <p>Edit quantities, remove items, or confirm to log.</p>
+              </div>
+              <div id="ai-confirm-table-wrap"></div>
+              <div id="ai-confirm-clarifications" class="nutrition-collapsed"></div>
+              <div id="ai-confirm-totals" class="nutrition-ai-totals"></div>
+              <div class="nutrition-form-actions ai-confirm-actions">
+                <button type="button" id="ai-confirm-btn" class="nutrition-btn nutrition-btn-green" onclick="confirmAIMealLog()">
+                  <i class="fas fa-check"></i> Confirm & Log
+                </button>
+                <button type="button" class="nutrition-btn nutrition-btn-soft" onclick="cancelAIConfirm()">
+                  <i class="fas fa-arrow-left"></i> Back
+                </button>
+              </div>
+            </div>
+            <!-- Step 3: Result (post-save) -->
+            <div id="ai-meal-result" class="nutrition-ai-result nutrition-collapsed"></div>
           </div>
 
           <div class="nutrition-goals-panel">
@@ -1364,6 +1424,47 @@
       <span>Start Timer</span>
     </button>
   </div>
+  <!-- AI Avatar Chat Widget -->
+  <div id="ai-avatar-fab" class="ai-avatar-fab" onclick="toggleAIChat()" title="AI Assistant">
+    <i class="fas fa-robot"></i>
+    <span class="ai-fab-pulse"></span>
+  </div>
+
+  <div id="ai-chat-panel" class="ai-chat-panel ai-chat-hidden">
+    <div class="ai-chat-header">
+      <div class="ai-chat-header-left">
+        <div class="ai-chat-avatar"><i class="fas fa-robot"></i></div>
+        <div>
+          <h4>FitTrack AI</h4>
+          <span class="ai-chat-status-dot"></span><small>Ready to help</small>
+        </div>
+      </div>
+      <button class="ai-chat-close" onclick="toggleAIChat()"><i class="fas fa-times"></i></button>
+    </div>
+    <div id="ai-chat-messages" class="ai-chat-messages">
+      <div class="ai-msg ai-msg-bot">
+        <div class="ai-msg-bubble">
+          Hey there! 👋 I'm <strong>FitTrack AI</strong> — your personal productivity & fitness buddy!<br><br>
+          Here's what I can do:<br>
+          🍽️ <strong>Log meals</strong> — <em>"I had 2 rotis and dal for lunch"</em><br>
+          📋 <strong>Create tasks</strong> — <em>"Add task: finish report by tomorrow"</em><br>
+          📁 <strong>Set up projects</strong> — <em>"Create project: Home Workout Plan"</em><br>
+          💬 <strong>Answer anything</strong> — Ask me about fitness, nutrition, or anything else!<br><br>
+          I'll always check with you before doing anything. Just type naturally! 😊
+        </div>
+      </div>
+    </div>
+    <div id="ai-chat-confirm-bar" class="ai-chat-confirm-bar ai-chat-hidden">
+      <button class="ai-confirm-yes" onclick="aiConfirmAction()"><i class="fas fa-check"></i> Confirm</button>
+      <button class="ai-confirm-edit" onclick="aiEditAction()"><i class="fas fa-edit"></i> Edit</button>
+      <button class="ai-confirm-no" onclick="aiCancelAction()"><i class="fas fa-times"></i> Cancel</button>
+    </div>
+    <div class="ai-chat-input-wrap">
+      <input id="ai-chat-input" type="text" placeholder="Type a message..." autocomplete="off">
+      <button class="ai-chat-send" onclick="sendAIMessage()"><i class="fas fa-paper-plane"></i></button>
+    </div>
+  </div>
+
   <script src="script.js"></script>
   <script>
     function triggerFireAnimation() {

@@ -1,0 +1,169 @@
+"""
+FILE: app/repositories/notes_repo.py
+
+Responsibility:
+  Data-access layer for the notes table.
+  Encapsulates ALL raw SQL for note CRUD.
+
+MUST NOT:
+  - Import Flask request/response objects
+  - Contain HTTP/validation logic
+
+Depends on:
+  - db.get_db()
+  - utils.now_iso
+"""
+
+import json
+
+from ..db import get_db
+from ..utils import now_iso
+
+
+def _map_note(row):
+    """Convert a DB row to a JSON-safe note dict."""
+    tags = []
+    try:
+        tags = json.loads(row["tags_json"] or "[]")
+    except (TypeError, ValueError):
+        tags = []
+    if not isinstance(tags, list):
+        tags = []
+    tags = [str(t).strip().lower() for t in tags if str(t).strip()]
+
+    return {
+        "id": row["id"],
+        "title": row["title"],
+        "content": row["content"],
+        "source_type": row["source_type"],
+        "source_id": row["source_id"],
+        "tags": tags,
+        "created_at": row["created_at"],
+        "updated_at": row["updated_at"],
+    }
+
+
+class NoteRepository:
+    """Data-access object for the notes table."""
+
+    map_note = staticmethod(_map_note)
+
+    @staticmethod
+    def get_all(user_id, *, source_type=None, search=None, tag=None):
+        db = get_db()
+        query = "SELECT * FROM notes WHERE user_id = ?"
+        params = [user_id]
+
+        if source_type in ("manual", "task"):
+            query += " AND source_type = ?"
+            params.append(source_type)
+
+        if search:
+            query += " AND (title LIKE ? OR content LIKE ?)"
+            like = f"%{search}%"
+            params.extend([like, like])
+
+        if tag:
+            query += " AND tags_json LIKE ?"
+            params.append(f'%"{tag}"%')
+
+        query += " ORDER BY updated_at DESC"
+        rows = db.execute(query, params).fetchall()
+
+        notes = []
+        for r in rows:
+            note = _map_note(r)
+            if note["source_type"] == "task" and note["source_id"]:
+                task_row = db.execute(
+                    "SELECT title FROM tasks WHERE id = ?", (note["source_id"],)
+                ).fetchone()
+                note["linked_task_title"] = task_row["title"] if task_row else None
+            else:
+                note["linked_task_title"] = None
+            notes.append(note)
+        return notes
+
+    @staticmethod
+    def get_by_id(note_id, user_id):
+        db = get_db()
+        row = db.execute(
+            "SELECT * FROM notes WHERE id = ? AND user_id = ?",
+            (note_id, user_id),
+        ).fetchone()
+        if not row:
+            return None
+        note = _map_note(row)
+        if note["source_type"] == "task" and note["source_id"]:
+            task_row = db.execute(
+                "SELECT title FROM tasks WHERE id = ?", (note["source_id"],)
+            ).fetchone()
+            note["linked_task_title"] = task_row["title"] if task_row else None
+        else:
+            note["linked_task_title"] = None
+        return note
+
+    @staticmethod
+    def create(user_id, *, title, content="", source_type="manual",
+               source_id=None, tags=None):
+        db = get_db()
+        if tags is None:
+            tags = []
+        now = now_iso()
+        cursor = db.execute(
+            """INSERT INTO notes
+               (user_id, title, content, source_type, source_id, tags_json, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+            (user_id, title, content, source_type, source_id,
+             json.dumps(tags), now, now),
+        )
+        db.commit()
+        return db.execute(
+            "SELECT * FROM notes WHERE id = ?", (cursor.lastrowid,)
+        ).fetchone()
+
+    @staticmethod
+    def update(note_id, user_id, *, title, content, tags):
+        db = get_db()
+        db.execute(
+            """UPDATE notes SET title = ?, content = ?, tags_json = ?, updated_at = ?
+               WHERE id = ? AND user_id = ?""",
+            (title, content, json.dumps(tags), now_iso(), note_id, user_id),
+        )
+        db.commit()
+        return db.execute(
+            "SELECT * FROM notes WHERE id = ?", (note_id,)
+        ).fetchone()
+
+    @staticmethod
+    def delete(note_id, user_id):
+        db = get_db()
+        note_row = db.execute(
+            "SELECT source_type, source_id FROM notes WHERE id = ? AND user_id = ?",
+            (note_id, user_id),
+        ).fetchone()
+        if not note_row:
+            return False
+
+        # Un-flag linked task if source_type == task
+        if note_row["source_type"] == "task" and note_row["source_id"]:
+            db.execute(
+                "UPDATE tasks SET note_saved_to_notes = 0 WHERE id = ? AND user_id = ?",
+                (note_row["source_id"], user_id),
+            )
+
+        db.execute(
+            "DELETE FROM notes WHERE id = ? AND user_id = ?", (note_id, user_id)
+        )
+        db.commit()
+        return True
+
+    @staticmethod
+    def get_by_task(task_id, user_id):
+        db = get_db()
+        row = db.execute(
+            "SELECT * FROM notes WHERE source_type = 'task' AND source_id = ? AND user_id = ?",
+            (task_id, user_id),
+        ).fetchone()
+        if not row:
+            return None
+        return _map_note(row)

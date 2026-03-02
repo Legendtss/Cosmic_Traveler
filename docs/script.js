@@ -3298,6 +3298,450 @@ async function deleteMealEntry(mealId) {
   }
 }
 
+// ---------------------------------------------------------------------------
+// AI Meal Logger — 2-Step Confirmation Flow (USDA-powered)
+// ---------------------------------------------------------------------------
+
+let aiMealPanelOpen = false;
+let aiDetectedData = null; // Holds Step 1 detection result for Step 2
+
+function toggleAIMealLog() {
+  aiMealPanelOpen = !aiMealPanelOpen;
+  const panel = document.getElementById('nutrition-ai-panel');
+  if (!panel) return;
+  panel.classList.toggle('nutrition-collapsed', !aiMealPanelOpen);
+
+  // Reset all sub-sections
+  _aiResetPanel();
+
+  if (aiMealPanelOpen) {
+    const input = document.getElementById('ai-food-input');
+    if (input) setTimeout(() => input.focus(), 100);
+  }
+}
+
+function _aiResetPanel() {
+  const status = document.getElementById('ai-meal-status');
+  const confirm = document.getElementById('ai-step-confirm');
+  const result = document.getElementById('ai-meal-result');
+  const inputStep = document.getElementById('ai-step-input');
+
+  if (status) { status.classList.add('nutrition-collapsed'); status.innerHTML = ''; }
+  if (confirm) { confirm.classList.add('nutrition-collapsed'); }
+  if (result) { result.classList.add('nutrition-collapsed'); result.innerHTML = ''; }
+  if (inputStep) { inputStep.classList.remove('nutrition-collapsed'); }
+  aiDetectedData = null;
+}
+
+// ---- STEP 1: Detect Foods ----
+
+async function submitAIDetect() {
+  const input = document.getElementById('ai-food-input');
+  const mealTypeSelect = document.getElementById('ai-meal-type');
+  const statusEl = document.getElementById('ai-meal-status');
+  const detectBtn = document.getElementById('ai-detect-btn');
+
+  const userInput = (input?.value || '').trim();
+  const mealType = mealTypeSelect?.value || 'other';
+
+  if (!userInput) {
+    if (input) input.focus();
+    return;
+  }
+
+  // Show loading
+  statusEl.className = 'nutrition-ai-status loading';
+  statusEl.classList.remove('nutrition-collapsed');
+  statusEl.innerHTML = '<span class="ai-spinner"></span> Detecting foods via USDA database...';
+  if (detectBtn) detectBtn.disabled = true;
+
+  try {
+    let data;
+    if (typeof activeDemoUserId !== 'undefined' && activeDemoUserId) {
+      data = simulateAIDetect(userInput, mealType);
+    } else {
+      const response = await fetch('/api/nutrition/ai-detect', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_input: userInput, meal_type: mealType })
+      });
+      data = await response.json();
+      if (!response.ok) throw new Error(data.error || `API error: ${response.status}`);
+    }
+
+    const itemCount = (data.items || []).length;
+    if (itemCount === 0 && data.status !== 'confirm') {
+      statusEl.className = 'nutrition-ai-status error';
+      const reason = data.clarifications?.[0]?.reason || data.error || 'No foods found. Try being more specific.';
+      statusEl.innerHTML = `<i class="fas fa-exclamation-circle"></i> ${escapeHtml(reason)}`;
+      return;
+    }
+
+    // Save detection data and show confirmation table
+    aiDetectedData = data;
+    statusEl.classList.add('nutrition-collapsed');
+    statusEl.innerHTML = '';
+    renderAIConfirmation(data);
+
+  } catch (err) {
+    console.error('AI detect error:', err);
+    statusEl.className = 'nutrition-ai-status error';
+    statusEl.innerHTML = `<i class="fas fa-exclamation-circle"></i> ${err.message || 'Could not detect foods. Please try again.'}`;
+  } finally {
+    if (detectBtn) detectBtn.disabled = false;
+  }
+}
+
+// ---- Render Confirmation Table ----
+
+function renderAIConfirmation(data) {
+  const inputStep = document.getElementById('ai-step-input');
+  const confirmStep = document.getElementById('ai-step-confirm');
+  const tableWrap = document.getElementById('ai-confirm-table-wrap');
+  const clarifyEl = document.getElementById('ai-confirm-clarifications');
+
+  // Hide input, show confirmation
+  if (inputStep) inputStep.classList.add('nutrition-collapsed');
+  if (confirmStep) confirmStep.classList.remove('nutrition-collapsed');
+
+  const items = data.items || [];
+
+  let html = `<table class="nutrition-ai-result-table ai-confirm-table">
+    <thead>
+      <tr>
+        <th>Your Input</th>
+        <th>USDA Match</th>
+        <th>Confidence</th>
+        <th>Qty (g)</th>
+        <th>Calories</th>
+        <th>Protein</th>
+        <th>Carbs</th>
+        <th>Fats</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>`;
+
+  items.forEach((item, idx) => {
+    const confClass = item.confidence === 'high' ? 'ai-conf-high' : item.confidence === 'medium' ? 'ai-conf-med' : 'ai-conf-low';
+    const confIcon = item.confidence === 'high' ? 'check-circle' : item.confidence === 'medium' ? 'info-circle' : 'exclamation-triangle';
+    html += `
+      <tr id="ai-item-row-${idx}" data-idx="${idx}">
+        <td class="ai-cell-input">${escapeHtml(item.original_input)}</td>
+        <td class="ai-cell-match">${escapeHtml(item.matched_name)}${item.note ? `<br><small class="ai-food-note">${escapeHtml(item.note)}</small>` : ''}</td>
+        <td><span class="ai-conf-badge ${confClass}"><i class="fas fa-${confIcon}"></i> ${item.confidence}</span></td>
+        <td><input type="number" class="ai-qty-input" value="${item.quantity_g}" min="1" step="1" onchange="updateAIItemMacros(${idx}, this.value)" data-per100='${JSON.stringify(item.per_100g || {})}'/></td>
+        <td class="ai-cal">${item.calories}</td>
+        <td class="ai-prot">${item.protein}g</td>
+        <td class="ai-carb">${item.carbs}g</td>
+        <td class="ai-fat">${item.fats}g</td>
+        <td><button class="ai-remove-btn" onclick="removeAIItem(${idx})" title="Remove"><i class="fas fa-times"></i></button></td>
+      </tr>`;
+  });
+
+  html += '</tbody></table>';
+  if (tableWrap) tableWrap.innerHTML = html;
+
+  // Show clarifications if any
+  if (data.clarifications && data.clarifications.length > 0 && clarifyEl) {
+    let clarifyHTML = '<div class="ai-clarify-list">';
+    for (const c of data.clarifications) {
+      clarifyHTML += `<p class="ai-clarify-item"><i class="fas fa-question-circle"></i> <strong>${escapeHtml(c.original_input)}</strong>: ${escapeHtml(c.reason)}</p>`;
+    }
+    clarifyHTML += '</div>';
+    clarifyEl.innerHTML = clarifyHTML;
+    clarifyEl.classList.remove('nutrition-collapsed');
+  } else if (clarifyEl) {
+    clarifyEl.classList.add('nutrition-collapsed');
+    clarifyEl.innerHTML = '';
+  }
+
+  updateAITotals();
+}
+
+function updateAIItemMacros(idx, newQtyG) {
+  if (!aiDetectedData || !aiDetectedData.items[idx]) return;
+  const item = aiDetectedData.items[idx];
+  const qty = parseFloat(newQtyG) || 0;
+  const per100 = item.per_100g || {};
+  const factor = qty / 100;
+
+  item.quantity_g = Math.round(qty * 10) / 10;
+  item.calories = Math.round((per100.calories || 0) * factor * 10) / 10;
+  item.protein = Math.round((per100.protein || 0) * factor * 10) / 10;
+  item.carbs = Math.round((per100.carbs || 0) * factor * 10) / 10;
+  item.fats = Math.round((per100.fats || 0) * factor * 10) / 10;
+
+  // Update row cells
+  const row = document.getElementById(`ai-item-row-${idx}`);
+  if (row) {
+    row.querySelector('.ai-cal').textContent = item.calories;
+    row.querySelector('.ai-prot').textContent = item.protein + 'g';
+    row.querySelector('.ai-carb').textContent = item.carbs + 'g';
+    row.querySelector('.ai-fat').textContent = item.fats + 'g';
+  }
+  updateAITotals();
+}
+
+function removeAIItem(idx) {
+  if (!aiDetectedData) return;
+  aiDetectedData.items.splice(idx, 1);
+  // Re-render entire confirmation (indexes shifted)
+  renderAIConfirmation(aiDetectedData);
+}
+
+function updateAITotals() {
+  if (!aiDetectedData) return;
+  const items = aiDetectedData.items || [];
+  const totals = {
+    calories: items.reduce((s, f) => s + (f.calories || 0), 0),
+    protein: items.reduce((s, f) => s + (f.protein || 0), 0),
+    carbs: items.reduce((s, f) => s + (f.carbs || 0), 0),
+    fats: items.reduce((s, f) => s + (f.fats || 0), 0),
+  };
+  const el = document.getElementById('ai-confirm-totals');
+  if (el) {
+    el.innerHTML = `
+      <div class="ai-totals-grid">
+        <div class="ai-total-item"><span>Total Calories</span><strong>${Math.round(totals.calories)}</strong></div>
+        <div class="ai-total-item"><span>Protein</span><strong>${Math.round(totals.protein * 10) / 10}g</strong></div>
+        <div class="ai-total-item"><span>Carbs</span><strong>${Math.round(totals.carbs * 10) / 10}g</strong></div>
+        <div class="ai-total-item"><span>Fats</span><strong>${Math.round(totals.fats * 10) / 10}g</strong></div>
+      </div>
+      <p class="ai-result-note"><i class="fas fa-database"></i> Data sourced from USDA FoodData Central</p>`;
+  }
+}
+
+// ---- STEP 2: Confirm & Log ----
+
+async function confirmAIMealLog() {
+  if (!aiDetectedData || !aiDetectedData.items || aiDetectedData.items.length === 0) return;
+
+  const statusEl = document.getElementById('ai-meal-status');
+  const confirmBtn = document.getElementById('ai-confirm-btn');
+  const mealType = aiDetectedData.meal_type || 'other';
+
+  statusEl.className = 'nutrition-ai-status loading';
+  statusEl.classList.remove('nutrition-collapsed');
+  statusEl.innerHTML = '<span class="ai-spinner"></span> Logging confirmed foods...';
+  if (confirmBtn) confirmBtn.disabled = true;
+
+  try {
+    const confirmedFoods = aiDetectedData.items.map(item => ({
+      name: item.matched_name,
+      fdc_id: item.fdc_id,
+      quantity_g: item.quantity_g,
+      calories: item.calories,
+      protein: item.protein,
+      carbs: item.carbs,
+      fats: item.fats,
+      original_input: item.original_input,
+      data_type: item.data_type || ''
+    }));
+
+    let savedCount = 0;
+
+    if (typeof activeDemoUserId !== 'undefined' && activeDemoUserId) {
+      // Demo mode: save to localStorage
+      const meals = getActiveUserMealsData();
+      for (const food of confirmedFoods) {
+        meals.push({
+          id: nextLocalId(meals),
+          name: food.name,
+          meal_type: mealType.toLowerCase(),
+          calories: Math.round(food.calories),
+          protein: Math.round(food.protein * 10) / 10,
+          carbs: Math.round(food.carbs * 10) / 10,
+          fats: Math.round(food.fats * 10) / 10,
+          date: todayDateKey(),
+          time: new Date().toTimeString().slice(0, 5)
+        });
+        savedCount++;
+      }
+      setActiveUserMealsData(meals);
+    } else {
+      // API mode
+      const response = await fetch('/api/nutrition/ai-log', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          meal_type: mealType,
+          foods: confirmedFoods,
+          date: todayDateKey(),
+          time: new Date().toTimeString().slice(0, 5)
+        })
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || `API error: ${response.status}`);
+      savedCount = (data.foods || []).length;
+    }
+
+    // Show success
+    const totalCals = Math.round(confirmedFoods.reduce((s, f) => s + (f.calories || 0), 0));
+    const confirmStep = document.getElementById('ai-step-confirm');
+    const resultEl = document.getElementById('ai-meal-result');
+
+    if (confirmStep) confirmStep.classList.add('nutrition-collapsed');
+
+    statusEl.className = 'nutrition-ai-status success';
+    statusEl.innerHTML = `<i class="fas fa-check-circle"></i> Successfully logged ${savedCount} food item${savedCount > 1 ? 's' : ''} — ${totalCals} kcal total`;
+
+    // Show summary table in result
+    let tableHTML = `<table class="nutrition-ai-result-table"><thead><tr>
+      <th>Food</th><th>Qty (g)</th><th>Calories</th><th>Protein</th><th>Carbs</th><th>Fats</th>
+    </tr></thead><tbody>`;
+    for (const f of confirmedFoods) {
+      tableHTML += `<tr><td>${escapeHtml(f.name)}</td><td>${f.quantity_g}</td><td>${Math.round(f.calories)}</td><td>${Math.round(f.protein * 10) / 10}g</td><td>${Math.round(f.carbs * 10) / 10}g</td><td>${Math.round(f.fats * 10) / 10}g</td></tr>`;
+    }
+    tableHTML += `</tbody><tfoot><tr><td colspan="2"><strong>Total</strong></td>
+      <td><strong>${totalCals}</strong></td>
+      <td><strong>${Math.round(confirmedFoods.reduce((s,f)=>s+f.protein,0)*10)/10}g</strong></td>
+      <td><strong>${Math.round(confirmedFoods.reduce((s,f)=>s+f.carbs,0)*10)/10}g</strong></td>
+      <td><strong>${Math.round(confirmedFoods.reduce((s,f)=>s+f.fats,0)*10)/10}g</strong></td>
+    </tr></tfoot></table>`;
+
+    if (resultEl) { resultEl.innerHTML = tableHTML; resultEl.classList.remove('nutrition-collapsed'); }
+
+    // Clear input and refresh
+    const input = document.getElementById('ai-food-input');
+    if (input) input.value = '';
+    aiDetectedData = null;
+    await loadMeals();
+
+  } catch (err) {
+    console.error('AI confirm log error:', err);
+    statusEl.className = 'nutrition-ai-status error';
+    statusEl.innerHTML = `<i class="fas fa-exclamation-circle"></i> ${err.message || 'Could not log foods. Please try again.'}`;
+  } finally {
+    if (confirmBtn) confirmBtn.disabled = false;
+  }
+}
+
+function cancelAIConfirm() {
+  const inputStep = document.getElementById('ai-step-input');
+  const confirmStep = document.getElementById('ai-step-confirm');
+  const statusEl = document.getElementById('ai-meal-status');
+
+  if (confirmStep) confirmStep.classList.add('nutrition-collapsed');
+  if (inputStep) inputStep.classList.remove('nutrition-collapsed');
+  if (statusEl) { statusEl.classList.add('nutrition-collapsed'); statusEl.innerHTML = ''; }
+  aiDetectedData = null;
+
+  const input = document.getElementById('ai-food-input');
+  if (input) setTimeout(() => input.focus(), 100);
+}
+
+// escapeHtml defined once at line ~999 — avoid duplicates
+
+/**
+ * Demo mode: simulate AI food detection using the local nutritionFoodDatabase.
+ * Returns a confirmation payload (same shape as /api/nutrition/ai-detect).
+ */
+function simulateAIDetect(userInput, mealType) {
+  const allFoods = [
+    ...(nutritionFoodDatabase.carbohydrates || []),
+    ...(nutritionFoodDatabase.proteins || [])
+  ];
+
+  const segments = userInput.split(/,|\band\b|\+/i).map(s => s.trim()).filter(Boolean);
+  const items = [];
+  const clarifications = [];
+
+  for (const segment of segments) {
+    const qtyMatch = segment.match(/^(\d+(?:\.\d+)?)\s*(cup|cups|g|grams?|tbsp|tablespoon|oz|piece|pieces|whole|large|medium|small)?\s*(.+)$/i);
+    let quantity = 1, unit = '', foodName = segment;
+
+    if (qtyMatch) {
+      quantity = parseFloat(qtyMatch[1]) || 1;
+      unit = (qtyMatch[2] || '').toLowerCase();
+      foodName = qtyMatch[3].trim();
+    }
+
+    const searchLower = foodName.toLowerCase();
+    let bestMatch = null, bestScore = 0;
+
+    for (const food of allFoods) {
+      const nameLower = food.name.toLowerCase();
+      let score = 0;
+      for (const w of searchLower.split(/\s+/)) {
+        if (nameLower.includes(w)) score += w.length;
+      }
+      if (score > bestScore) { bestScore = score; bestMatch = food; }
+    }
+
+    if (bestMatch && bestScore >= 2) {
+      let grams = 100;
+      if (unit === 'cup' || unit === 'cups') grams = quantity * 240;
+      else if (unit === 'g' || unit === 'gram' || unit === 'grams') grams = quantity;
+      else if (unit === 'tbsp' || unit === 'tablespoon') grams = quantity * 15;
+      else if (unit === 'oz') grams = quantity * 28.35;
+      else {
+        const pieceWeights = { egg: 50, banana: 118, apple: 182, orange: 131 };
+        const key = Object.keys(pieceWeights).find(k => bestMatch.name.toLowerCase().includes(k));
+        grams = key ? quantity * pieceWeights[key] : quantity * 100;
+      }
+
+      const factor = (bestMatch.unit === 'whole' || bestMatch.unit === 'tablespoon') ? quantity : grams / 100;
+
+      // Compute per-100g values for editing
+      const per100 = {
+        calories: bestMatch.unit === 'whole' ? bestMatch.calories : bestMatch.calories,
+        protein: bestMatch.unit === 'whole' ? bestMatch.protein : bestMatch.protein,
+        carbs: bestMatch.unit === 'whole' ? bestMatch.carbs : bestMatch.carbs,
+        fats: bestMatch.unit === 'whole' ? bestMatch.fats : bestMatch.fats,
+      };
+
+      items.push({
+        original_input: segment,
+        matched_name: bestMatch.name,
+        fdc_id: null,
+        data_type: 'Local Database',
+        confidence: bestScore >= 6 ? 'high' : bestScore >= 3 ? 'medium' : 'low',
+        quantity: quantity,
+        unit: unit || 'piece',
+        quantity_g: Math.round(grams * 10) / 10,
+        calories: Math.round(bestMatch.calories * factor * 10) / 10,
+        protein: Math.round(bestMatch.protein * factor * 10) / 10,
+        carbs: Math.round(bestMatch.carbs * factor * 10) / 10,
+        fats: Math.round(bestMatch.fats * factor * 10) / 10,
+        per_100g: per100,
+        note: null,
+        alternatives: []
+      });
+    } else {
+      clarifications.push({
+        original_input: segment,
+        quantity: quantity,
+        unit: unit || 'piece',
+        reason: `No match found for '${foodName}'. Try a more specific name.`,
+        suggestions: []
+      });
+    }
+  }
+
+  const result = {
+    status: items.length > 0 ? 'confirm' : 'clarify',
+    meal_type: mealType.charAt(0).toUpperCase() + mealType.slice(1),
+    items,
+    user_input: userInput
+  };
+  if (clarifications.length > 0) result.clarifications = clarifications;
+  return result;
+}
+
+// Allow Enter key to trigger detect
+document.addEventListener('DOMContentLoaded', function() {
+  const aiInput = document.getElementById('ai-food-input');
+  if (aiInput) {
+    aiInput.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        submitAIDetect();
+      }
+    });
+  }
+});
+
 function renderNutritionFormVisibility() {
   const formSection = document.getElementById('nutrition-form-section');
   if (!formSection) return;
@@ -6942,5 +7386,625 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   console.log('Initialization complete');
 });
+
+
+// ---------------------------------------------------------------------------
+// AI Avatar Chat Widget
+// ---------------------------------------------------------------------------
+
+let aiChatOpen = false;
+let aiPendingAction = null; // Stores the last confirmation payload
+let _aiSending = false;      // Lock: true while a request is in-flight
+let _aiLastSendTs = 0;       // Epoch ms of last send (cooldown guard)
+const _AI_COOLDOWN_MS = 2500; // Minimum ms between sends
+
+function toggleAIChat(forceClose) {
+  if (forceClose === true) {
+    aiChatOpen = false;
+  } else {
+    aiChatOpen = !aiChatOpen;
+  }
+  const panel = document.getElementById('ai-chat-panel');
+  if (!panel) return;
+  panel.classList.toggle('ai-chat-hidden', !aiChatOpen);
+
+  if (aiChatOpen) {
+    const inp = document.getElementById('ai-chat-input');
+    if (inp) {
+      setTimeout(() => inp.focus(), 150);
+      // Attach Enter key listener once
+      if (!inp._aiKeyBound) {
+        inp._aiKeyBound = true;
+        inp.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            sendAIMessage();
+          }
+        });
+      }
+    }
+  }
+}
+
+// Click-away: close chat when clicking outside panel and FAB
+document.addEventListener('click', (e) => {
+  if (!aiChatOpen) return;
+  const panel = document.getElementById('ai-chat-panel');
+  const fab = document.getElementById('ai-avatar-fab');
+  if (!panel || !fab) return;
+  if (!panel.contains(e.target) && !fab.contains(e.target)) {
+    toggleAIChat(true);
+  }
+});
+
+function _aiAddMessage(html, sender) {
+  const container = document.getElementById('ai-chat-messages');
+  if (!container) return;
+  const div = document.createElement('div');
+  div.className = `ai-msg ai-msg-${sender}`;
+  div.innerHTML = `<div class="ai-msg-bubble">${html}</div>`;
+  container.appendChild(div);
+  container.scrollTop = container.scrollHeight;
+}
+
+function _aiShowConfirmBar(show) {
+  const bar = document.getElementById('ai-chat-confirm-bar');
+  if (bar) bar.classList.toggle('ai-chat-hidden', !show);
+}
+
+function _escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+/** Lightweight markdown-to-HTML for bot messages (bold, italic, bullets, newlines, code) */
+function _aiMarkdown(text) {
+  if (!text) return '';
+  let html = _escapeHtml(text);
+  // Code blocks (triple backtick)
+  html = html.replace(/```([\s\S]*?)```/g, '<pre class="ai-code-block">$1</pre>');
+  // Inline code
+  html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+  // Bold (**text** or __text__)
+  html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  html = html.replace(/__(.+?)__/g, '<strong>$1</strong>');
+  // Italic (*text* or _text_) — careful not to match inside words
+  html = html.replace(/(?<!\w)\*([^*]+?)\*(?!\w)/g, '<em>$1</em>');
+  html = html.replace(/(?<!\w)_([^_]+?)_(?!\w)/g, '<em>$1</em>');
+  // Bullet points (lines starting with - or •)
+  html = html.replace(/^[\-•]\s+(.+)$/gm, '<li>$1</li>');
+  html = html.replace(/(<li>.*<\/li>)/gs, '<ul>$1</ul>');
+  // Numbered lists (1. 2. etc)
+  html = html.replace(/^\d+\.\s+(.+)$/gm, '<li>$1</li>');
+  // Newlines to <br>
+  html = html.replace(/\n/g, '<br>');
+  return html;
+}
+
+function _detectCurrentPage() {
+  // Try to detect which page is active
+  const pages = ['dashboard', 'nutrition', 'tasks', 'projects', 'workout', 'statistics', 'profile'];
+  for (const p of pages) {
+    const el = document.getElementById(p);
+    if (el && !el.classList.contains('hidden') && el.offsetParent !== null) return p;
+  }
+  return 'dashboard';
+}
+
+async function sendAIMessage() {
+  // --- Guard 1: prevent concurrent sends ---
+  if (_aiSending) return;
+
+  // --- Guard 2: cooldown ---
+  const now = Date.now();
+  if (now - _aiLastSendTs < _AI_COOLDOWN_MS) {
+    console.log('[AI] Cooldown active, skipping duplicate send');
+    return;
+  }
+
+  const inp = document.getElementById('ai-chat-input');
+  const msg = (inp?.value || '').trim();
+  if (!msg) return;
+  inp.value = '';
+
+  _aiSending = true;
+  _aiLastSendTs = now;
+
+  // Show user message
+  _aiAddMessage(_escapeHtml(msg), 'user');
+
+  // Show typing indicator
+  _aiAddMessage('<span class="ai-typing"><span>.</span><span>.</span><span>.</span></span>', 'bot');
+  const container = document.getElementById('ai-chat-messages');
+
+  try {
+    let data;
+
+    if (typeof activeDemoUserId !== 'undefined' && activeDemoUserId) {
+      // Demo mode — use local simulation
+      data = _aiLocalFallback(msg);
+    } else {
+      const response = await fetch('/api/ai/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: msg,
+          context: {
+            current_page: _detectCurrentPage(),
+            user_preferences: {
+              goal: typeof profileState !== 'undefined' ? (profileState.weightGoal || 'maintenance') : 'maintenance',
+              diet_type: 'mixed'
+            }
+          }
+        })
+      });
+      if (!response.ok) {
+        const errBody = await response.text();
+        console.error(`[AI] HTTP ${response.status}: ${errBody}`);
+        throw new Error(`Server error (${response.status})`);
+      }
+      data = await response.json();
+    }
+
+    // Remove typing indicator
+    if (container && container.lastChild) container.removeChild(container.lastChild);
+
+    _renderAIResponse(data);
+
+  } catch (err) {
+    if (container && container.lastChild) container.removeChild(container.lastChild);
+    _aiAddMessage(`<i class="fas fa-exclamation-triangle"></i> ${_escapeHtml(err.message || 'Something went wrong.')}`, 'bot');
+  } finally {
+    _aiSending = false;
+  }
+}
+
+function _renderAIResponse(data) {
+  if (!data || !data.status) {
+    _aiAddMessage('I received an unexpected response. Please try again.', 'bot');
+    return;
+  }
+
+  if (data.status === 'chat_response') {
+    _aiAddMessage(_aiMarkdown(data.message || 'No response.'), 'bot');
+    return;
+  }
+
+  if (data.status === 'clarification_needed') {
+    _aiAddMessage(`<i class="fas fa-question-circle" style="color:#f59e0b;margin-right:4px"></i> ${_aiMarkdown(data.message)}`, 'bot');
+    return;
+  }
+
+  if (data.status === 'confirmation_required') {
+    aiPendingAction = data;
+    let html = '';
+
+    // Summary
+    html += `<strong>${_escapeHtml(data.summary || 'Action detected')}</strong><br>`;
+
+    if (data.confidence) {
+      const confClass = data.confidence === 'high' ? 'ai-conf-high' : data.confidence === 'medium' ? 'ai-conf-med' : 'ai-conf-low';
+      html += `<span class="ai-conf-badge ${confClass}" style="margin:6px 0;display:inline-flex"><i class="fas fa-${data.confidence === 'high' ? 'check-circle' : data.confidence === 'medium' ? 'info-circle' : 'exclamation-triangle'}"></i> ${data.confidence} confidence</span><br>`;
+    }
+
+    // Render EDITABLE details by action type
+    if (data.action_type === 'log_nutrition' && data.details) {
+      const d = data.details;
+      html += `<small>Meal type: <select id="ai-edit-meal-type" class="ai-edit-select">`;
+      for (const mt of ['breakfast', 'lunch', 'dinner', 'snack']) {
+        html += `<option value="${mt}"${(d.meal_type || 'snack') === mt ? ' selected' : ''}>${mt.charAt(0).toUpperCase() + mt.slice(1)}</option>`;
+      }
+      html += `</select></small><br>`;
+      html += `<table class="ai-chat-table"><thead><tr><th>Food</th><th>Qty</th><th>Cal</th><th>P</th><th>C</th><th>F</th><th></th></tr></thead><tbody>`;
+      (d.items || []).forEach((item, idx) => {
+        html += `<tr data-ai-item="${idx}">`;
+        html += `<td><input class="ai-edit-input ai-edit-name" data-idx="${idx}" value="${_escapeHtml(item.name)}" style="width:70px"></td>`;
+        html += `<td><input class="ai-edit-input ai-edit-qty" data-idx="${idx}" type="number" min="0" step="0.5" value="${item.quantity}" style="width:38px"></td>`;
+        html += `<td><input class="ai-edit-input ai-edit-cal" data-idx="${idx}" type="number" min="0" value="${item.calories}" style="width:42px"></td>`;
+        html += `<td><input class="ai-edit-input ai-edit-p" data-idx="${idx}" type="number" min="0" step="0.1" value="${item.protein}" style="width:38px"></td>`;
+        html += `<td><input class="ai-edit-input ai-edit-c" data-idx="${idx}" type="number" min="0" step="0.1" value="${item.carbs}" style="width:38px"></td>`;
+        html += `<td><input class="ai-edit-input ai-edit-f" data-idx="${idx}" type="number" min="0" step="0.1" value="${item.fats}" style="width:38px"></td>`;
+        html += `<td><button class="ai-edit-del" onclick="_aiRemoveItem(${idx})" title="Remove"><i class="fas fa-trash-alt"></i></button></td>`;
+        html += `</tr>`;
+      });
+      html += `</tbody></table>`;
+      html += `<button class="ai-edit-add-btn" onclick="_aiAddItem()"><i class="fas fa-plus"></i> Add item</button>`;
+    } else if (data.action_type === 'add_task' && data.details) {
+      const d = data.details;
+      html += `<div class="ai-chat-detail ai-edit-task-form">`;
+      html += `📋 <label>Title:</label> <input class="ai-edit-input ai-edit-task-title" value="${_escapeHtml(d.title)}" style="width:100%"><br>`;
+      html += `📅 <label>Date:</label> <input class="ai-edit-input ai-edit-task-date" type="date" value="${d.date || ''}"><br>`;
+      html += `⚡ <label>Priority:</label> <select class="ai-edit-select ai-edit-task-priority">`;
+      for (const p of ['low', 'medium', 'high']) {
+        html += `<option value="${p}"${(d.priority || 'medium') === p ? ' selected' : ''}>${p.charAt(0).toUpperCase() + p.slice(1)}</option>`;
+      }
+      html += `</select><br>`;
+      html += `🏷️ <label>Tags:</label> <input class="ai-edit-input ai-edit-task-tags" value="${(d.tags || []).map(t => '#' + t).join(' ')}" placeholder="#tag1 #tag2">`;
+      html += `</div>`;
+    } else if (data.action_type === 'add_project' && data.details) {
+      const d = data.details;
+      html += `<div class="ai-chat-detail ai-edit-project-form">`;
+      html += `📁 <label>Name:</label> <input class="ai-edit-input ai-edit-proj-name" value="${_escapeHtml(d.name)}" style="width:100%"><br>`;
+      html += `📝 <label>Description:</label> <input class="ai-edit-input ai-edit-proj-desc" value="${_escapeHtml(d.description || '')}" style="width:100%"><br>`;
+      if (d.subtasks && d.subtasks.length) {
+        html += `<br><small>Subtasks:</small><br>`;
+        d.subtasks.forEach((st, i) => {
+          html += `<div class="ai-edit-subtask-row"><input class="ai-edit-input ai-edit-subtask" data-idx="${i}" value="${_escapeHtml(st)}"> <button class="ai-edit-del" onclick="_aiRemoveSubtask(${i})" title="Remove"><i class="fas fa-trash-alt"></i></button></div>`;
+        });
+      }
+      html += `<button class="ai-edit-add-btn" onclick="_aiAddSubtask()"><i class="fas fa-plus"></i> Add subtask</button>`;
+      html += `</div>`;
+    }
+
+    html += `<br><small>✏️ Edit any field above, then Confirm or Cancel.</small>`;
+    _aiAddMessage(html, 'bot');
+    _aiShowConfirmBar(true);
+    return;
+  }
+
+  // Unknown status
+  _aiAddMessage(data.message || JSON.stringify(data), 'bot');
+}
+
+async function aiConfirmAction() {
+  if (!aiPendingAction) return;
+  _aiSyncEditsToPayload(); // read any edited values from inline form
+  _aiShowConfirmBar(false);
+
+  const data = aiPendingAction;
+  aiPendingAction = null;
+
+  _aiAddMessage('<span class="ai-typing"><span>.</span><span>.</span><span>.</span></span>', 'bot');
+  const container = document.getElementById('ai-chat-messages');
+
+  try {
+    let result;
+
+    if (typeof activeDemoUserId !== 'undefined' && activeDemoUserId) {
+      result = _aiExecuteDemo(data);
+    } else {
+      const response = await fetch('/api/ai/execute', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action_type: data.action_type,
+          payload: data.details
+        })
+      });
+      result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'Execution failed');
+    }
+
+    if (container && container.lastChild) container.removeChild(container.lastChild);
+
+    if (result.status === 'executed') {
+      let msg = '<i class="fas fa-check-circle" style="color:#10b981"></i> ';
+      if (result.action_type === 'log_nutrition') {
+        msg += `Done! Logged ${result.count} food item${result.count > 1 ? 's' : ''} successfully! 🍽️ Your nutrition page is updated.`;
+        if (typeof loadMeals === 'function') loadMeals();
+      } else if (result.action_type === 'add_task') {
+        msg += `Task "${_escapeHtml(result.task?.title || '')}" is on your list! 📋 Check your Tasks page or Calendar.`;
+        if (typeof loadTasks === 'function') loadTasks();
+        if (typeof renderCalendar === 'function') renderCalendar();
+      } else if (result.action_type === 'add_project') {
+        msg += `Project "${_escapeHtml(result.project?.name || '')}" created! 📁`;
+      }
+      _aiAddMessage(msg, 'bot');
+    } else {
+      _aiAddMessage('Action completed.', 'bot');
+    }
+
+  } catch (err) {
+    if (container && container.lastChild) container.removeChild(container.lastChild);
+    _aiAddMessage(`<i class="fas fa-exclamation-triangle"></i> ${_escapeHtml(err.message)}`, 'bot');
+  }
+}
+
+/** Read edited values from the inline form back into aiPendingAction before confirming */
+function _aiSyncEditsToPayload() {
+  if (!aiPendingAction) return;
+  const d = aiPendingAction.details;
+
+  if (aiPendingAction.action_type === 'log_nutrition' && d) {
+    // Meal type
+    const mtSel = document.querySelector('#ai-edit-meal-type');
+    if (mtSel) d.meal_type = mtSel.value;
+
+    // Items
+    const rows = document.querySelectorAll('tr[data-ai-item]');
+    const newItems = [];
+    rows.forEach((row) => {
+      const idx = parseInt(row.dataset.aiItem, 10);
+      const nameEl = row.querySelector('.ai-edit-name');
+      const qtyEl = row.querySelector('.ai-edit-qty');
+      const calEl = row.querySelector('.ai-edit-cal');
+      const pEl = row.querySelector('.ai-edit-p');
+      const cEl = row.querySelector('.ai-edit-c');
+      const fEl = row.querySelector('.ai-edit-f');
+      newItems.push({
+        name: nameEl ? nameEl.value.trim() || 'Item' : (d.items[idx]?.name || 'Item'),
+        quantity: qtyEl ? parseFloat(qtyEl.value) || 1 : 1,
+        unit: d.items[idx]?.unit || 'serving',
+        calories: calEl ? parseInt(calEl.value) || 0 : 0,
+        protein: pEl ? parseFloat(pEl.value) || 0 : 0,
+        carbs: cEl ? parseFloat(cEl.value) || 0 : 0,
+        fats: fEl ? parseFloat(fEl.value) || 0 : 0,
+        is_estimate: d.items[idx]?.is_estimate ?? true,
+        note: d.items[idx]?.note || ''
+      });
+    });
+    d.items = newItems;
+    d.total = {
+      calories: newItems.reduce((s, i) => s + i.calories, 0),
+      protein: Math.round(newItems.reduce((s, i) => s + i.protein, 0) * 10) / 10,
+      carbs: Math.round(newItems.reduce((s, i) => s + i.carbs, 0) * 10) / 10,
+      fats: Math.round(newItems.reduce((s, i) => s + i.fats, 0) * 10) / 10,
+    };
+  }
+
+  if (aiPendingAction.action_type === 'add_task' && d) {
+    const titleEl = document.querySelector('.ai-edit-task-title');
+    const dateEl = document.querySelector('.ai-edit-task-date');
+    const prioEl = document.querySelector('.ai-edit-task-priority');
+    const tagsEl = document.querySelector('.ai-edit-task-tags');
+    if (titleEl) d.title = titleEl.value.trim() || d.title;
+    if (dateEl) d.date = dateEl.value || d.date;
+    if (prioEl) d.priority = prioEl.value || d.priority;
+    if (tagsEl) d.tags = (tagsEl.value.match(/#(\w+)/g) || []).map(t => t.slice(1));
+  }
+
+  if (aiPendingAction.action_type === 'add_project' && d) {
+    const nameEl = document.querySelector('.ai-edit-proj-name');
+    const descEl = document.querySelector('.ai-edit-proj-desc');
+    if (nameEl) d.name = nameEl.value.trim() || d.name;
+    if (descEl) d.description = descEl.value.trim();
+    const subtaskEls = document.querySelectorAll('.ai-edit-subtask');
+    if (subtaskEls.length) {
+      d.subtasks = Array.from(subtaskEls).map(el => el.value.trim()).filter(Boolean);
+    }
+  }
+}
+
+/** Remove a nutrition item row */
+function _aiRemoveItem(idx) {
+  const row = document.querySelector(`tr[data-ai-item="${idx}"]`);
+  if (row) row.remove();
+  // Re-index remaining rows
+  document.querySelectorAll('tr[data-ai-item]').forEach((r, i) => {
+    r.dataset.aiItem = i;
+    r.querySelectorAll('[data-idx]').forEach(el => { el.dataset.idx = i; });
+  });
+  if (aiPendingAction?.details?.items) {
+    aiPendingAction.details.items.splice(idx, 1);
+  }
+}
+
+/** Add new blank nutrition item row */
+function _aiAddItem() {
+  if (!aiPendingAction?.details?.items) return;
+  const newIdx = aiPendingAction.details.items.length;
+  aiPendingAction.details.items.push({ name: '', quantity: 1, unit: 'serving', calories: 0, protein: 0, carbs: 0, fats: 0, is_estimate: true, note: '' });
+  const tbody = document.querySelector('.ai-chat-table tbody');
+  if (!tbody) return;
+  const tr = document.createElement('tr');
+  tr.dataset.aiItem = newIdx;
+  tr.innerHTML = `<td><input class="ai-edit-input ai-edit-name" data-idx="${newIdx}" value="" style="width:70px" placeholder="Food name"></td><td><input class="ai-edit-input ai-edit-qty" data-idx="${newIdx}" type="number" min="0" step="0.5" value="1" style="width:38px"></td><td><input class="ai-edit-input ai-edit-cal" data-idx="${newIdx}" type="number" min="0" value="0" style="width:42px"></td><td><input class="ai-edit-input ai-edit-p" data-idx="${newIdx}" type="number" min="0" step="0.1" value="0" style="width:38px"></td><td><input class="ai-edit-input ai-edit-c" data-idx="${newIdx}" type="number" min="0" step="0.1" value="0" style="width:38px"></td><td><input class="ai-edit-input ai-edit-f" data-idx="${newIdx}" type="number" min="0" step="0.1" value="0" style="width:38px"></td><td><button class="ai-edit-del" onclick="_aiRemoveItem(${newIdx})" title="Remove"><i class="fas fa-trash-alt"></i></button></td>`;
+  tbody.appendChild(tr);
+  tr.querySelector('.ai-edit-name')?.focus();
+}
+
+/** Remove a project subtask */
+function _aiRemoveSubtask(idx) {
+  const rows = document.querySelectorAll('.ai-edit-subtask-row');
+  if (rows[idx]) rows[idx].remove();
+  if (aiPendingAction?.details?.subtasks) {
+    aiPendingAction.details.subtasks.splice(idx, 1);
+  }
+}
+
+/** Add a project subtask */
+function _aiAddSubtask() {
+  if (!aiPendingAction?.details) return;
+  if (!aiPendingAction.details.subtasks) aiPendingAction.details.subtasks = [];
+  const idx = aiPendingAction.details.subtasks.length;
+  aiPendingAction.details.subtasks.push('');
+  const container = document.querySelector('.ai-edit-project-form');
+  if (!container) return;
+  const addBtn = container.querySelector('.ai-edit-add-btn');
+  const div = document.createElement('div');
+  div.className = 'ai-edit-subtask-row';
+  div.innerHTML = `<input class="ai-edit-input ai-edit-subtask" data-idx="${idx}" value="" placeholder="Subtask name"> <button class="ai-edit-del" onclick="_aiRemoveSubtask(${idx})" title="Remove"><i class="fas fa-trash-alt"></i></button>`;
+  if (addBtn) container.insertBefore(div, addBtn);
+  else container.appendChild(div);
+  div.querySelector('.ai-edit-subtask')?.focus();
+}
+
+function aiEditAction() {
+  // Edit now just focuses the first editable field — the form is already inline
+  _aiShowConfirmBar(true); // keep confirm bar visible
+  const firstInput = document.querySelector('.ai-edit-input');
+  if (firstInput) {
+    firstInput.focus();
+    firstInput.select();
+    _aiAddMessage('✏️ Edit the fields above and click <strong>Confirm</strong> when ready, or <strong>Cancel</strong> to discard.', 'bot');
+  } else {
+    _aiAddMessage('No editable fields found. Try rephrasing your request.', 'bot');
+    aiPendingAction = null;
+    _aiShowConfirmBar(false);
+  }
+}
+
+function aiCancelAction() {
+  _aiShowConfirmBar(false);
+  aiPendingAction = null;
+  _aiAddMessage('Action cancelled. Let me know if you need anything else!', 'bot');
+}
+
+// --- Demo mode execution ---
+function _aiExecuteDemo(data) {
+  if (data.action_type === 'log_nutrition' && data.details) {
+    const meals = typeof getActiveUserMealsData === 'function' ? getActiveUserMealsData() : [];
+    const items = data.details.items || [];
+    for (const item of items) {
+      meals.push({
+        id: typeof nextLocalId === 'function' ? nextLocalId(meals) : Date.now(),
+        name: item.name,
+        meal_type: data.details.meal_type || 'snack',
+        calories: Math.round(item.calories || 0),
+        protein: Math.round((item.protein || 0) * 10) / 10,
+        carbs: Math.round((item.carbs || 0) * 10) / 10,
+        fats: Math.round((item.fats || 0) * 10) / 10,
+        date: typeof todayDateKey === 'function' ? todayDateKey() : new Date().toISOString().slice(0, 10),
+        time: new Date().toTimeString().slice(0, 5)
+      });
+    }
+    if (typeof setActiveUserMealsData === 'function') setActiveUserMealsData(meals);
+    if (typeof loadMeals === 'function') loadMeals();
+    return { status: 'executed', action_type: 'log_nutrition', count: items.length };
+  }
+
+  if (data.action_type === 'add_task' && data.details) {
+    // Demo mode task creation using the proper demo user data store
+    const tasks = typeof getActiveUserTasksData === 'function' ? getActiveUserTasksData() : [];
+    const dueAt = data.details.date
+      ? new Date(data.details.date + 'T12:00:00').toISOString()
+      : new Date().toISOString();
+    const newTask = {
+      id: typeof nextLocalId === 'function' ? nextLocalId(tasks) : Date.now(),
+      userId: activeDemoUserId || '1',
+      title: data.details.title,
+      description: data.details.description || '',
+      category: data.details.category || 'general',
+      priority: data.details.priority || 'medium',
+      completed: false,
+      completedAt: null,
+      date: data.details.date || (typeof todayDateKey === 'function' ? todayDateKey() : new Date().toISOString().slice(0, 10)),
+      dueAt: dueAt,
+      tags: data.details.tags || [],
+      time_spent: 0,
+    };
+    tasks.push(newTask);
+    if (typeof setActiveUserTasksData === 'function') setActiveUserTasksData(tasks);
+    if (typeof loadTasks === 'function') loadTasks();
+    return { status: 'executed', action_type: 'add_task', task: newTask };
+  }
+
+  if (data.action_type === 'add_project' && data.details) {
+    return { status: 'executed', action_type: 'add_project', project: { name: data.details.name, subtasks: data.details.subtasks || [] } };
+  }
+
+  return { status: 'executed', action_type: data.action_type };
+}
+
+// --- Demo mode local fallback for AI chat ---
+function _aiLocalFallback(msg) {
+  const lower = msg.toLowerCase();
+
+  // Simple nutrition keywords
+  const nutritionKw = ['ate', 'eaten', 'had', 'log', 'food', 'meal', 'breakfast', 'lunch', 'dinner', 'snack', 'roti', 'rice', 'dal', 'egg', 'chicken', 'paneer', 'dosa', 'idli', 'biryani', 'samosa', 'chai', 'milk', 'banana', 'apple', 'bread', 'paratha', 'naan', 'curd', 'yogurt', 'maggi', 'butter', 'ghee', 'fish', 'omelette'];
+
+  const taskKw = ['task', 'todo', 'to-do', 'to do', 'reminder', 'remind', 'need to', 'have to', 'gotta', 'should do', 'must'];
+
+  const projectKw = ['project', 'create project', 'new project', 'start project'];
+
+  const hasNutrition = nutritionKw.some(k => lower.includes(k));
+  const hasTask = taskKw.some(k => lower.includes(k));
+  const hasProject = projectKw.some(k => lower.includes(k));
+
+  if (hasProject) {
+    const name = msg.replace(/(?:create|new|add|start|make)\s*(?:a\s*)?project\s*:?\s*/i, '').trim() || 'Untitled Project';
+    return {
+      status: 'confirmation_required',
+      action_type: 'add_project',
+      summary: 'Create project: ' + name,
+      details: { name, description: '', subtasks: [], due_date: '' },
+      confidence: 'medium',
+      message: 'Please confirm, edit, or cancel.'
+    };
+  }
+
+  if (hasTask) {
+    let title = msg.replace(/(?:add|create|new|make)\s*(?:a\s*)?(?:task|todo|to-do|reminder)\s*:?\s*/i, '').trim();
+    title = title.replace(/(?:i need to|i have to|i must|remind me to|i should|i gotta)\s*/i, '').trim();
+    title = title || 'Untitled Task';
+    const today = typeof todayDateKey === 'function' ? todayDateKey() : new Date().toISOString().slice(0, 10);
+    return {
+      status: 'confirmation_required',
+      action_type: 'add_task',
+      summary: 'Create task: ' + title,
+      details: { title, description: '', category: 'general', priority: 'medium', date: today, tags: [] },
+      confidence: 'high',
+      message: 'Please confirm, edit, or cancel.'
+    };
+  }
+
+  if (hasNutrition) {
+    // Very simple local food matching
+    const indianFoods = {
+      roti: {cal:120, p:3, c:20, f:3.5}, chapati: {cal:120, p:3, c:20, f:3.5},
+      naan: {cal:260, p:9, c:45, f:5}, paratha: {cal:230, p:5, c:30, f:10},
+      dal: {cal:180, p:12, c:24, f:4}, rice: {cal:200, p:4, c:45, f:0.5},
+      biryani: {cal:450, p:18, c:52, f:18}, egg: {cal:78, p:6, c:0.6, f:5},
+      paneer: {cal:260, p:18, c:4, f:20}, chicken: {cal:165, p:31, c:0, f:3.6},
+      dosa: {cal:170, p:4, c:28, f:5}, idli: {cal:60, p:2, c:12, f:0.5},
+      samosa: {cal:260, p:5, c:30, f:14}, chai: {cal:80, p:2, c:12, f:2.5},
+      milk: {cal:120, p:6, c:10, f:6}, banana: {cal:105, p:1.3, c:27, f:0.4},
+      apple: {cal:95, p:0.5, c:25, f:0.3}, bread: {cal:80, p:3, c:14, f:1},
+      curd: {cal:60, p:3, c:5, f:3}, yogurt: {cal:60, p:3, c:5, f:3},
+      omelette: {cal:154, p:11, c:1, f:12}, maggi: {cal:310, p:7, c:44, f:12},
+      butter: {cal:36, p:0, c:0, f:4}, ghee: {cal:45, p:0, c:0, f:5}
+    };
+
+    const text = msg.replace(/(?:i |i've |i have |had |ate |eaten |log |add |please )+(?:for )?(?:breakfast |lunch |dinner |snack )?/gi, '').replace(/\s+for\s+(breakfast|lunch|dinner|snack)\s*$/i, '').trim();
+    const segments = text.split(/,|\band\b|\+|;|\bwith\b/i).map(s => s.trim()).filter(Boolean);
+    const items = [];
+
+    for (const seg of segments) {
+      let qty = 1;
+      let food = seg;
+      const qm = seg.match(/^(\d+(?:\.\d+)?)\s*(.*)/);
+      if (qm) { qty = parseFloat(qm[1]) || 1; food = qm[2]; }
+
+      const fl = food.toLowerCase();
+      let matched = null;
+      for (const [key, val] of Object.entries(indianFoods)) {
+        if (fl.includes(key)) { matched = { key, ...val }; break; }
+      }
+
+      if (matched) {
+        items.push({ name: matched.key.charAt(0).toUpperCase() + matched.key.slice(1), quantity: qty, unit: 'serving', calories: Math.round(matched.cal * qty), protein: Math.round(matched.p * qty * 10) / 10, carbs: Math.round(matched.c * qty * 10) / 10, fats: Math.round(matched.f * qty * 10) / 10, is_estimate: true, note: 'Estimated from common values' });
+      } else {
+        items.push({ name: food.trim() || seg, quantity: qty, unit: 'serving', calories: 0, protein: 0, carbs: 0, fats: 0, is_estimate: true, note: 'Could not estimate — please enter values manually' });
+      }
+    }
+
+    const mealType = lower.includes('breakfast') ? 'breakfast' : lower.includes('lunch') ? 'lunch' : lower.includes('dinner') ? 'dinner' : 'snack';
+    const total = { calories: items.reduce((s, i) => s + i.calories, 0), protein: Math.round(items.reduce((s, i) => s + i.protein, 0) * 10) / 10, carbs: Math.round(items.reduce((s, i) => s + i.carbs, 0) * 10) / 10, fats: Math.round(items.reduce((s, i) => s + i.fats, 0) * 10) / 10 };
+
+    return {
+      status: 'confirmation_required',
+      action_type: 'log_nutrition',
+      summary: `Log ${items.length} food item${items.length > 1 ? 's' : ''} as ${mealType}`,
+      details: { meal_type: mealType, items, total },
+      confidence: items.some(i => i.calories === 0) ? 'low' : 'medium',
+      message: 'These are estimated values. Please review and confirm, edit, or cancel.'
+    };
+  }
+
+  // General chat
+  if (lower.match(/^(hi|hello|hey|howdy|yo|sup|namaste)/)) return { status: 'chat_response', message: "Hey there! 👋 How's it going? I'm your FitTrack AI buddy. I can log meals, create tasks, answer questions, or just chat. What's on your mind?" };
+  if (lower.match(/^(bye|goodbye|see ya|later|good night)/)) return { status: 'chat_response', message: "See ya! 👋 Stay on track and take care. I'm always here when you need me!" };
+  if (lower.includes('how are you') || lower.includes("what's up") || lower.includes('whats up')) return { status: 'chat_response', message: "I'm doing great! 😄 Ready to help you crush your goals. What can I do for you?" };
+  if (lower.includes('who are you') || lower.includes('your name')) return { status: 'chat_response', message: "I'm **FitTrack AI** — your personal productivity & fitness assistant! 🤖✨ I can log meals (I know Indian food really well!), create tasks & projects, and answer questions!" };
+  if (lower.includes('help') || lower.includes('what can you do')) return { status: 'chat_response', message: "Here's what I can do! ✨\n\n🍽️ **Log Meals** — \"I had 2 rotis and dal for lunch\"\n📋 **Create Tasks** — \"Add task: finish report by tomorrow\"\n📁 **Create Projects** — \"Create project website redesign\"\n💬 **Answer Questions** — Ask me anything!\n💪 **Fitness Tips** — Nutrition advice, protein goals, etc.\n\nJust type naturally!" };
+  if (lower.includes('thank') || lower.includes('thx')) return { status: 'chat_response', message: "You're welcome! 😊 Always happy to help. Anything else?" };
+  if (lower.includes('motivate') || lower.includes('lazy') || lower.includes('unmotivated')) { const q = ['🔥 "The only bad workout is the one that didn\'t happen." Just start small!', '💪 "Discipline is choosing what you want most over what you want now." You\'ve got this!', '🚀 "Every expert was once a beginner." One step at a time!', '⭐ "Don\'t have to be extreme, just consistent." Small wins add up!']; return { status: 'chat_response', message: q[Math.floor(Math.random() * q.length)] }; }
+  if (lower.includes('protein') && (lower.includes('how much') || lower.includes('daily'))) return { status: 'chat_response', message: "Great question! 💪 Aim for **0.7-1g per pound of bodyweight** (~1.6-2.2g/kg). If you're 70kg, target **112-154g/day**. Sources: chicken, eggs, dal, paneer, Greek yogurt!" };
+  if (lower.includes('calorie') && (lower.includes('how many') || lower.includes('daily'))) return { status: 'chat_response', message: "It depends on your goals! 📊\n- **Maintain**: ~2000-2500 cal/day\n- **Lose weight**: Cut 300-500 cal below maintenance\n- **Gain muscle**: Add 200-300 cal above\n\nSearch for a TDEE calculator for a precise number!" };
+  if (msg.includes('?') || lower.includes('what is') || lower.includes('how to') || lower.includes('explain')) return { status: 'chat_response', message: "That's a great question! 🤔 My local brain is a bit limited for general knowledge, but I'm a pro at nutrition, fitness, and productivity topics. Try asking me about those, or I can help you log a meal or create a task!" };
+
+  return { status: 'chat_response', message: "Hmm, I'm not quite sure what you mean 🤔 but I'm here to help!\n\n🍽️ Tell me what you ate — \"I had biryani for lunch\"\n📋 Create a task — \"Add task buy groceries\"\n❓ Ask a question — \"How much protein do I need?\"\n\nWhat would you like to do?" };
+}
 
 

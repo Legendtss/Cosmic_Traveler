@@ -3,10 +3,25 @@ PRAGMA foreign_keys = ON;
 CREATE TABLE IF NOT EXISTS users (
   id INTEGER PRIMARY KEY,
   email TEXT NOT NULL UNIQUE,
+  password_hash TEXT NOT NULL DEFAULT '',
   display_name TEXT NOT NULL,
+  level TEXT NOT NULL DEFAULT 'Beginner',
+  goal TEXT NOT NULL DEFAULT 'General Fitness',
+  weekly_workout_target INTEGER NOT NULL DEFAULT 3,
+  calorie_goal INTEGER NOT NULL DEFAULT 2200,
   created_at TEXT NOT NULL DEFAULT (CURRENT_TIMESTAMP),
   updated_at TEXT NOT NULL DEFAULT (CURRENT_TIMESTAMP)
 );
+
+CREATE TABLE IF NOT EXISTS sessions (
+  id TEXT PRIMARY KEY,
+  user_id INTEGER NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (CURRENT_TIMESTAMP),
+  expires_at TEXT NOT NULL,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
 
 CREATE TABLE IF NOT EXISTS projects (
   id INTEGER PRIMARY KEY,
@@ -59,6 +74,7 @@ CREATE TABLE IF NOT EXISTS workouts (
   intensity TEXT NOT NULL DEFAULT 'medium' CHECK (intensity IN ('low','medium','high')),
   exercises_json TEXT NOT NULL DEFAULT '[]',
   notes TEXT NOT NULL DEFAULT '',
+  completed INTEGER NOT NULL DEFAULT 0 CHECK (completed IN (0,1)),
   date TEXT NOT NULL,
   time TEXT,
   created_at TEXT NOT NULL DEFAULT (CURRENT_TIMESTAMP),
@@ -94,6 +110,44 @@ CREATE TABLE IF NOT EXISTS stats_snapshots (
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
+CREATE TABLE IF NOT EXISTS user_progress (
+  id INTEGER PRIMARY KEY,
+  user_id INTEGER NOT NULL UNIQUE,
+  total_points INTEGER NOT NULL DEFAULT 0 CHECK (total_points >= 0),
+  current_streak INTEGER NOT NULL DEFAULT 0 CHECK (current_streak >= 0),
+  longest_streak INTEGER NOT NULL DEFAULT 0 CHECK (longest_streak >= 0),
+  level INTEGER NOT NULL DEFAULT 1 CHECK (level >= 1),
+  updated_at TEXT NOT NULL DEFAULT (CURRENT_TIMESTAMP),
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS focus_sessions (
+  id INTEGER PRIMARY KEY,
+  user_id INTEGER NOT NULL,
+  mode TEXT NOT NULL DEFAULT 'pomodoro' CHECK (mode IN ('pomodoro','custom','stopwatch')),
+  duration_planned INTEGER NOT NULL DEFAULT 0 CHECK (duration_planned >= 0),
+  duration_actual INTEGER NOT NULL DEFAULT 0 CHECK (duration_actual >= 0),
+  completed INTEGER NOT NULL DEFAULT 0 CHECK (completed IN (0,1)),
+  label TEXT NOT NULL DEFAULT '',
+  date TEXT NOT NULL,
+  started_at TEXT NOT NULL DEFAULT (CURRENT_TIMESTAMP),
+  ended_at TEXT,
+  created_at TEXT NOT NULL DEFAULT (CURRENT_TIMESTAMP)
+);
+
+CREATE TABLE IF NOT EXISTS notes (
+  id INTEGER PRIMARY KEY,
+  user_id INTEGER NOT NULL,
+  title TEXT NOT NULL,
+  content TEXT NOT NULL DEFAULT '',
+  source_type TEXT NOT NULL DEFAULT 'manual' CHECK (source_type IN ('manual','task')),
+  source_id INTEGER,
+  tags_json TEXT NOT NULL DEFAULT '[]',
+  created_at TEXT NOT NULL DEFAULT (CURRENT_TIMESTAMP),
+  updated_at TEXT NOT NULL DEFAULT (CURRENT_TIMESTAMP),
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
 CREATE INDEX IF NOT EXISTS idx_tasks_user_date ON tasks(user_id, date);
 CREATE INDEX IF NOT EXISTS idx_tasks_user_completed_date ON tasks(user_id, completed, date);
 CREATE INDEX IF NOT EXISTS idx_tasks_project ON tasks(project_id);
@@ -101,3 +155,6 @@ CREATE INDEX IF NOT EXISTS idx_workouts_user_date ON workouts(user_id, date);
 CREATE INDEX IF NOT EXISTS idx_nutrition_user_date ON nutrition_entries(user_id, date);
 CREATE INDEX IF NOT EXISTS idx_subtasks_project ON project_subtasks(project_id, completed);
 CREATE INDEX IF NOT EXISTS idx_stats_user_date ON stats_snapshots(user_id, snapshot_date);
+CREATE INDEX IF NOT EXISTS idx_focus_user_date ON focus_sessions(user_id, date);
+CREATE INDEX IF NOT EXISTS idx_notes_user ON notes(user_id);
+CREATE INDEX IF NOT EXISTS idx_notes_source ON notes(source_type, source_id);

@@ -1,3 +1,18 @@
+"""
+FILE: app/utils.py
+
+Responsibility:
+  Pure utility functions used across the backend.
+  No side effects, no imports from other app modules.
+
+MUST NOT:
+  - Import from Flask, db, or any app module
+  - Contain business logic
+
+Depends on:
+  - Standard library only (datetime)
+"""
+
 from datetime import datetime
 
 

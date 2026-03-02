@@ -1,3 +1,21 @@
+"""
+FILE: app/db.py
+
+Responsibility:
+  SQLite connection management, schema initialization,
+  JSON→SQLite data migration, default user seeding.
+  Provides get_db() for request-scoped connections.
+
+MUST NOT:
+  - Contain route or business logic
+  - Import from api/ or AI modules
+
+Depends on:
+  - config.py (DB_FILE, SCHEMA_FILE)
+  - utils.py (now_iso, safe_int, today_str)
+  - db/schema.sql (DDL)
+"""
+
 import json
 import os
 import sqlite3
@@ -54,9 +72,40 @@ def init_schema(conn):
 def ensure_tasks_tags_column(conn):
     cols = conn.execute("PRAGMA table_info(tasks)").fetchall()
     names = {row["name"] for row in cols}
-    if "tags_json" in names:
-        return
-    conn.execute("ALTER TABLE tasks ADD COLUMN tags_json TEXT NOT NULL DEFAULT '[]'")
+    if "tags_json" not in names:
+        conn.execute("ALTER TABLE tasks ADD COLUMN tags_json TEXT NOT NULL DEFAULT '[]'")
+    if "note_content" not in names:
+        conn.execute("ALTER TABLE tasks ADD COLUMN note_content TEXT NOT NULL DEFAULT ''")
+    if "note_saved_to_notes" not in names:
+        conn.execute("ALTER TABLE tasks ADD COLUMN note_saved_to_notes INTEGER NOT NULL DEFAULT 0")
+
+
+def ensure_auth_columns(conn):
+    """Add auth-related columns/tables if missing (non-breaking migration)."""
+    # Users table — add password_hash, level, goal, targets
+    cols = conn.execute("PRAGMA table_info(users)").fetchall()
+    names = {row["name"] for row in cols}
+    if "password_hash" not in names:
+        conn.execute("ALTER TABLE users ADD COLUMN password_hash TEXT NOT NULL DEFAULT ''")
+    if "level" not in names:
+        conn.execute("ALTER TABLE users ADD COLUMN level TEXT NOT NULL DEFAULT 'Beginner'")
+    if "goal" not in names:
+        conn.execute("ALTER TABLE users ADD COLUMN goal TEXT NOT NULL DEFAULT 'General Fitness'")
+    if "weekly_workout_target" not in names:
+        conn.execute("ALTER TABLE users ADD COLUMN weekly_workout_target INTEGER NOT NULL DEFAULT 3")
+    if "calorie_goal" not in names:
+        conn.execute("ALTER TABLE users ADD COLUMN calorie_goal INTEGER NOT NULL DEFAULT 2200")
+    # Sessions table
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS sessions (
+          id TEXT PRIMARY KEY,
+          user_id INTEGER NOT NULL,
+          created_at TEXT NOT NULL DEFAULT (CURRENT_TIMESTAMP),
+          expires_at TEXT NOT NULL,
+          FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        )
+    """)
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id)")
 
 
 def ensure_default_user(conn):
@@ -241,9 +290,9 @@ def init_app_data(app):
         with app.app_context():
             init_schema(conn)
             ensure_tasks_tags_column(conn)
+            ensure_auth_columns(conn)
             if should_migrate_json(conn):
                 migrate_json_to_sqlite(conn)
-            ensure_default_user(conn)
         conn.commit()
     finally:
         conn.close()

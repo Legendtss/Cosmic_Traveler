@@ -1,0 +1,64 @@
+/* 01-base.css — extracted from styles.css */
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  background:
+    radial-gradient(circle at 15% 10%, #e9f3ff 0%, transparent 28%),
+    radial-gradient(circle at 85% 8%, #edf9ff 0%, transparent 24%),
+    #f5f9ff;
+  font-family: 'Manrope', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  color: #0a1e2f;
+  line-height: 1.5;
+  padding: 24px 32px;
+}
+
+.feature-hidden {
+  display: none !important;
+}
+
+
+.app-wrapper {
+  max-width: 1440px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: 260px 1fr;
+  gap: 32px;
+}
+
+/* ---------- MAIN CONTENT (DASHBOARD) ---------- */
+.main-content {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+
+
+/* ---------- Global Production Polish (All Pages) ---------- */
+:root {
+  --bg-primary: #f5f9ff;
+  --bg-surface: rgba(255, 255, 255, 0.9);
+  --bg-card: rgba(255, 255, 255, 0.96);
+  --bg-elevated: #ffffff;
+  --text-primary: #0f2538;
+  --text-secondary: #3f5973;
+  --text-muted: #5d7891;
+  --border-subtle: rgba(141, 170, 200, 0.34);
+  --border-strong: rgba(120, 155, 190, 0.52);
+  --icon-primary: #35516b;
+  --icon-secondary: #5d7891;
+  --ui-ink: #0f2538;
+  --ui-muted: #5d7891;
+  --ui-border: rgba(141, 170, 200, 0.34);
+  --ui-card: rgba(255, 255, 255, 0.9);
+  --ui-card-strong: rgba(255, 255, 255, 0.96);
+  --ui-shadow-soft: 0 14px 28px -22px rgba(16, 44, 72, 0.52);
+  --ui-shadow-strong: 0 24px 42px -28px rgba(12, 36, 62, 0.64);
+  --ui-focus: #3b82f6;
+}
+
+

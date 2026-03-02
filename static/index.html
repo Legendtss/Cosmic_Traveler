@@ -1,3 +1,32 @@
+<!--
+  FILE: index.html
+  ════════════════════════════════════════════════════════════════
+  Responsibility:
+    Single-page application shell for FitTrack Pro.
+    Contains ALL page sections (dashboard, tasks, calendar,
+    nutrition, workouts, projects, statistics, streaks,
+    profile, focus, notes), navigation sidebar, modals,
+    and the AI chat widget.
+
+  Structure:
+    - Demo user selector overlay
+    - Mobile hamburger + overlay
+    - Sidebar navigation
+    - Main content area with page-section divs
+    - Add-task modal, edit-task modal
+    - AI chat floating panel
+    - External deps: Manrope/Sora fonts, Font Awesome, Sortable.js
+
+  MUST NOT:
+    - Be split without updating Flask static serving
+    - Reference script files other than script.js and styles.css
+
+  Depends on:
+    - styles.css (all styling)
+    - script.js (all behavior)
+    - Sortable.js from CDN (calendar week drag-and-drop)
+  ════════════════════════════════════════════════════════════════
+-->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -7,6 +36,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Sora:wght@600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
   <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="css/00-auth.css">
   <style>
     .fire-container {
       display: flex;
@@ -48,15 +78,18 @@
     .fire-text {
       display: inline-block;
       position: relative;
+      color: #406380;
     }
 
     .fire-text span {
       display: inline-block;
       transition: color 0.3s ease;
+      color: inherit;
     }
 
     .fire-text span.glint {
       color: #ff6600;
+      font-weight: 700;
     }
 
     .fire-text span.fade {
@@ -66,9 +99,11 @@
     @keyframes glintFade {
       0% {
         color: #ff6600;
+        font-weight: 700;
       }
       100% {
-        color: inherit;
+        color: #406380;
+        font-weight: 500;
       }
     }
 
@@ -338,17 +373,56 @@
   </style>
 </head>
 <body>
-  <div id="demo-user-selector" class="demo-user-selector">
-    <div class="demo-user-shell">
-      <h1>Choose a Demo User</h1>
-      <p>Select a temporary test profile to continue.</p>
-      <div id="demo-user-cards" class="demo-user-cards"></div>
+  <!-- ── Auth Screen (login / signup) ─────────────────────── -->
+  <div id="auth-screen" class="auth-screen">
+    <div class="auth-shell">
+      <div class="auth-brand">
+        <h1><span>FitTrack</span> Pro</h1>
+        <p class="auth-tagline">Track your progress, achieve your goals</p>
+      </div>
+
+      <!-- Login Form -->
+      <form id="auth-login-form" class="auth-form">
+        <h2>Welcome Back</h2>
+        <div class="auth-field">
+          <label for="login-email">Email</label>
+          <input id="login-email" type="email" placeholder="you@example.com" required autocomplete="email">
+        </div>
+        <div class="auth-field">
+          <label for="login-password">Password</label>
+          <input id="login-password" type="password" placeholder="••••••••" required autocomplete="current-password">
+        </div>
+        <div id="login-error" class="auth-error hidden"></div>
+        <button type="submit" class="auth-btn auth-btn-primary">Log In</button>
+        <p class="auth-switch">Don't have an account? <a href="#" id="show-signup">Sign up</a></p>
+      </form>
+
+      <!-- Signup Form -->
+      <form id="auth-signup-form" class="auth-form hidden">
+        <h2>Create Account</h2>
+        <div class="auth-field">
+          <label for="signup-name">Display Name</label>
+          <input id="signup-name" type="text" placeholder="Your name" required autocomplete="name">
+        </div>
+        <div class="auth-field">
+          <label for="signup-email">Email</label>
+          <input id="signup-email" type="email" placeholder="you@example.com" required autocomplete="email">
+        </div>
+        <div class="auth-field">
+          <label for="signup-password">Password</label>
+          <input id="signup-password" type="password" placeholder="At least 6 characters" required minlength="6" autocomplete="new-password">
+        </div>
+        <div id="signup-error" class="auth-error hidden"></div>
+        <button type="submit" class="auth-btn auth-btn-primary">Sign Up</button>
+        <p class="auth-switch">Already have an account? <a href="#" id="show-login">Log in</a></p>
+      </form>
     </div>
   </div>
 
+  <!-- ── Onboarding (feature preferences — shown once after signup) ── -->
   <div id="demo-onboarding" class="demo-user-selector hidden">
     <div class="demo-user-shell">
-      <h1>Setup Your Demo Experience</h1>
+      <h1>Setup Your Experience</h1>
       <p id="demo-onboarding-subtitle">Choose what you want to see in the app.</p>
       <form id="demo-onboarding-form" class="demo-onboarding-form">
         <label><input id="pref-projects" type="checkbox" checked> Do you want the Projects section?</label>
@@ -429,6 +503,23 @@
             <span>Calendar</span>
           </div>
         </div>
+        <div class="nav-item" onclick="showPage('focus')">
+          <div class="nav-focus-container">
+            <div class="nav-focus-wrapper" id="navFocusWrapper">
+              <i class="fas fa-bullseye nav-focus-icon"></i>
+              <div class="nav-focus-ring"></div>
+            </div>
+            <span>Focus</span>
+          </div>
+        </div>
+        <div class="nav-item" onclick="showPage('notes')">
+          <div class="nav-notes-container">
+            <div class="nav-notes-wrapper" id="navNotesWrapper">
+              <i class="fas fa-sticky-note nav-notes-icon"></i>
+            </div>
+            <span>Notes</span>
+          </div>
+        </div>
       </div>
       
       <!-- Streak Card -->
@@ -436,12 +527,12 @@
         <div style="display: flex; justify-content: space-between; align-items: flex-start;">
           <div>
             <div class="streak-mini-title"><i class="fas fa-fire" style="margin-right: 5px;"></i> Current Streak</div>
-            <div class="streak-mini-number">12 Days</div>
-            <div class="streak-mini-label">Keep going! You're doing amazing!</div>
+            <div class="streak-mini-number" id="sidebar-streak-value">0 Days</div>
+            <div class="streak-mini-label" id="sidebar-streak-label">Start your streak today!</div>
           </div>
           <div style="text-align: right;">
-            <div style="font-size: 0.75rem; font-weight: 600; color: rgba(255, 255, 255, 0.9);"><i class="fas fa-star" style="margin-right: 4px;"></i>Level 15</div>
-            <div style="font-size: 1.4rem; font-weight: 700; color: white; margin-top: 2px;">2,450</div>
+            <div style="font-size: 0.75rem; font-weight: 600; color: rgba(255, 255, 255, 0.9);"><i class="fas fa-star" style="margin-right: 4px;"></i><span id="sidebar-level-value">Level 1</span></div>
+            <div style="font-size: 1.4rem; font-weight: 700; color: white; margin-top: 2px;" id="sidebar-points-value">0</div>
             <div style="font-size: 0.75rem; font-weight: 600; color: rgba(255, 255, 255, 0.9);">Points</div>
           </div>
         </div>
@@ -452,6 +543,12 @@
         <i class="fas fa-star" style="margin-right: 6px;"></i> Upgrade to Pro
       </div>
     </div>
+
+    <!-- Mobile hamburger -->
+    <button id="mobile-hamburger" class="mobile-hamburger" type="button" aria-label="Open menu" aria-expanded="false">
+      <span></span><span></span><span></span>
+    </button>
+    <div id="sidebar-overlay" class="sidebar-overlay"></div>
 
     <!-- MAIN CONTENT -->
     <div class="main-content">
@@ -516,13 +613,13 @@
               <div class="dash-streak-icon-wrap"><i class="fas fa-fire"></i></div>
               <div>
                 <p>Current Streak</p>
-                <h3 id="dash-streak-value">12 Days</h3>
-                <span>Keep going! You're doing amazing!</span>
+                <h3 id="dash-streak-value">0 Days</h3>
+                <span id="dash-streak-label">Start your streak today!</span>
               </div>
             </div>
             <div class="dash-streak-right">
-              <div><i class="fas fa-trophy"></i> <span>Level 15</span></div>
-              <div><i class="fas fa-bolt"></i> <span>2,450 Points</span></div>
+              <div><i class="fas fa-trophy"></i> <span id="dash-level-value">Level 1</span></div>
+              <div><i class="fas fa-bolt"></i> <span id="dash-points-value">0 Points</span></div>
             </div>
           </div>
 
@@ -621,15 +718,15 @@
               <i class="fas fa-fire"></i>
               <div>
                 <p>Current Streak</p>
-                <h3 id="streaks-current">12 Days</h3>
-                <span>Keep it up!</span>
+                <h3 id="streaks-current">0 Days</h3>
+                <span id="streaks-current-label">Start your streak!</span>
               </div>
             </article>
             <article class="streaks-stat-card pink">
               <i class="fas fa-trophy"></i>
               <div>
                 <p>Longest Streak</p>
-                <h3 id="streaks-longest">28 Days</h3>
+                <h3 id="streaks-longest">0 Days</h3>
                 <span>Personal best!</span>
               </div>
             </article>
@@ -637,33 +734,93 @@
               <i class="fas fa-star"></i>
               <div>
                 <p>Total Points</p>
-                <h3 id="streaks-points">2,450</h3>
-                <span>Amazing progress!</span>
+                <h3 id="streaks-points">0</h3>
+                <span>Keep earning!</span>
               </div>
             </article>
             <article class="streaks-stat-card green">
               <i class="fas fa-bolt"></i>
               <div>
                 <p>Level</p>
-                <h3 id="streaks-level">Level 15</h3>
-                <span id="streaks-level-next">150 to level 16</span>
+                <h3 id="streaks-level">Level 1</h3>
+                <span id="streaks-level-next">200 to level 2</span>
               </div>
             </article>
           </div>
 
+          <!-- 🔥 Today's Streak Progress -->
+          <section class="streaks-panel streaks-today-tracker" id="streaks-today-tracker">
+            <div class="streaks-today-tracker-head">
+              <div class="streaks-today-tracker-title">
+                <i class="fas fa-fire"></i>
+                <h3>Today's Streak Progress</h3>
+              </div>
+              <div class="streaks-today-tracker-badge" id="streak-safety-badge">
+                <i class="fas fa-lock-open"></i>
+                <span>Streak at Risk</span>
+              </div>
+            </div>
+
+            <div class="streaks-today-pillars" id="streaks-today-pillars">
+              <!-- Tasks Pillar -->
+              <div class="streak-pillar" id="streak-pillar-tasks">
+                <div class="streak-pillar-icon"><i class="fas fa-list-check"></i></div>
+                <div class="streak-pillar-body">
+                  <div class="streak-pillar-head">
+                    <strong>Tasks</strong>
+                    <span class="streak-pillar-stat" id="streak-tasks-stat">0 / 100 pts</span>
+                  </div>
+                  <div class="streak-pillar-bar"><div class="streak-pillar-fill" id="streak-tasks-bar" style="width:0%;"></div></div>
+                  <p class="streak-pillar-hint" id="streak-tasks-hint">Complete at least 1 task today</p>
+                </div>
+              </div>
+
+              <!-- Protein Pillar -->
+              <div class="streak-pillar" id="streak-pillar-protein">
+                <div class="streak-pillar-icon"><i class="fas fa-drumstick-bite"></i></div>
+                <div class="streak-pillar-body">
+                  <div class="streak-pillar-head">
+                    <strong>Protein Intake</strong>
+                    <span class="streak-pillar-stat" id="streak-protein-stat">0g / 140g</span>
+                  </div>
+                  <div class="streak-pillar-bar"><div class="streak-pillar-fill" id="streak-protein-bar" style="width:0%;"></div></div>
+                  <p class="streak-pillar-hint" id="streak-protein-hint">Log meals to hit your protein goal</p>
+                </div>
+              </div>
+
+              <!-- Workout Pillar -->
+              <div class="streak-pillar" id="streak-pillar-workout">
+                <div class="streak-pillar-icon"><i class="fas fa-dumbbell"></i></div>
+                <div class="streak-pillar-body">
+                  <div class="streak-pillar-head">
+                    <strong>Workouts</strong>
+                    <span class="streak-pillar-stat" id="streak-workout-stat">0 / 0 completed</span>
+                  </div>
+                  <div class="streak-pillar-bar"><div class="streak-pillar-fill" id="streak-workout-bar" style="width:0%;"></div></div>
+                  <p class="streak-pillar-hint" id="streak-workout-hint">Complete all scheduled workouts</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="streaks-today-footer" id="streaks-today-footer">
+              <i class="fas fa-shield-halved"></i>
+              <span>Complete all items above to lock today's streak</span>
+            </div>
+          </section>
+
           <div class="streaks-mid-grid">
             <section class="streaks-panel">
               <h3>Level Progress</h3>
-              <div class="streaks-level-ring" id="streaks-level-ring" style="--pct:65;">
+              <div class="streaks-level-ring" id="streaks-level-ring" style="--pct:0;">
                 <div class="streaks-level-inner">
-                  <strong id="streaks-level-num">15</strong>
+                  <strong id="streaks-level-num">1</strong>
                   <span>Level</span>
                 </div>
               </div>
               <div class="streaks-level-progress-line">
-                <div class="streaks-level-progress-head"><span>Progress to Level 16</span><span id="streaks-level-pct">65%</span></div>
-                <div class="streaks-bar"><div id="streaks-level-bar" style="width:65%;"></div></div>
-                <p id="streaks-level-note">150 more points needed</p>
+                <div class="streaks-level-progress-head"><span>Progress to Level 2</span><span id="streaks-level-pct">0%</span></div>
+                <div class="streaks-bar"><div id="streaks-level-bar" style="width:0%;"></div></div>
+                <p id="streaks-level-note">200 more points needed</p>
               </div>
             </section>
 
@@ -679,19 +836,20 @@
             <section class="streaks-panel">
               <h3>Points System</h3>
               <div class="streaks-points-legend">
-                <div><span class="dot high"></span><label>High Priority</label><strong>40-50 pts</strong></div>
-                <div><span class="dot medium"></span><label>Medium Priority</label><strong>20-35 pts</strong></div>
-                <div><span class="dot low"></span><label>Low Priority</label><strong>10-20 pts</strong></div>
+                <div><span class="dot high"></span><label>Hard Tasks (high)</label><strong>50 pts</strong></div>
+                <div><span class="dot medium"></span><label>Medium Tasks</label><strong>25 pts</strong></div>
+                <div><span class="dot low"></span><label>Easy Tasks (low)</label><strong>10 pts</strong></div>
               </div>
               <div class="streaks-bonus">
-                <h4>Bonus Points</h4>
+                <h4>Daily Bonuses</h4>
                 <ul>
-                  <li>Daily streak: +10 pts/day</li>
-                  <li>Complete all goals: +50 pts</li>
-                  <li>Early morning workout: +15 pts</li>
-                  <li>Perfect nutrition day: +25 pts</li>
+                  <li>🥗 Protein goal met: +50 pts</li>
+                  <li>🏋️ All workouts completed: +50 pts</li>
+                  <li>📝 Task points cap: 100 pts/day</li>
+                  <li>🔥 Max per day: 200 pts</li>
                 </ul>
               </div>
+              <div class="streaks-today-status" id="streaks-today-status"></div>
             </section>
           </div>
 
@@ -803,6 +961,18 @@
               <label style="display: block; font-weight: 600; color: #0f172a; margin-bottom: 8px; font-size: 0.95rem;">Tags</label>
               <input type="text" id="task-tags-input" placeholder="e.g. study, gym, work" style="width: 100%; padding: 12px; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 0.95rem; box-sizing: border-box; font-family: inherit;">
             </div>
+
+            <div>
+              <label style="display: block; font-weight: 600; color: #0f172a; margin-bottom: 8px; font-size: 0.95rem;">Description / Notes</label>
+              <textarea id="task-description-input" placeholder="Add a description for this task..." style="width: 100%; padding: 12px; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 0.95rem; box-sizing: border-box; font-family: inherit; resize: vertical; min-height: 80px;" rows="3"></textarea>
+            </div>
+
+            <div style="display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: #f0f4ff; border-radius: 8px; border: 1px solid #e0e7ff;">
+              <input type="checkbox" id="task-save-to-notes" style="width: 18px; height: 18px; accent-color: #2563eb; cursor: pointer;">
+              <label for="task-save-to-notes" style="font-weight: 600; color: #1e40af; font-size: 0.9rem; cursor: pointer;">
+                <i class="fas fa-sticky-note" style="margin-right: 4px;"></i> Save this description to Notes
+              </label>
+            </div>
             
             <div>
               <label style="display: block; font-weight: 600; color: #0f172a; margin-bottom: 8px; font-size: 0.95rem;">Priority</label>
@@ -816,14 +986,11 @@
             <div>
               <label style="display: block; font-weight: 600; color: #0f172a; margin-bottom: 8px; font-size: 0.95rem;">Due Date</label>
               <select id="task-due-select" style="width: 100%; padding: 12px; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 0.95rem; box-sizing: border-box; font-family: inherit;">
-                <option value="1">In 1 hour</option>
-                <option value="3">In 3 hours</option>
-                <option value="6">In 6 hours</option>
-                <option value="24" selected>In 1 day</option>
-                <option value="72">In 3 days</option>
-                <option value="custom">Custom date & time</option>
+                <option value="today" selected>Today</option>
+                <option value="tomorrow">Tomorrow</option>
+                <option value="custom">Pick a date</option>
               </select>
-              <input type="datetime-local" id="custom-datetime-input" style="display: none; width: 100%; padding: 12px; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 0.95rem; box-sizing: border-box; margin-top: 8px;">
+              <input type="date" id="custom-datetime-input" style="display: none; width: 100%; padding: 12px; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 0.95rem; box-sizing: border-box; margin-top: 8px;">
             </div>
 
             <div>
@@ -861,6 +1028,21 @@
             </div>
 
             <div>
+              <label class="task-edit-label" for="task-edit-description-input">Description / Notes</label>
+              <textarea id="task-edit-description-input" class="task-edit-input task-edit-textarea" rows="3" placeholder="Add a description for this task..."></textarea>
+            </div>
+
+            <div class="task-edit-note-save-row">
+              <input type="checkbox" id="task-edit-save-to-notes">
+              <label for="task-edit-save-to-notes">
+                <i class="fas fa-sticky-note"></i> Save this description to Notes
+              </label>
+              <a href="#" class="task-edit-view-note-link" id="task-edit-view-note-link" onclick="viewLinkedNote(event)" style="display:none;">
+                <i class="fas fa-external-link-alt"></i> View linked note
+              </a>
+            </div>
+
+            <div>
               <label class="task-edit-label" for="task-edit-priority-select">Priority</label>
               <select id="task-edit-priority-select" class="task-edit-input">
                 <option value="low">Low</option>
@@ -872,14 +1054,11 @@
             <div>
               <label class="task-edit-label" for="task-edit-due-select">Due Date</label>
               <select id="task-edit-due-select" class="task-edit-input">
-                <option value="1">In 1 hour</option>
-                <option value="3">In 3 hours</option>
-                <option value="6">In 6 hours</option>
-                <option value="24">In 1 day</option>
-                <option value="72">In 3 days</option>
-                <option value="custom" selected>Custom date & time</option>
+                <option value="today">Today</option>
+                <option value="tomorrow">Tomorrow</option>
+                <option value="custom" selected>Pick a date</option>
               </select>
-              <input id="task-edit-custom-datetime-input" class="task-edit-input" type="datetime-local">
+              <input id="task-edit-custom-datetime-input" class="task-edit-input" type="date">
             </div>
 
             <div>
@@ -1015,11 +1194,72 @@
               <p>Monitor your daily nutrition intake</p>
             </div>
             <div class="nutrition-header-actions">
+              <button id="nutrition-ai-toggle-btn" class="nutrition-btn nutrition-btn-green" onclick="toggleAIMealLog()">
+                <i class="fas fa-robot"></i> AI Log
+              </button>
               <button id="nutrition-toggle-form-btn" class="nutrition-btn nutrition-btn-blue">
                 <i class="fas fa-plus"></i> Log Meal
               </button>
             </div>
           </div>
+
+          <!-- AI Meal Logging Panel (2-Step Confirmation Flow) -->
+          <div id="nutrition-ai-panel" class="nutrition-block nutrition-collapsed">
+            <div class="nutrition-ai-header">
+              <div class="nutrition-ai-icon"><i class="fas fa-robot"></i></div>
+              <div>
+                <h3>AI Meal Logger</h3>
+                <p>Type what you ate — review matches before logging</p>
+              </div>
+            </div>
+            <!-- Step 1: Input -->
+            <div id="ai-step-input" class="nutrition-ai-form">
+              <div class="nutrition-form-grid">
+                <div>
+                  <label for="ai-meal-type">Meal Type</label>
+                  <select id="ai-meal-type">
+                    <option value="breakfast">Breakfast</option>
+                    <option value="lunch">Lunch</option>
+                    <option value="dinner">Dinner</option>
+                    <option value="snack">Snack</option>
+                  </select>
+                </div>
+                <div style="flex:2">
+                  <label for="ai-food-input">What did you eat?</label>
+                  <input id="ai-food-input" type="text" placeholder="e.g., 2 eggs and 1 cup cooked white rice" autocomplete="off">
+                </div>
+              </div>
+              <div class="nutrition-form-actions">
+                <button type="button" id="ai-detect-btn" class="nutrition-btn nutrition-btn-green" onclick="submitAIDetect()">
+                  <i class="fas fa-search"></i> Detect Foods
+                </button>
+                <button type="button" class="nutrition-btn nutrition-btn-soft" onclick="toggleAIMealLog()">Cancel</button>
+              </div>
+            </div>
+            <!-- Status / loading -->
+            <div id="ai-meal-status" class="nutrition-ai-status nutrition-collapsed"></div>
+            <!-- Step 2: Confirmation table -->
+            <div id="ai-step-confirm" class="nutrition-ai-confirm nutrition-collapsed">
+              <div class="nutrition-ai-confirm-header">
+                <h4><i class="fas fa-check-circle"></i> Review Detected Foods</h4>
+                <p>Edit quantities, remove items, or confirm to log.</p>
+              </div>
+              <div id="ai-confirm-table-wrap"></div>
+              <div id="ai-confirm-clarifications" class="nutrition-collapsed"></div>
+              <div id="ai-confirm-totals" class="nutrition-ai-totals"></div>
+              <div class="nutrition-form-actions ai-confirm-actions">
+                <button type="button" id="ai-confirm-btn" class="nutrition-btn nutrition-btn-green" onclick="confirmAIMealLog()">
+                  <i class="fas fa-check"></i> Confirm & Log
+                </button>
+                <button type="button" class="nutrition-btn nutrition-btn-soft" onclick="cancelAIConfirm()">
+                  <i class="fas fa-arrow-left"></i> Back
+                </button>
+              </div>
+            </div>
+            <!-- Step 3: Result (post-save) -->
+            <div id="ai-meal-result" class="nutrition-ai-result nutrition-collapsed"></div>
+          </div>
+
 
           <div class="nutrition-goals-panel">
             <div class="nutrition-goals-head">
@@ -1207,9 +1447,13 @@
               <h2>Calendar</h2>
               <p>View tasks by date and plan quickly.</p>
             </div>
+            <div class="calendar-view-toggle" role="tablist" aria-label="Calendar view mode">
+              <button id="calendar-view-month-btn" class="calendar-view-btn is-active" type="button" data-calendar-view="month" aria-selected="true">Month View</button>
+              <button id="calendar-view-week-btn" class="calendar-view-btn" type="button" data-calendar-view="week" aria-selected="false">Week View</button>
+            </div>
           </div>
 
-          <div class="card">
+          <div id="calendar-month-card" class="card">
             <div class="calendar-head">
               <button id="calendar-prev-month" class="calendar-nav-btn" type="button"><i class="fas fa-chevron-left"></i></button>
               <h3 id="calendar-month-label"><i class="fas fa-calendar-alt"></i> Month</h3>
@@ -1218,7 +1462,9 @@
             <div id="calendar-grid" class="calendar-grid"></div>
           </div>
 
-          <div class="card calendar-detail-card" style="margin-top: 24px;">
+          <div id="calendar-week-board" class="card calendar-week-board" style="margin-top: 24px; display: none;"></div>
+
+          <div id="calendar-detail-card" class="card calendar-detail-card" style="margin-top: 24px;">
             <div class="card-header">
               <h3><i class="fas fa-tasks"></i> <span id="calendar-selected-label">Tasks for today</span></h3>
               <button id="calendar-mark-important-btn" class="calendar-open-task" type="button">
@@ -1247,7 +1493,302 @@
         </div>
       </div>
 
-      <!-- Profile / Settings Page -->
+      <!-- Focus / Study Page -->
+      <div id="focus" class="page-section">
+        <div class="focus-shell">
+          <div class="focus-header-row">
+            <div>
+              <h2>Focus &amp; Study</h2>
+              <p>Deep work sessions with timers and ambient audio</p>
+            </div>
+            <div class="focus-header-actions">
+              <button id="focus-mode-btn" class="focus-btn focus-btn-primary" onclick="toggleFocusMode()">
+                <i class="fas fa-expand"></i> Focus Mode
+              </button>
+            </div>
+          </div>
+
+          <!-- Today's Summary Cards -->
+          <div class="focus-summary-grid">
+            <div class="focus-stat-card">
+              <div class="focus-stat-icon"><i class="fas fa-clock"></i></div>
+              <div class="focus-stat-info">
+                <span class="focus-stat-value" id="focus-total-minutes">0</span>
+                <span class="focus-stat-label">Minutes Today</span>
+              </div>
+            </div>
+            <div class="focus-stat-card">
+              <div class="focus-stat-icon"><i class="fas fa-check-circle"></i></div>
+              <div class="focus-stat-info">
+                <span class="focus-stat-value" id="focus-completed-count">0</span>
+                <span class="focus-stat-label">Sessions Done</span>
+              </div>
+            </div>
+            <div class="focus-stat-card">
+              <div class="focus-stat-icon"><i class="fas fa-fire"></i></div>
+              <div class="focus-stat-info">
+                <span class="focus-stat-value" id="focus-streak-sessions">0</span>
+                <span class="focus-stat-label">Total Sessions</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Timer Section -->
+          <div class="focus-timer-card card">
+            <!-- Mode Tabs -->
+            <div class="focus-mode-tabs">
+              <button class="focus-mode-tab active" data-mode="pomodoro" onclick="switchFocusMode('pomodoro')">
+                <i class="fas fa-tomato"></i> Pomodoro
+              </button>
+              <button class="focus-mode-tab" data-mode="custom" onclick="switchFocusMode('custom')">
+                <i class="fas fa-sliders-h"></i> Custom Timer
+              </button>
+              <button class="focus-mode-tab" data-mode="stopwatch" onclick="switchFocusMode('stopwatch')">
+                <i class="fas fa-stopwatch"></i> Stopwatch
+              </button>
+            </div>
+
+            <!-- Timer Display -->
+            <div class="focus-timer-display">
+              <div class="focus-progress-ring-container">
+                <svg class="focus-progress-ring" viewBox="0 0 200 200">
+                  <circle class="focus-ring-bg" cx="100" cy="100" r="90" />
+                  <circle class="focus-ring-progress" id="focus-ring-progress" cx="100" cy="100" r="90" />
+                </svg>
+                <div class="focus-timer-text">
+                  <span class="focus-timer-digits" id="focus-timer-digits">25:00</span>
+                  <span class="focus-timer-label" id="focus-timer-state-label">Ready</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Pomodoro Settings (visible only in pomodoro mode) -->
+            <div class="focus-pomodoro-settings" id="focus-pomodoro-settings">
+              <div class="focus-setting-row">
+                <label>Focus</label>
+                <div class="focus-preset-btns">
+                  <button class="focus-preset active" data-minutes="25" onclick="setPomodoroDuration(25)">25m</button>
+                  <button class="focus-preset" data-minutes="30" onclick="setPomodoroDuration(30)">30m</button>
+                  <button class="focus-preset" data-minutes="45" onclick="setPomodoroDuration(45)">45m</button>
+                  <button class="focus-preset" data-minutes="50" onclick="setPomodoroDuration(50)">50m</button>
+                </div>
+              </div>
+              <div class="focus-setting-row">
+                <label>Break</label>
+                <div class="focus-preset-btns">
+                  <button class="focus-preset active" data-minutes="5" onclick="setPomodoroBreak(5)">5m</button>
+                  <button class="focus-preset" data-minutes="10" onclick="setPomodoroBreak(10)">10m</button>
+                  <button class="focus-preset" data-minutes="15" onclick="setPomodoroBreak(15)">15m</button>
+                </div>
+              </div>
+              <div class="focus-setting-row">
+                <label>Sessions</label>
+                <div class="focus-preset-btns">
+                  <button class="focus-preset" data-sessions="2" onclick="setPomodoroSessions(2)">2</button>
+                  <button class="focus-preset active" data-sessions="4" onclick="setPomodoroSessions(4)">4</button>
+                  <button class="focus-preset" data-sessions="6" onclick="setPomodoroSessions(6)">6</button>
+                  <button class="focus-preset" data-sessions="8" onclick="setPomodoroSessions(8)">8</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Custom Timer Settings -->
+            <div class="focus-custom-settings" id="focus-custom-settings" style="display:none;">
+              <div class="focus-setting-row">
+                <label>Duration (minutes)</label>
+                <input type="number" id="focus-custom-minutes" class="focus-input" value="30" min="1" max="480">
+              </div>
+              <div class="focus-setting-row">
+                <label>Label (optional)</label>
+                <input type="text" id="focus-custom-label" class="focus-input" placeholder="e.g. Study Math">
+              </div>
+            </div>
+
+            <!-- Timer Controls -->
+            <div class="focus-controls">
+              <button id="focus-start-btn" class="focus-btn focus-btn-primary focus-btn-lg" onclick="focusTimerStart()">
+                <i class="fas fa-play"></i> Start
+              </button>
+              <button id="focus-pause-btn" class="focus-btn focus-btn-secondary focus-btn-lg" onclick="focusTimerPause()" style="display:none;">
+                <i class="fas fa-pause"></i> Pause
+              </button>
+              <button id="focus-resume-btn" class="focus-btn focus-btn-primary focus-btn-lg" onclick="focusTimerResume()" style="display:none;">
+                <i class="fas fa-play"></i> Resume
+              </button>
+              <button id="focus-stop-btn" class="focus-btn focus-btn-danger focus-btn-lg" onclick="focusTimerStop()" style="display:none;">
+                <i class="fas fa-stop"></i> Stop
+              </button>
+              <button id="focus-reset-btn" class="focus-btn focus-btn-secondary" onclick="focusTimerReset()">
+                <i class="fas fa-redo"></i> Reset
+              </button>
+            </div>
+
+            <!-- Pomodoro Cycle Indicator -->
+            <div class="focus-cycle-indicator" id="focus-cycle-indicator">
+              <span class="focus-cycle-label">Session <span id="focus-current-session">1</span> of <span id="focus-total-sessions">4</span></span>
+              <div class="focus-cycle-dots" id="focus-cycle-dots"></div>
+            </div>
+          </div>
+
+          <!-- Lofi / Ambient Audio -->
+          <div class="focus-audio-card card">
+            <div class="focus-audio-header">
+              <h3><i class="fas fa-headphones"></i> Ambient Sounds</h3>
+              <button id="focus-audio-toggle" class="focus-btn focus-btn-secondary focus-btn-sm" onclick="toggleFocusAudio()">
+                <i class="fas fa-play"></i>
+              </button>
+            </div>
+            <div class="focus-audio-tracks">
+              <button class="focus-audio-track active" data-track="lofi" onclick="selectFocusTrack('lofi')">
+                <i class="fas fa-music"></i> Lo-Fi Beats
+              </button>
+              <button class="focus-audio-track" data-track="rain" onclick="selectFocusTrack('rain')">
+                <i class="fas fa-cloud-rain"></i> Rain
+              </button>
+              <button class="focus-audio-track" data-track="forest" onclick="selectFocusTrack('forest')">
+                <i class="fas fa-tree"></i> Forest
+              </button>
+              <button class="focus-audio-track" data-track="cafe" onclick="selectFocusTrack('cafe')">
+                <i class="fas fa-coffee"></i> Café
+              </button>
+              <button class="focus-audio-track" data-track="whitenoise" onclick="selectFocusTrack('whitenoise')">
+                <i class="fas fa-wave-square"></i> White Noise
+              </button>
+            </div>
+            <div class="focus-audio-volume">
+              <i class="fas fa-volume-down"></i>
+              <input type="range" id="focus-volume-slider" min="0" max="100" value="50" oninput="setFocusVolume(this.value)">
+              <i class="fas fa-volume-up"></i>
+            </div>
+          </div>
+
+          <!-- Whitelist (Focus Mode pages) -->
+          <div class="focus-whitelist-card card">
+            <h3><i class="fas fa-shield-alt"></i> Focus Mode Whitelist</h3>
+            <p class="focus-whitelist-desc">Allow these pages during Focus Mode. All others will be locked.</p>
+            <div class="focus-whitelist-options" id="focus-whitelist-options">
+              <label class="focus-whitelist-item">
+                <input type="checkbox" value="focus" checked disabled>
+                <span>Focus (always on)</span>
+              </label>
+              <label class="focus-whitelist-item">
+                <input type="checkbox" value="tasks" onchange="updateFocusWhitelist()">
+                <span>My Tasks</span>
+              </label>
+              <label class="focus-whitelist-item">
+                <input type="checkbox" value="projects" onchange="updateFocusWhitelist()">
+                <span>Projects</span>
+              </label>
+              <label class="focus-whitelist-item">
+                <input type="checkbox" value="calendar" onchange="updateFocusWhitelist()">
+                <span>Calendar</span>
+              </label>
+            </div>
+          </div>
+
+          <!-- Session History -->
+          <div class="focus-history-card card">
+            <h3><i class="fas fa-history"></i> Today's Sessions</h3>
+            <div id="focus-session-list" class="focus-session-list">
+              <div class="focus-empty-state">
+                <i class="fas fa-hourglass-half"></i>
+                <p>No sessions yet today. Start a timer to begin!</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Notes Page -->
+      <div id="notes" class="page-section">
+        <div class="notes-shell">
+          <div class="notes-header-row">
+            <div>
+              <h2><i class="fas fa-sticky-note"></i> Notes</h2>
+              <p>Capture ideas, link to tasks, and review past work</p>
+            </div>
+            <div class="notes-header-actions">
+              <button class="notes-btn notes-btn-primary" onclick="openNoteCreateModal()">
+                <i class="fas fa-plus"></i> New Note
+              </button>
+            </div>
+          </div>
+
+          <!-- Search & Filters -->
+          <div class="notes-toolbar">
+            <div class="notes-search-wrap">
+              <i class="fas fa-search"></i>
+              <input type="text" id="notes-search-input" placeholder="Search notes..." oninput="notesSearchDebounce()">
+            </div>
+            <div class="notes-filter-group">
+              <button class="notes-filter-btn active" data-filter="all" onclick="setNotesFilter('all')">All</button>
+              <button class="notes-filter-btn" data-filter="manual" onclick="setNotesFilter('manual')">Manual</button>
+              <button class="notes-filter-btn" data-filter="task" onclick="setNotesFilter('task')">Linked to Task</button>
+            </div>
+          </div>
+
+          <!-- Notes Grid -->
+          <div class="notes-grid" id="notes-grid">
+            <div class="notes-empty-state" id="notes-empty">
+              <i class="fas fa-sticky-note"></i>
+              <p>No notes yet. Create your first note or save a task description!</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Note Create/Edit Modal -->
+      <div id="note-modal" class="note-modal" aria-hidden="true">
+        <div class="note-modal-card" role="dialog" aria-modal="true">
+          <div class="note-modal-head">
+            <h3 id="note-modal-title">New Note</h3>
+            <button class="note-modal-close-btn" onclick="closeNoteModal()" aria-label="Close">&times;</button>
+          </div>
+          <form id="note-modal-form" class="note-modal-form" onsubmit="handleNoteFormSubmit(event)">
+            <div>
+              <label class="note-modal-label" for="note-title-input">Title</label>
+              <input id="note-title-input" class="note-modal-input" type="text" placeholder="Note title" required>
+            </div>
+            <div>
+              <label class="note-modal-label" for="note-content-input">Content</label>
+              <textarea id="note-content-input" class="note-modal-input note-modal-textarea" rows="8" placeholder="Write your note..."></textarea>
+            </div>
+            <div>
+              <label class="note-modal-label" for="note-tags-input">Tags</label>
+              <input id="note-tags-input" class="note-modal-input" type="text" placeholder="e.g. study, ideas, work">
+            </div>
+            <div class="note-modal-actions">
+              <button type="button" class="notes-btn notes-btn-soft" onclick="closeNoteModal()">Cancel</button>
+              <button type="submit" class="notes-btn notes-btn-primary" id="note-modal-save-btn">Save Note</button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <!-- Note Detail Modal -->
+      <div id="note-detail-modal" class="note-modal" aria-hidden="true">
+        <div class="note-modal-card note-detail-card" role="dialog" aria-modal="true">
+          <div class="note-modal-head">
+            <h3 id="note-detail-title">Note</h3>
+            <button class="note-modal-close-btn" onclick="closeNoteDetailModal()" aria-label="Close">&times;</button>
+          </div>
+          <div class="note-detail-body">
+            <div class="note-detail-meta" id="note-detail-meta"></div>
+            <div class="note-detail-content" id="note-detail-content"></div>
+            <div class="note-detail-tags" id="note-detail-tags"></div>
+          </div>
+          <div class="note-modal-actions">
+            <button class="notes-btn notes-btn-danger" id="note-detail-delete-btn" onclick="deleteCurrentNote()">
+              <i class="fas fa-trash"></i> Delete
+            </button>
+            <button class="notes-btn notes-btn-soft" id="note-detail-edit-btn" onclick="editCurrentNote()">
+              <i class="fas fa-edit"></i> Edit
+            </button>
+            <button class="notes-btn notes-btn-primary" onclick="closeNoteDetailModal()">Close</button>
+          </div>
+        </div>
+      </div>
+
       <div id="profile" class="page-section">
         <div class="profile-shell">
           <div class="profile-head">
@@ -1364,6 +1905,135 @@
       <span>Start Timer</span>
     </button>
   </div>
+  <!-- AI Avatar Chat Widget -->
+  <div id="ai-avatar-fab" class="ai-avatar-fab" onclick="toggleAIChat()" title="AI Assistant">
+    <i class="fas fa-robot"></i>
+    <span class="ai-fab-pulse"></span>
+  </div>
+
+  <div id="ai-chat-panel" class="ai-chat-panel ai-chat-hidden">
+    <div class="ai-chat-header">
+      <div class="ai-chat-header-left">
+        <div class="ai-chat-avatar"><i class="fas fa-robot"></i></div>
+        <div>
+          <h4>FitTrack AI</h4>
+          <span class="ai-chat-status-dot"></span><small>Ready to help</small>
+        </div>
+      </div>
+      <button class="ai-chat-close" onclick="toggleAIChat()"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="ai-chat-mode-bar">
+      <label for="ai-mode-select"><i class="fas fa-sliders-h"></i> Select Action</label>
+      <select id="ai-mode-select" class="ai-mode-select" onchange="_aiSetMode(this.value)">
+        <option value="general" selected>💬 General Query</option>
+        <option value="nutrition">🍽️ Log Nutrition</option>
+        <option value="workout">🏋️ Log Workout</option>
+        <option value="task">📋 Add Task</option>
+      </select>
+    </div>
+    <div id="ai-chat-mode-indicator" class="ai-chat-mode-indicator">
+      <span id="ai-mode-badge">💬 Mode: General Query</span>
+    </div>
+    <div id="ai-chat-messages" class="ai-chat-messages">
+      <div class="ai-msg ai-msg-bot">
+        <div class="ai-msg-bubble">
+          Hey there! 👋 I'm <strong>FitTrack AI</strong> — your personal productivity & fitness buddy!<br><br>
+          Use the <strong>action selector</strong> above to pick what you'd like to do:<br>
+          🍽️ <strong>Log Nutrition</strong> — <em>"I had 2 rotis and dal for lunch"</em><br>
+          🏋️ <strong>Log Workout</strong> — <em>"30 min running"</em><br>
+          📋 <strong>Add Task</strong> — <em>"finish report by tomorrow"</em><br>
+          💬 <strong>General Query</strong> — Ask me about fitness, nutrition, or anything else!<br><br>
+          I'll always check with you before saving anything. 😊
+        </div>
+      </div>
+    </div>
+    <div id="ai-chat-confirm-bar" class="ai-chat-confirm-bar ai-chat-hidden">
+      <button class="ai-confirm-yes" onclick="aiConfirmAction()"><i class="fas fa-check"></i> Confirm</button>
+      <button class="ai-confirm-edit" onclick="aiEditAction()"><i class="fas fa-edit"></i> Edit</button>
+      <button class="ai-confirm-no" onclick="aiCancelAction()"><i class="fas fa-times"></i> Cancel</button>
+    </div>
+    <div class="ai-chat-input-wrap">
+      <input id="ai-chat-input" type="text" placeholder="Ask me anything..." autocomplete="off">
+      <button class="ai-chat-send" onclick="sendAIMessage()"><i class="fas fa-paper-plane"></i></button>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
+
+  <!-- ── State Infrastructure ──────────────────────────────── -->
+  <script src="state/state.js"></script>
+  <script src="state/eventBus.js"></script>
+  <script src="state/apiClient.js"></script>
+  <script src="state/hydration.js"></script>
+  <script src="state/userState.js"></script>
+
+  <!-- ── Feature Modules: Tasks ────────────────────────────── -->
+  <script src="features/tasks/tasks.selectors.js"></script>
+  <script src="features/tasks/tasks.service.js"></script>
+  <script src="features/tasks/tasks.controller.js"></script>
+
+  <!-- ── Feature Modules: Nutrition ────────────────────────── -->
+  <script src="features/nutrition/nutrition.calculations.js"></script>
+  <script src="features/nutrition/nutrition.selectors.js"></script>
+  <script src="features/nutrition/nutrition.service.js"></script>
+  <script src="features/nutrition/nutrition.controller.js"></script>
+
+  <!-- ── Feature Modules: Workouts ─────────────────────────── -->
+  <script src="features/workouts/workouts.selectors.js"></script>
+  <script src="features/workouts/workouts.service.js"></script>
+  <script src="features/workouts/workouts.controller.js"></script>
+
+  <!-- ── Feature Modules: Dashboard ────────────────────────── -->
+  <script src="features/dashboard/dashboard.selectors.js"></script>
+  <script src="features/dashboard/dashboard.service.js"></script>
+  <script src="features/dashboard/dashboard.controller.js"></script>
+
+  <!-- ── Feature Modules: Calendar ─────────────────────────── -->
+  <script src="features/calendar/calendar.selectors.js"></script>
+  <script src="features/calendar/calendar.service.js"></script>
+  <script src="features/calendar/calendar.controller.js"></script>
+
+  <!-- ── Feature Modules: Streaks ──────────────────────────── -->
+  <script src="features/streaks/streaks.selectors.js"></script>
+  <script src="features/streaks/streaks.service.js"></script>
+  <script src="features/streaks/streaks.controller.js"></script>
+
+  <!-- ── Feature Modules: Projects ─────────────────────────── -->
+  <script src="features/projects/projects.selectors.js"></script>
+  <script src="features/projects/projects.service.js"></script>
+  <script src="features/projects/projects.controller.js"></script>
+
+  <!-- ── Feature Modules: Statistics ───────────────────────── -->
+  <script src="features/statistics/statistics.selectors.js"></script>
+  <script src="features/statistics/statistics.service.js"></script>
+  <script src="features/statistics/statistics.controller.js"></script>
+
+  <!-- ── Feature Modules: Profile ──────────────────────────── -->
+  <script src="features/profile/profile.selectors.js"></script>
+  <script src="features/profile/profile.service.js"></script>
+  <script src="features/profile/profile.controller.js"></script>
+
+  <!-- ── Feature Modules: Focus ────────────────────────────── -->
+  <script src="features/focus/focus.selectors.js"></script>
+  <script src="features/focus/focus.service.js"></script>
+  <script src="features/focus/focus.controller.js"></script>
+
+  <!-- ── Feature Modules: Notes ────────────────────────────── -->
+  <script src="features/notes/notes.selectors.js"></script>
+  <script src="features/notes/notes.service.js"></script>
+  <script src="features/notes/notes.controller.js"></script>
+
+  <!-- ── Feature Modules: AI Chat ──────────────────────────── -->
+  <script src="features/ai-chat/ai-chat.service.js"></script>
+  <script src="features/ai-chat/ai-chat.controller.js"></script>
+
+  <!-- ── Auth Module ────────────────────────────────────────── -->
+  <script src="js/00-auth.js"></script>
+
+  <!-- ── Auth Module (must load before legacy script.js) ────── -->
+  <script src="js/00-auth.js"></script>
+
+  <!-- ── Legacy Monolith (to be incrementally decomposed) ──── -->
   <script src="script.js"></script>
   <script>
     function triggerFireAnimation() {
@@ -1419,8 +2089,7 @@
     }
 
     function triggerNutritionAnimation() {
-      const utensilsWrapper = document.getElementById('navUtensilsWrapper');
-      if (!utensilsWrapper) return;
+      const utensilsWrapper = document.getElementById('navUtensilsWrapper');          
 
       utensilsWrapper.classList.remove('animate');
       void utensilsWrapper.offsetWidth;

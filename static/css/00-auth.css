@@ -1,0 +1,215 @@
+/* ════════════════════════════════════════════════════════════
+   00-auth.css — Authentication Screen Styles
+   ════════════════════════════════════════════════════════════ */
+
+/* ── Full-page auth screen ────────────────────────────────── */
+.auth-screen {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.auth-screen.hidden {
+  display: none;
+}
+
+.auth-shell {
+  width: 100%;
+  max-width: 420px;
+  background: var(--bg-card, rgba(255, 255, 255, 0.96));
+  border: 1px solid var(--border-subtle, rgba(141, 170, 200, 0.34));
+  border-radius: 20px;
+  padding: 36px 32px;
+  box-shadow: 0 18px 36px -26px rgba(21, 52, 86, 0.5);
+}
+
+/* ── Brand header ─────────────────────────────────────────── */
+.auth-brand {
+  text-align: center;
+  margin-bottom: 28px;
+}
+
+.auth-brand h1 {
+  font-family: 'Sora', 'Manrope', sans-serif;
+  font-size: 2rem;
+  color: var(--text-primary, #0f2538);
+}
+
+.auth-brand h1 span {
+  background: linear-gradient(135deg, #3b82f6, #6366f1);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.auth-tagline {
+  color: var(--text-muted, #5d7891);
+  font-size: 0.92rem;
+  margin-top: 4px;
+}
+
+/* ── Form styles ──────────────────────────────────────────── */
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.auth-form.hidden {
+  display: none;
+}
+
+.auth-form h2 {
+  font-family: 'Sora', 'Manrope', sans-serif;
+  font-size: 1.3rem;
+  color: var(--text-primary, #0f2538);
+  margin-bottom: 4px;
+}
+
+.auth-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.auth-field label {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-secondary, #3f5973);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.auth-field input {
+  padding: 10px 14px;
+  border: 1px solid var(--border-subtle, rgba(141, 170, 200, 0.34));
+  border-radius: 10px;
+  font-family: inherit;
+  font-size: 0.95rem;
+  background: var(--bg-elevated, #ffffff);
+  color: var(--text-primary, #0f2538);
+  transition: border-color 0.2s, box-shadow 0.2s;
+  outline: none;
+}
+
+.auth-field input:focus {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+}
+
+.auth-field input::placeholder {
+  color: var(--text-muted, #5d7891);
+  opacity: 0.7;
+}
+
+/* ── Buttons ──────────────────────────────────────────────── */
+.auth-btn {
+  padding: 11px 20px;
+  border: none;
+  border-radius: 10px;
+  font-family: inherit;
+  font-size: 0.95rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.2s, transform 0.15s;
+}
+
+.auth-btn-primary {
+  background: linear-gradient(135deg, #3b82f6, #6366f1);
+  color: #fff;
+}
+
+.auth-btn-primary:hover {
+  background: linear-gradient(135deg, #2563eb, #4f46e5);
+  transform: translateY(-1px);
+}
+
+.auth-btn-primary:active {
+  transform: translateY(0);
+}
+
+/* ── Error message ────────────────────────────────────────── */
+.auth-error {
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  color: #dc2626;
+  font-size: 0.85rem;
+  font-weight: 600;
+  padding: 8px 12px;
+  border-radius: 8px;
+}
+
+.auth-error.hidden {
+  display: none;
+}
+
+/* ── Switch link ──────────────────────────────────────────── */
+.auth-switch {
+  text-align: center;
+  font-size: 0.88rem;
+  color: var(--text-muted, #5d7891);
+}
+
+.auth-switch a {
+  color: #3b82f6;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.auth-switch a:hover {
+  text-decoration: underline;
+}
+
+/* ── Logout button (in sidebar/profile) ───────────────────── */
+.logout-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border: 1px solid var(--border-subtle, rgba(141, 170, 200, 0.34));
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-secondary, #3f5973);
+  font-family: inherit;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.logout-btn:hover {
+  background: rgba(239, 68, 68, 0.08);
+  border-color: rgba(239, 68, 68, 0.4);
+  color: #dc2626;
+}
+
+/* ── Dark mode overrides ──────────────────────────────────── */
+body.theme-dark .auth-shell {
+  background: var(--bg-card);
+  border-color: var(--border-subtle);
+  box-shadow: 0 18px 36px -26px rgba(0, 0, 0, 0.7);
+}
+
+body.theme-dark .auth-field input {
+  background: var(--bg-elevated);
+  border-color: var(--border-subtle);
+  color: var(--text-primary);
+}
+
+body.theme-dark .auth-error {
+  background: rgba(239, 68, 68, 0.15);
+  border-color: rgba(239, 68, 68, 0.35);
+}
+
+/* ── Responsive ───────────────────────────────────────────── */
+@media (max-width: 480px) {
+  .auth-shell {
+    padding: 28px 20px;
+    border-radius: 16px;
+  }
+  .auth-brand h1 {
+    font-size: 1.6rem;
+  }
+}

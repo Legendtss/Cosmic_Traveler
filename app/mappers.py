@@ -1,9 +1,28 @@
+"""
+FILE: app/mappers.py
+
+Responsibility:
+  SQLite row → dict mappers for tasks, meals, and workouts.
+  Handles JSON column parsing, missing fields, and type coercion.
+
+MUST NOT:
+  - Import from Flask or db module
+  - Modify database state
+
+Depends on:
+  - json (standard library)
+  - DB schema column names (implicit coupling)
+
+Note:
+  Frontend (script.js) expects the exact shape these return.
+  Any field changes require frontend updates too.
+"""
+
 import json
 
 
 def map_task(row):
     date_value = row["date"]
-    due_at = f"{date_value}T23:59:00" if date_value else None
     completed = bool(row["completed"])
     completed_at = row["updated_at"] if completed else None
     tags = []
@@ -14,6 +33,16 @@ def map_task(row):
     if not isinstance(tags, list):
         tags = []
     tags = [str(t).strip().lower() for t in tags if str(t).strip()]
+    # note fields (may not exist in older DBs)
+    try:
+        note_content = row["note_content"] or ""
+    except (IndexError, KeyError):
+        note_content = ""
+    try:
+        note_saved = bool(row["note_saved_to_notes"])
+    except (IndexError, KeyError):
+        note_saved = False
+
     return {
         "id": row["id"],
         "title": row["title"],
@@ -23,11 +52,11 @@ def map_task(row):
         "priority": row["priority"],
         "completed": completed,
         "date": date_value,
-        "due_at": due_at,
-        "dueAt": due_at,
         "completed_at": completed_at,
         "completedAt": completed_at,
         "time_spent": row["time_spent"],
+        "note_content": note_content,
+        "note_saved_to_notes": note_saved,
         "created_at": row["created_at"],
         "updated_at": row["updated_at"],
     }
@@ -56,6 +85,12 @@ def map_workout(row):
     except (TypeError, ValueError):
         exercises = []
 
+    # Handle completed column (may not exist in older DBs)
+    try:
+        completed = bool(row["completed"])
+    except (IndexError, KeyError):
+        completed = False
+
     return {
         "id": row["id"],
         "name": row["name"],
@@ -65,6 +100,7 @@ def map_workout(row):
         "exercises": exercises,
         "notes": row["notes"],
         "intensity": row["intensity"],
+        "completed": completed,
         "date": row["date"],
         "time": row["time"],
         "created_at": row["created_at"],

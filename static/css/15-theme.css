@@ -1,0 +1,2198 @@
+/* 15-theme.css — extracted from styles.css */
+
+/* Dark Mode Color Scheme - Red & Black Theme */
+body.theme-dark {
+  --bg-primary: #0b1220;
+  --bg-surface: #131c2d;
+  --bg-card: #192538;
+  --bg-elevated: #223049;
+  --text-primary: #e8f0ff;
+  --text-secondary: #c3d1ea;
+  --text-muted: #95abc8;
+  --border-subtle: rgba(133, 164, 205, 0.36);
+  --border-strong: rgba(170, 198, 234, 0.56);
+  --icon-primary: #d5e4ff;
+  --icon-secondary: #abc0df;
+  --icon-bg-light: #ffb87d;
+  --icon-color-dark: #0a0a0a;
+  --icon-accent-contrast: #0a0a0a;
+  --ui-ink: var(--text-primary);
+  --ui-muted: var(--text-muted);
+  --ui-border: var(--border-subtle);
+  --ui-card: var(--bg-surface);
+  --ui-card-strong: var(--bg-card);
+  --ui-shadow-soft: 0 16px 32px -24px rgba(0, 7, 18, 0.8);
+  --ui-shadow-strong: 0 24px 48px -28px rgba(0, 4, 12, 0.92);
+  --ui-focus: #60a5fa;
+  --priority-low-bg: rgba(66, 163, 144, 0.16);
+  --priority-low-border: #4fb39f;
+  --priority-low-outline: rgba(79, 179, 159, 0.44);
+  --priority-medium-bg: rgba(224, 160, 75, 0.16);
+  --priority-medium-border: #e4a85f;
+  --priority-medium-outline: rgba(228, 168, 95, 0.44);
+  --priority-high-bg: rgba(226, 113, 88, 0.18);
+  --priority-high-border: #e87961;
+  --priority-high-outline: rgba(232, 121, 97, 0.46);
+  --icon-bg-dark: rgba(8, 12, 18, 0.72);
+  --streak-fire-icon-bg-dark: #f97316;
+  --icon-color: var(--icon-primary);
+  background:
+    radial-gradient(circle at 15% 10%, rgba(29, 124, 229, 0.18) 0%, transparent 32%),
+    radial-gradient(circle at 85% 8%, rgba(20, 184, 166, 0.14) 0%, transparent 28%),
+    var(--bg-primary);
+  color: var(--text-secondary);
+}
+
+.page-section {
+  border-radius: 26px;
+  border: 1px solid #dbe8f5;
+  background:
+    radial-gradient(600px 280px at 105% -10%, rgba(59, 130, 246, 0.08) 0%, rgba(59, 130, 246, 0) 68%),
+    radial-gradient(520px 220px at -6% 104%, rgba(20, 184, 166, 0.08) 0%, rgba(20, 184, 166, 0) 68%),
+    linear-gradient(165deg, #f8fbff 0%, #f1f7ff 46%, #f9fcff 100%);
+  padding: 22px 20px;
+  box-shadow: var(--ui-shadow-soft);
+}
+
+.streaks-shell,
+.tasks-shell,
+.projects-shell,
+.workout-shell,
+.nutrition-shell,
+.statistics-shell,
+.calendar-shell,
+.profile-shell {
+  gap: 18px;
+}
+
+.streaks-head h1,
+.tasks-head-row h2,
+.projects-head-row h2,
+.workout-head-row h2,
+.nutrition-header-row h2,
+.statistics-head h2,
+.calendar-title-row h2,
+.profile-head h2 {
+  font-family: 'Sora', 'Manrope', sans-serif;
+  font-size: clamp(1.5rem, 2.4vw, 2rem);
+  letter-spacing: -0.02em;
+  color: var(--ui-ink);
+  margin: 0;
+}
+
+.streaks-head p,
+.tasks-head-row p,
+.projects-head-row p,
+.workout-head-row p,
+.nutrition-header-row p,
+.statistics-head p,
+.calendar-title-row p,
+.profile-head p {
+  color: var(--ui-muted);
+  font-weight: 600;
+}
+
+.streaks-panel,
+.projects-panel,
+.workout-panel,
+.statistics-panel,
+.profile-card,
+.calendar-detail-card,
+.calendar-add-card,
+.nutrition-today-card,
+.nutrition-week-card,
+.nutrition-block,
+.statistics-summary-card,
+.projects-stat-card,
+.workout-stat-card,
+.task-card-v2,
+.project-card-v2 {
+  background: var(--ui-card);
+  border: 1px solid var(--ui-border);
+  border-radius: 16px;
+  box-shadow: var(--ui-shadow-soft);
+  backdrop-filter: blur(4px);
+}
+
+.streaks-panel:hover,
+.projects-panel:hover,
+.workout-panel:hover,
+.statistics-panel:hover,
+.profile-card:hover,
+.nutrition-today-card:hover,
+.nutrition-week-card:hover,
+.nutrition-block:hover,
+.statistics-summary-card:hover,
+.projects-stat-card:hover,
+.workout-stat-card:hover,
+.task-card-v2:hover,
+.project-card-v2:hover {
+  border-color: rgba(94, 134, 176, 0.44);
+  box-shadow: var(--ui-shadow-strong);
+  transition: border-color 0.22s ease, box-shadow 0.22s ease, transform 0.22s ease;
+  transform: translateY(-2px);
+}
+
+.tasks-btn,
+.projects-btn,
+.workout-btn,
+.nutrition-btn,
+.calendar-open-task,
+.calendar-complete-task,
+.nutrition-use-saved,
+.workout-today-btn,
+.workout-routine-actions button,
+.profile-menu-item {
+  border-radius: 12px;
+  font-weight: 700;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, filter 0.2s ease, border-color 0.2s ease;
+}
+
+.tasks-btn:hover,
+.projects-btn:hover,
+.workout-btn:hover,
+.nutrition-btn:hover,
+.calendar-open-task:hover,
+.calendar-complete-task:hover,
+.nutrition-use-saved:hover,
+.workout-today-btn:hover,
+.workout-routine-actions button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 14px 24px -20px rgba(18, 44, 71, 0.72);
+}
+
+input,
+select,
+textarea,
+.projects-create-form input,
+.projects-create-form textarea,
+.projects-inline-input,
+.projects-inline-textarea,
+.workout-inline-form input,
+.workout-inline-form select,
+.profile-form-grid input,
+.profile-form-grid select,
+.nutrition-form input,
+.nutrition-form select,
+.calendar-quick-add input,
+.calendar-quick-add select {
+  border-radius: 12px;
+  border: 1px solid #d4e2f0;
+  background: #fff;
+  color: #10283c;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.85);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  outline: none;
+  border-color: var(--ui-focus);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.14);
+}
+
+input:hover:not(:focus):not(:disabled),
+select:hover:not(:focus):not(:disabled),
+textarea:hover:not(:focus):not(:disabled) {
+  border-color: #a8c5e3;
+}
+
+.calendar-day {
+  border-radius: 12px;
+  border: 1px solid #dce7f3;
+  background: rgba(255, 255, 255, 0.84);
+  transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.calendar-day:hover {
+  transform: translateY(-1px);
+  border-color: #98bbdd;
+  box-shadow: 0 10px 18px -16px rgba(15, 44, 74, 0.7);
+}
+
+.calendar-day.is-selected {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.14);
+}
+
+.streaks-stat-card,
+.statistics-icon-badge,
+.workout-routine-icon,
+.dash-stat-icon,
+.profile-hero-avatar,
+.nutrition-goals-icon {
+  box-shadow: 0 14px 24px -18px rgba(14, 40, 66, 0.66);
+}
+
+.task-card-v2,
+.workout-routine-item,
+.nutrition-saved-item,
+.nutrition-history-item,
+.calendar-task-item,
+.streaks-activity-item,
+.streaks-achievement {
+  border-radius: 14px;
+  border: 1px solid #dce7f3;
+  background: var(--ui-card-strong);
+}
+
+.task-card-v2.is-completed,
+.workout-routine-chip.done,
+.streaks-achievement.locked {
+  opacity: 0.9;
+}
+
+.project-progress-track,
+.workout-stat-bar,
+.streaks-bar,
+.dash-progress-bar,
+.dash-mini-bar,
+.calendar-grid,
+.statistics-stack,
+.workout-battery {
+  border-radius: 999px;
+}
+
+.profile-hero,
+.workout-today-card,
+.dash-streak-banner,
+.streaks-stat-card.orange,
+.streaks-stat-card.pink,
+.streaks-stat-card.blue,
+.streaks-stat-card.green {
+  border: 1px solid rgba(255, 255, 255, 0.22);
+}
+
+.statistics-summary-value,
+.projects-stat-card h3,
+.workout-stat-card h3,
+.tasks-progress-panel h3,
+.streaks-stat-card h3,
+.nutrition-week-stat strong,
+.nutrition-today-grid strong {
+  font-family: 'Sora', 'Manrope', sans-serif;
+  letter-spacing: -0.01em;
+}
+
+.statistics-chart-wrap,
+.statistics-pie-wrap,
+.workout-focus-card,
+.streaks-chain-note {
+  background-image: linear-gradient(160deg, rgba(255, 255, 255, 0.76), rgba(246, 250, 255, 0.92));
+}
+
+.projects-list,
+.workout-routine-list,
+.tasks-list,
+.nutrition-history-list,
+.streaks-activity-list,
+.streaks-achievement-grid {
+  gap: 12px;
+}
+
+@media (max-width: 900px) {
+  .page-section {
+    padding: 16px 12px;
+    border-radius: 20px;
+  }
+
+  .global-topbar-title p {
+    display: none;
+  }
+
+  .streaks-head h1,
+  .tasks-head-row h2,
+  .projects-head-row h2,
+  .workout-head-row h2,
+  .nutrition-header-row h2,
+  .statistics-head h2,
+  .calendar-title-row h2,
+  .profile-head h2 {
+    font-size: 1.45rem;
+  }
+}
+
+body.theme-dark .sidebar,
+body.theme-dark .global-topbar,
+body.theme-dark .page-section,
+body.theme-dark .dash-panel,
+body.theme-dark .dash-stat-card,
+body.theme-dark .streaks-panel,
+body.theme-dark .projects-panel,
+body.theme-dark .workout-panel,
+body.theme-dark .statistics-panel,
+body.theme-dark .profile-card,
+body.theme-dark .nutrition-today-card,
+body.theme-dark .nutrition-week-card,
+body.theme-dark .nutrition-block,
+body.theme-dark .calendar-detail-card,
+body.theme-dark .calendar-add-card {
+  background: #131110;
+  border-color: #3d2a22;
+  box-shadow: 0 20px 36px -26px rgba(0, 0, 0, 0.88);
+}
+
+body.theme-dark .page-section {
+  border-color: #ff4500;
+  box-shadow: inset 0 0 40px rgba(255, 69, 0, 0.04);
+}
+
+body.theme-dark .logo,
+body.theme-dark h1,
+body.theme-dark h2,
+body.theme-dark h3,
+body.theme-dark h4,
+body.theme-dark strong {
+  color: #ff6b4a;
+}
+
+body.theme-dark p,
+body.theme-dark span,
+body.theme-dark label,
+body.theme-dark small,
+body.theme-dark .tasks-head-row p,
+body.theme-dark .nutrition-header-row p {
+  color: #c9b8b0;
+}
+
+body.theme-dark .profile-menu-panel,
+body.theme-dark .dash-action-picker-panel {
+  background: #151210;
+  border-color: #3f2f25;
+}
+
+body.theme-dark .dash-action-option {
+  background: #1a1410;
+  border-color: #3f2f25;
+}
+
+body.theme-dark .dash-action-option i:first-child {
+  color: var(--icon-color-dark);
+}
+
+body.theme-dark .dash-action-option .name {
+  color: #e8dcd8;
+}
+
+body.theme-dark .dash-action-option.start_timer i:first-child { background: linear-gradient(135deg, #86c8ff, #60b0ff); }
+body.theme-dark .dash-action-option.log_workout i:first-child { background: linear-gradient(135deg, #7ce8a0, #5cd885); }
+body.theme-dark .dash-action-option.log_meal i:first-child { background: linear-gradient(135deg, #60a5fa, #38bdf8); }
+body.theme-dark .dash-action-option.add_task i:first-child { background: linear-gradient(135deg, #f8a4d9, #f584ce); }
+body.theme-dark .dash-action-option.new_project i:first-child { background: linear-gradient(135deg, #a78bfa, #9370e0); }
+body.theme-dark .dash-action-option.view_streaks i:first-child { background: linear-gradient(135deg, #f59e0b, #fb923c); }
+
+body.theme-dark .dash-action-option.is-selected {
+  border-color: #5d5d5d;
+  background: #25201b;
+}
+
+body.theme-dark .profile-menu-theme {
+  border-color: #4a3530;
+  background: #1a1410;
+}
+
+body.theme-dark .profile-menu-theme-label {
+  color: #dac9be;
+}
+
+body.theme-dark input,
+body.theme-dark select,
+body.theme-dark textarea,
+body.theme-dark .projects-create-form input,
+body.theme-dark .projects-create-form textarea,
+body.theme-dark .workout-inline-form input,
+body.theme-dark .workout-inline-form select,
+body.theme-dark .calendar-quick-add input,
+body.theme-dark .calendar-quick-add select {
+  background: #0f0908;
+  color: #e8dcd8;
+  border-color: #3f2f25;
+  box-shadow: inset 0 1px 3px rgba(255, 69, 0, 0.1);
+}
+
+body.theme-dark input:focus,
+body.theme-dark select:focus,
+body.theme-dark textarea:focus {
+  outline: none;
+  border-color: #ff4500;
+  box-shadow: 0 0 0 3px rgba(255, 69, 0, 0.2);
+}
+
+body.theme-dark .tasks-btn-primary,
+body.theme-dark .nutrition-btn-blue,
+body.theme-dark .projects-btn-primary,
+body.theme-dark .workout-btn.blue {
+  background: linear-gradient(135deg, #ff4500, #ff6b4a);
+  color: #fff;
+}
+
+body.theme-dark .tasks-btn-soft,
+body.theme-dark .nutrition-btn-soft {
+  background: #2a2218;
+  color: #c9b8b0;
+  border-color: #3f2f25;
+}
+
+body.theme-dark .tasks-layout-icon-btn {
+  background: #231c18;
+  border-color: #4a3530;
+  color: #c9b8b0;
+}
+
+body.theme-dark .tasks-layout-icon-btn:hover {
+  background: #2a221d;
+  border-color: #5a4338;
+  color: #f6e9df;
+}
+
+body.theme-dark .tasks-layout-icon-btn.is-active {
+  background: rgba(59, 130, 246, 0.2);
+  border-color: #3b82f6;
+  color: #93c5fd;
+}
+
+body.theme-dark .tasks-matrix-board {
+  background: #161210;
+  border-color: #3f2f25;
+}
+
+body.theme-dark .tasks-matrix-axis {
+  color: #bfaea2;
+}
+
+body.theme-dark .tasks-matrix-unassigned,
+body.theme-dark .tasks-matrix-quadrant {
+  background: #1a1410;
+  border-color: #3f2f25;
+}
+
+body.theme-dark .tasks-matrix-quadrant--urgent_important {
+  background: rgba(127, 29, 29, 0.24);
+  border-color: #b91c1c;
+}
+
+body.theme-dark .tasks-matrix-quadrant--urgent_important .tasks-matrix-quadrant-head h4,
+body.theme-dark .tasks-matrix-quadrant--urgent_important .tasks-matrix-quadrant-head span {
+  color: #fca5a5;
+}
+
+body.theme-dark .tasks-matrix-quadrant--important_not_urgent {
+  background: rgba(113, 63, 18, 0.24);
+  border-color: #d97706;
+}
+
+body.theme-dark .tasks-matrix-quadrant--important_not_urgent .tasks-matrix-quadrant-head h4,
+body.theme-dark .tasks-matrix-quadrant--important_not_urgent .tasks-matrix-quadrant-head span {
+  color: #fcd34d;
+}
+
+body.theme-dark .tasks-matrix-quadrant--urgent_not_important {
+  background: rgba(30, 58, 138, 0.25);
+  border-color: #2563eb;
+}
+
+body.theme-dark .tasks-matrix-quadrant--urgent_not_important .tasks-matrix-quadrant-head h4,
+body.theme-dark .tasks-matrix-quadrant--urgent_not_important .tasks-matrix-quadrant-head span {
+  color: #93c5fd;
+}
+
+body.theme-dark .tasks-matrix-quadrant--not_urgent_not_important {
+  background: rgba(20, 83, 45, 0.24);
+  border-color: #16a34a;
+}
+
+body.theme-dark .tasks-matrix-quadrant--not_urgent_not_important .tasks-matrix-quadrant-head h4,
+body.theme-dark .tasks-matrix-quadrant--not_urgent_not_important .tasks-matrix-quadrant-head span {
+  color: #86efac;
+}
+
+body.theme-dark .tasks-matrix-quadrant.is-drag-over {
+  border-color: #ff6b4a;
+  box-shadow: 0 0 0 2px rgba(255, 107, 74, 0.22) inset;
+  background: #211814;
+}
+
+body.theme-dark .tasks-matrix-section .task-card-v2,
+body.theme-dark .tasks-matrix-section .task-card-v2.is-high,
+body.theme-dark .tasks-matrix-section .task-card-v2.is-medium,
+body.theme-dark .tasks-matrix-section .task-card-v2.is-low,
+body.theme-dark .tasks-matrix-section .task-card-v2.is-overdue {
+  border-left-color: #6b7280;
+  background: #1a1410;
+}
+
+body.theme-dark .tasks-tag-column {
+  background: #1a1410;
+  border-color: #3f2f25;
+}
+
+body.theme-dark .tasks-tag-column-head {
+  color: #e8dcd8;
+}
+
+body.theme-dark .tasks-tag-column-head span {
+  color: #b8a79e;
+}
+
+body.theme-dark .task-tag-pill {
+  background: rgba(59, 130, 246, 0.2);
+  border-color: rgba(96, 165, 250, 0.5);
+  color: #bfdbfe;
+}
+
+body.theme-dark .statistics-panel.statistics-empty-state {
+  color: var(--text-secondary);
+  border-color: var(--border-subtle);
+}
+
+body.theme-dark .statistics-task-metric {
+  background: rgba(30, 41, 59, 0.35);
+  border-color: var(--border-subtle);
+}
+
+body.theme-dark .statistics-task-metric span {
+  color: var(--text-secondary);
+}
+
+body.theme-dark .statistics-task-metric strong {
+  color: var(--text-primary);
+}
+
+body.theme-dark .nutrition-btn-purple {
+  background: linear-gradient(135deg, #ff4500, #ff6b4a);
+  color: #fff;
+}
+
+body.theme-dark .nutrition-btn-green {
+  background: linear-gradient(135deg, #059669, #10b981);
+}
+
+body.theme-dark .nutrition-ai-header h3 {
+  color: #e8dcd8;
+}
+
+body.theme-dark .nutrition-ai-header p {
+  color: #94a3b8;
+}
+
+body.theme-dark .nutrition-ai-form input,
+body.theme-dark .nutrition-ai-form select {
+  background: #1a1410;
+  border-color: #3f2f25;
+  color: #e8dcd8;
+}
+
+body.theme-dark .nutrition-ai-form input:focus,
+body.theme-dark .nutrition-ai-form select:focus {
+  border-color: #10b981;
+  background: #1e1a15;
+}
+
+body.theme-dark .nutrition-ai-form label {
+  color: #c4b5a8;
+}
+
+body.theme-dark .nutrition-ai-status.loading {
+  background: #1a2e25;
+  color: #6ee7b7;
+  border-color: #065f46;
+}
+
+body.theme-dark .nutrition-ai-status.error {
+  background: #2e1a1a;
+  color: #fca5a5;
+  border-color: #7f1d1d;
+}
+
+body.theme-dark .nutrition-ai-status.success {
+  background: #1a2e25;
+  color: #6ee7b7;
+  border-color: #065f46;
+}
+
+body.theme-dark .nutrition-ai-result-table {
+  border-color: #3f2f25;
+}
+
+body.theme-dark .nutrition-ai-result-table td {
+  color: #d4c4b8;
+  border-bottom-color: #2a1f18;
+}
+
+body.theme-dark .nutrition-ai-result-table tbody tr:hover {
+  background: #1e1a15;
+}
+
+body.theme-dark .nutrition-ai-result-table tfoot {
+  background: #1a2e25;
+}
+
+body.theme-dark .nutrition-ai-result-table tfoot td {
+  border-top-color: #059669;
+  color: #6ee7b7;
+}
+
+body.theme-dark .nutrition-ai-result .ai-result-note {
+  color: #7a6d62;
+}
+
+
+/* --- Dark theme: AI Confirmation Step --- */
+
+body.theme-dark .nutrition-ai-confirm-header h4 {
+  color: #6ee7b7;
+}
+
+body.theme-dark .nutrition-ai-confirm-header p {
+  color: #8b7f73;
+}
+
+body.theme-dark .ai-cell-input {
+  color: #7a6d62 !important;
+}
+
+body.theme-dark .ai-food-note {
+  color: #fbbf24;
+}
+
+body.theme-dark .ai-conf-high {
+  background: rgba(16, 185, 129, 0.15);
+  color: #6ee7b7;
+}
+
+body.theme-dark .ai-conf-med {
+  background: rgba(245, 158, 11, 0.15);
+  color: #fbbf24;
+}
+
+body.theme-dark .ai-conf-low {
+  background: rgba(239, 68, 68, 0.15);
+  color: #fca5a5;
+}
+
+body.theme-dark .ai-qty-input {
+  background: #1a1410;
+  border-color: #3f2f25;
+  color: #d4c4b8;
+}
+
+body.theme-dark .ai-qty-input:focus {
+  border-color: #10b981;
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.2);
+}
+
+body.theme-dark .ai-remove-btn {
+  color: #f87171;
+}
+
+body.theme-dark .ai-remove-btn:hover {
+  background: rgba(239, 68, 68, 0.15);
+  color: #fca5a5;
+}
+
+body.theme-dark .ai-total-item {
+  background: linear-gradient(145deg, #0f2a1f, #112a20);
+  border-color: #065f46;
+}
+
+body.theme-dark .ai-total-item span {
+  color: #8b7f73;
+}
+
+body.theme-dark .ai-total-item strong {
+  color: #6ee7b7;
+}
+
+body.theme-dark .ai-clarify-item {
+  background: rgba(245, 158, 11, 0.1);
+  border-color: #92400e;
+  color: #fbbf24;
+}
+
+body.theme-dark .ai-clarify-item i {
+  color: #fbbf24;
+}
+
+
+/* ---- Dark theme: AI Chat Widget ---- */
+
+body.theme-dark .ai-chat-panel {
+  background: #1a1410;
+  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.5);
+}
+
+body.theme-dark .ai-chat-messages {
+  background: #120e0a;
+}
+
+body.theme-dark .ai-msg-bot .ai-msg-bubble {
+  background: #1e1a15;
+  border-color: #3f2f25;
+  color: #d4c4b8;
+}
+
+body.theme-dark .ai-chat-table th {
+  color: #8b7f73;
+}
+
+body.theme-dark .ai-chat-table td {
+  border-bottom-color: #2a1f18;
+}
+
+body.theme-dark .ai-chat-table-total td {
+  border-top-color: #3f2f25;
+}
+
+body.theme-dark .ai-chat-confirm-bar {
+  background: #1e1a15;
+  border-top-color: #3f2f25;
+}
+
+body.theme-dark .ai-chat-input-wrap {
+  background: #1a1410;
+  border-top-color: #3f2f25;
+}
+
+body.theme-dark .ai-chat-mode-bar {
+  background: #1e1a15;
+  border-bottom-color: #3f2f25;
+}
+
+body.theme-dark .ai-chat-mode-bar label {
+  color: #8b7f73;
+}
+
+body.theme-dark .ai-mode-select {
+  background: #120e0a;
+  border-color: #3f2f25;
+  color: #d4c4b8;
+}
+
+body.theme-dark .ai-mode-select:focus {
+  border-color: #8b5cf6;
+  box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.2);
+}
+
+body.theme-dark .ai-chat-mode-indicator {
+  background: linear-gradient(90deg, rgba(99, 102, 241, 0.08), rgba(139, 92, 246, 0.08));
+  border-bottom-color: #3f2f25;
+}
+
+body.theme-dark .ai-chat-mode-indicator span {
+  color: #a5b4fc;
+}
+
+body.theme-dark .ai-chat-mode-indicator[data-mode="nutrition"] {
+  background: linear-gradient(90deg, rgba(34, 197, 94, 0.1), rgba(16, 185, 129, 0.08));
+}
+body.theme-dark .ai-chat-mode-indicator[data-mode="nutrition"] span {
+  color: #4ade80;
+}
+body.theme-dark .ai-chat-mode-indicator[data-mode="workout"] {
+  background: linear-gradient(90deg, rgba(59, 130, 246, 0.1), rgba(14, 165, 233, 0.08));
+}
+body.theme-dark .ai-chat-mode-indicator[data-mode="workout"] span {
+  color: #60a5fa;
+}
+body.theme-dark .ai-chat-mode-indicator[data-mode="task"] {
+  background: linear-gradient(90deg, rgba(245, 158, 11, 0.1), rgba(251, 191, 36, 0.08));
+}
+body.theme-dark .ai-chat-mode-indicator[data-mode="task"] span {
+  color: #fbbf24;
+}
+
+body.theme-dark .ai-chat-input-wrap input {
+  background: #120e0a;
+  border-color: #3f2f25;
+  color: #d4c4b8;
+}
+
+body.theme-dark .ai-chat-input-wrap input:focus {
+  border-color: #8b5cf6;
+  box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.2);
+}
+
+body.theme-dark .ai-chat-note {
+  color: #7a6d62;
+}
+
+body.theme-dark .ai-avatar-fab {
+  box-shadow: 0 6px 24px rgba(99, 102, 241, 0.3);
+}
+
+/* Dark theme: inline edit inputs */
+body.theme-dark .ai-edit-input {
+  background: #120e0a;
+  border-color: #3f2f25;
+  color: #d4c4b8;
+}
+
+body.theme-dark .ai-edit-input:focus {
+  border-color: #8b5cf6;
+  box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.2);
+}
+
+body.theme-dark .ai-edit-select {
+  background: #120e0a;
+  border-color: #3f2f25;
+  color: #d4c4b8;
+}
+
+body.theme-dark .ai-edit-select:focus {
+  border-color: #8b5cf6;
+}
+
+body.theme-dark .ai-edit-del {
+  color: #f87171;
+}
+
+body.theme-dark .ai-edit-add-btn {
+  color: #a78bfa;
+  border-color: #5a4a3e;
+}
+
+body.theme-dark .ai-edit-add-btn:hover {
+  background: rgba(139, 92, 246, 0.1);
+  border-color: #8b5cf6;
+}
+
+body.theme-dark .ai-edit-task-form label,
+body.theme-dark .ai-edit-project-form label {
+  color: #a39585;
+}
+
+
+body.theme-dark .tasks-progress-panel {
+  background: linear-gradient(110deg, #ff4500, #ff2d00);
+  border: 1px solid #ff6b4a;
+}
+
+body.theme-dark .dash-action {
+  color: #eef4ff;
+}
+
+body.theme-dark .dash-action i {
+  color: currentColor !important;
+}
+
+body.theme-dark .dash-action.blue {
+  background: linear-gradient(135deg, #1e40af, #2563eb);
+  color: #eaf2ff;
+}
+
+body.theme-dark .dash-action.green {
+  background: linear-gradient(135deg, #166534, #16a34a);
+  color: #e9ffe9;
+}
+
+body.theme-dark .dash-action.purple {
+  background: linear-gradient(135deg, #6d28d9, #9333ea);
+  color: #f3e8ff;
+}
+
+body.theme-dark .dash-action.orange {
+  background: linear-gradient(135deg, #ea580c, #f97316);
+  color: #111827;
+}
+
+body.theme-dark .dash-action.pink {
+  background: linear-gradient(135deg, #be185d, #db2777);
+  color: #ffe4f3;
+}
+
+body.theme-dark .dash-action.indigo {
+  background: linear-gradient(135deg, #3730a3, #4f46e5);
+  color: #e6e9ff;
+}
+
+body.theme-dark .dash-action.amber {
+  background: linear-gradient(135deg, #d97706, #f59e0b);
+  color: #111827;
+}
+
+body.theme-dark .dash-stat-icon,
+body.theme-dark .workout-routine-icon {
+  background: var(--icon-bg-light);
+  box-shadow: 0 14px 24px -18px rgba(255, 69, 0, 0.3);
+  color: var(--icon-color-dark);
+}
+
+body.theme-dark .dash-stat-icon i,
+body.theme-dark .workout-routine-icon i {
+  color: currentColor !important;
+}
+
+body.theme-dark .dash-stat-icon.orange {
+  background: #f97316;
+  color: var(--icon-color-dark);
+}
+
+body.theme-dark .dash-stat-card {
+  background: rgba(25, 20, 18, 0.9);
+  border-color: #3f2f25;
+}
+
+body.theme-dark .dash-stat-card:hover {
+  border-color: #ff6b4a;
+  background: rgba(30, 25, 23, 0.95);
+}
+
+body.theme-dark .task-card-v2,
+body.theme-dark .workout-routine-item,
+body.theme-dark .nutrition-saved-item,
+body.theme-dark .nutrition-history-item {
+  background: #1a1410;
+  border-color: #3f2f25;
+}
+
+body.theme-dark .nutrition-saved-tab {
+  background: #231c18;
+  border-color: #3f2f25;
+  color: #e5d4ca;
+}
+
+body.theme-dark .nutrition-saved-tab:hover {
+  background: #2a211c;
+  border-color: #5a4438;
+  color: #fff1e6;
+}
+
+body.theme-dark .nutrition-saved-tab.is-active {
+  background: #2f2a4f;
+  border-color: #8b5cf6;
+  color: #ddd6fe;
+  box-shadow: 0 8px 16px -12px rgba(139, 92, 246, 0.9);
+}
+
+body.theme-dark .task-card-v2:hover,
+body.theme-dark .workout-routine-item:hover {
+  border-color: #ff6b4a;
+}
+
+body.theme-dark .task-card-v2.is-low {
+  background: var(--priority-low-bg);
+  border-left-color: var(--priority-low-border);
+  border-color: var(--priority-low-outline);
+}
+
+body.theme-dark .task-card-v2.is-medium {
+  background: var(--priority-medium-bg);
+  border-left-color: var(--priority-medium-border);
+  border-color: var(--priority-medium-outline);
+}
+
+body.theme-dark .task-card-v2.is-high {
+  background: var(--priority-high-bg);
+  border-left-color: var(--priority-high-border);
+  border-color: var(--priority-high-outline);
+}
+
+body.theme-dark .task-card-v2.is-low:hover {
+  border-color: var(--priority-low-border);
+}
+
+body.theme-dark .task-card-v2.is-medium:hover {
+  border-color: var(--priority-medium-border);
+}
+
+body.theme-dark .task-card-v2.is-high:hover {
+  border-color: var(--priority-high-border);
+}
+
+body.theme-dark .nutrition-today-card {
+  background: linear-gradient(180deg, #1a1410 0%, #151210 100%);
+  border-color: #ff4500;
+  box-shadow: inset 0 0 20px rgba(255, 69, 0, 0.08);
+}
+
+body.theme-dark .nutrition-week-card,
+body.theme-dark .nutrition-block {
+  background: #1a1410;
+  border-color: #3f2f25;
+}
+
+body.theme-dark .nutrition-goals-panel {
+  background: linear-gradient(145deg, #ff4500, #ff2d00);
+  border-color: #ff6b4a;
+}
+
+body.theme-dark .streaks-panel {
+  background: #1a1410;
+  border-color: #3f2f25;
+}
+
+body.theme-dark .streaks-stat-card {
+  border-color: #ff6b4a;
+  box-shadow: 0 14px 24px -18px rgba(255, 69, 0, 0.5);
+}
+
+body.theme-dark .streaks-stat-card.orange i,
+body.theme-dark .streaks-day.active i {
+  color: var(--icon-color-dark) !important;
+  background: var(--streak-fire-icon-bg-dark);
+  width: 1.9rem;
+  height: 1.9rem;
+  border-radius: 10px;
+  padding: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+body.theme-dark .dash-streak-icon-wrap i {
+  color: var(--icon-color-dark) !important;
+}
+
+body.theme-dark .dash-streak-icon-wrap {
+  background: var(--streak-fire-icon-bg-dark);
+}
+
+body.theme-dark .streaks-level-ring {
+  background: conic-gradient(#ff4500 calc(var(--pct) * 1%), #3f2f25 0);
+}
+
+body.theme-dark #streaks-level-bar {
+  background: #ff4500;
+}
+
+body.theme-dark .statistics-icon-badge {
+  box-shadow: 0 14px 24px -18px rgba(255, 69, 0, 0.5);
+}
+
+body.theme-dark .statistics-icon-badge.blue {
+  background: rgba(255, 69, 0, 0.2);
+  color: #ff6b4a;
+}
+
+body.theme-dark .workspace-header,
+body.theme-dark .global-topbar {
+  background: rgba(21, 18, 16, 0.95);
+  border-color: #3f2f25;
+}
+
+body.theme-dark .profile-hero {
+  background: linear-gradient(135deg, #ff4500, #ff2d00);
+  border-color: rgba(255, 107, 74, 0.3);
+  color: #e8dcd8;
+}
+
+body.theme-dark .profile-hero h4 {
+  color: #ffffff;
+}
+
+body.theme-dark .profile-hero p {
+  color: #e8dcd8;
+}
+
+body.theme-dark .profile-hero-stats strong {
+  color: #ffffff;
+}
+
+body.theme-dark .profile-hero-stats span {
+  color: #c9b8b0;
+}
+
+body.theme-dark .profile-menu-meta strong,
+body.theme-dark .profile-menu-head strong {
+  color: #ff6b4a;
+}
+
+body.theme-dark .profile-menu-meta small,
+body.theme-dark .profile-menu-head small {
+  color: #b8a8a0;
+}
+
+body.theme-dark .profile-menu-item {
+  color: #e8dcd8;
+}
+
+body.theme-dark .profile-menu-item:hover {
+  background: rgba(255, 69, 0, 0.1);
+  color: #ff6b4a;
+}
+
+body.theme-dark .calendar-day {
+  background: #0f0908;
+  border-color: #3f2f25;
+  color: #e8dcd8;
+}
+
+body.theme-dark .calendar-day:hover {
+  border-color: #ff6b4a;
+}
+
+body.theme-dark .calendar-day.has-tasks {
+  background: rgba(255, 69, 0, 0.1);
+  border-color: #ff4500;
+}
+
+body.theme-dark .calendar-day.is-selected {
+  border-color: #ff4500;
+  box-shadow: 0 0 0 1px #ff4500 inset;
+}
+
+body.theme-dark .calendar-day.today {
+  border-color: #fb923c;
+  background: rgba(251, 146, 60, 0.16);
+  box-shadow: 0 0 0 1px #fb923c inset;
+}
+
+body.theme-dark .calendar-day.today .calendar-day-number {
+  color: #fed7aa;
+}
+
+body.theme-dark .calendar-day.important {
+  border-color: #f59e0b;
+  background: rgba(245, 158, 11, 0.16);
+}
+
+body.theme-dark .calendar-important-mark {
+  color: #fbbf24;
+}
+
+body.theme-dark #calendar-mark-important-btn.is-important {
+  border-color: #f59e0b;
+  color: #fbbf24;
+  background: rgba(245, 158, 11, 0.18);
+}
+
+i[class^="fa"],
+i[class*=" fa-"] {
+  color: var(--icon-color, currentColor);
+}
+
+/* Dark mode - ensure icon visibility */
+body.theme-dark i[class^="fa"],
+body.theme-dark i[class*=" fa-"],
+body.theme-dark .fa,
+body.theme-dark .fas,
+body.theme-dark .far,
+body.theme-dark .fal,
+body.theme-dark .fad {
+  color: #ff6b4a !important;
+}
+
+body.theme-dark .dash-stat-icon.orange i,
+body.theme-dark .dash-streak-icon-wrap i {
+  color: var(--icon-color-dark) !important;
+}
+
+/* Dark mode sidebar nav items */
+body.theme-dark .sidebar .nav-item {
+  color: #e8dcd8;
+}
+
+body.theme-dark .sidebar .nav-item {
+  color: #e8dcd8;
+}
+
+body.theme-dark .sidebar .nav-item i {
+  color: #ff8866;
+}
+
+body.theme-dark .sidebar .nav-item.active {
+  color: #ff6b4a;
+  background: rgba(255, 69, 0, 0.1);
+}
+
+body.theme-dark .sidebar .nav-item.active i {
+  color: #ff4500;
+}
+
+body.theme-dark .sidebar .nav-item::after {
+  background: linear-gradient(180deg, #ff4500, #ff6b4a);
+}
+
+body.theme-dark .streak-mini-title i {
+  color: var(--icon-accent-contrast) !important;
+}
+
+/* Dark mode activity items and lists */
+body.theme-dark .dash-activity-icon,
+body.theme-dark .streaks-activity-icon,
+body.theme-dark .calendar-task-item {
+  background: rgba(255, 69, 0, 0.15);
+  border-color: #3f2f25;
+}
+
+body.theme-dark .dash-activity-item,
+body.theme-dark .streaks-activity-item,
+body.theme-dark .nutrition-history-item {
+  background: #1a1410;
+  border-color: #3f2f25;
+  color: #e8dcd8;
+}
+
+body.theme-dark .dash-activity-main strong,
+body.theme-dark .streaks-activity-main strong {
+  color: #ff8866;
+}
+
+body.theme-dark .dash-activity-main,
+body.theme-dark .streaks-activity-main {
+  color: #c9b8b0;
+}
+
+/* Dark mode time and meta text */
+body.theme-dark .dash-activity-item time,
+body.theme-dark .task-main-meta,
+body.theme-dark .task-main-left h4 {
+  color: #e8dcd8;
+}
+
+body.theme-dark .task-main-meta {
+  color: #b8a8a0;
+}
+
+/* Dark mode badges and chips */
+body.theme-dark .priority-badge,
+body.theme-dark .dash-priority,
+body.theme-dark .task-repeat-chip,
+body.theme-dark .nutrition-pill,
+body.theme-dark .nutrition-track-badge {
+  background: rgba(255, 138, 102, 0.16);
+  color: var(--text-primary);
+  border: 1px solid rgba(255, 138, 102, 0.32);
+}
+
+body.theme-dark .priority-badge.high {
+  background: var(--priority-high-bg);
+  color: var(--text-primary);
+  border-color: var(--priority-high-border);
+}
+
+body.theme-dark .priority-badge.medium {
+  background: var(--priority-medium-bg);
+  color: var(--text-primary);
+  border-color: var(--priority-medium-border);
+}
+
+body.theme-dark .priority-badge.low {
+  background: var(--priority-low-bg);
+  color: var(--text-primary);
+  border-color: var(--priority-low-border);
+}
+
+body.theme-dark .dash-priority.high {
+  background: var(--priority-high-bg);
+  color: var(--text-primary);
+  border-color: var(--priority-high-border);
+}
+
+body.theme-dark .dash-priority.medium {
+  background: var(--priority-medium-bg);
+  color: var(--text-primary);
+  border-color: var(--priority-medium-border);
+}
+
+body.theme-dark .dash-priority.low {
+  background: var(--priority-low-bg);
+  color: var(--text-primary);
+  border-color: var(--priority-low-border);
+}
+
+/* Dark mode dots and indicators */
+body.theme-dark .dot.blue {
+  background: #ff6b4a;
+}
+
+body.theme-dark .dot.green {
+  background: #66dd66;
+}
+
+body.theme-dark .dot.orange {
+  background: #ffa855;
+}
+
+/* Dark mode chart and visualization elements */
+body.theme-dark .statistics-chart-wrap,
+body.theme-dark .statistics-pie-wrap,
+body.theme-dark .workout-focus-card,
+body.theme-dark .streaks-chain-note {
+  background-image: none;
+  background: rgba(25, 20, 18, 0.6);
+}
+
+body.theme-dark .statistics-bar,
+body.theme-dark .statistics-bar.blue {
+  background: linear-gradient(180deg, #ff6b4a, #ff4500);
+}
+
+body.theme-dark .statistics-bar.green {
+  background: linear-gradient(180deg, #66dd66, #44cc44);
+}
+
+body.theme-dark .statistics-bar-label,
+body.theme-dark .statistics-bar-value {
+  color: #e8dcd8;
+}
+
+/* Dark mode task card visibility */
+body.theme-dark .task-card-v2:hover {
+  background: rgba(35, 30, 28, 0.95);
+}
+
+body.theme-dark .task-main-check {
+  border-color: #3f2f25;
+  background: #0f0908;
+}
+
+body.theme-dark .task-note-btn {
+  color: #ff8866;
+}
+
+body.theme-dark .task-expand-btn {
+  color: #c9b8b0;
+}
+
+body.theme-dark .task-settings-btn {
+  color: #a79288;
+}
+
+body.theme-dark .task-edit-modal {
+  background: rgba(2, 8, 18, 0.72);
+}
+
+body.theme-dark .task-edit-card {
+  background: #111a2a;
+  border-color: var(--border-subtle);
+  box-shadow: var(--ui-shadow-strong);
+}
+
+body.theme-dark .task-edit-head h3,
+body.theme-dark .task-edit-label {
+  color: var(--text-primary);
+}
+
+body.theme-dark .task-edit-close-btn {
+  color: var(--text-secondary);
+}
+
+body.theme-dark .task-edit-input {
+  background: #0f1828;
+  border-color: var(--border-subtle);
+  color: var(--text-primary);
+}
+
+/* Dark mode calendar elements */
+body.theme-dark .day-count {
+  color: #ff6b4a;
+}
+
+body.theme-dark .calendar-task-title {
+  color: #e8dcd8;
+}
+
+body.theme-dark .calendar-task-time {
+  color: #b8a8a0;
+}
+
+/* Dark mode project and workout cards */
+body.theme-dark .project-task-title,
+body.theme-dark .workout-routine-title {
+  color: #ff6b4a;
+}
+
+body.theme-dark .project-task-meta,
+body.theme-dark .workout-routine-meta {
+  color: #b8a8a0;
+}
+
+/* Dark mode nutrition elements */
+body.theme-dark .nutrition-today-grid strong {
+  color: #ff6b4a;
+}
+
+body.theme-dark #nutrition-today-calories {
+  color: #ff6b4a;
+}
+
+body.theme-dark #nutrition-today-protein,
+body.theme-dark #nutrition-today-carbs,
+body.theme-dark #nutrition-today-fats {
+  color: #ff8866;
+}
+
+/* Dark mode form labels and helpers */
+body.theme-dark .nutrition-form label,
+body.theme-dark .profile-form-grid label span,
+body.theme-dark .task-editor-label {
+  color: #ff8866;
+}
+
+/* Dark mode streak elements */
+body.theme-dark .streaks-points-legend label,
+body.theme-dark .streaks-bonus h4,
+body.theme-dark .streaks-bonus ul {
+  color: #e8dcd8;
+}
+
+body.theme-dark .streaks-bonus li {
+  color: #c9b8b0;
+}
+
+/* Dark mode mini stats */
+body.theme-dark .mini-stat-label,
+body.theme-dark .mini-stat-value {
+  color: #e8dcd8;
+}
+
+/* Dark mode task editor */
+body.theme-dark .task-editor-grid input,
+body.theme-dark .task-editor-grid select,
+body.theme-dark .task-notes-input {
+  background: #0f0908;
+  color: #e8dcd8;
+  border-color: #3f2f25;
+}
+
+/* Dark mode status and chips */
+body.theme-dark .workout-routine-chip {
+  background: rgba(255, 69, 0, 0.15);
+  border-color: #ff6b4a;
+  color: #ff8866;
+}
+
+body.theme-dark .workout-routine-chip.done {
+  background: rgba(102, 221, 102, 0.15);
+  border-color: #66dd66;
+  color: #88dd88;
+}
+
+/* Dark mode tooltip and helper text */
+body.theme-dark .tasks-empty-state,
+body.theme-dark .calendar-empty {
+  border-color: #3f2f25;
+  background: rgba(25, 20, 18, 0.5);
+  color: #b8a8a0;
+}
+
+/* Dark mode all text in panels */
+body.theme-dark .dash-panel h3,
+body.theme-dark .streaks-panel h3,
+body.theme-dark .projects-panel h3,
+body.theme-dark .workout-panel h3,
+body.theme-dark .calendar-head h3 {
+  color: #ff6b4a;
+}
+
+/* Additional dark mode fixes for better contrast */
+body.theme-dark .global-topbar-title h2 {
+  color: #ff6b4a;
+}
+
+body.theme-dark .global-topbar-title p {
+  color: #b8a8a0;
+}
+
+/* Dark mode nav text */
+body.theme-dark .nav-item {
+  color: #e8dcd8;
+}
+
+/* Dark mode all headings */
+body.theme-dark .statistics-head h2,
+body.theme-dark .profile-head h2,
+body.theme-dark .calendar-title-row h2,
+body.theme-dark .streaks-head h1 {
+  color: #ff6b4a;
+}
+
+body.theme-dark .statistics-head p,
+body.theme-dark .profile-head p,
+body.theme-dark .calendar-title-row p,
+body.theme-dark .streaks-head p {
+  color: #c9b8b0;
+}
+
+/* Dark mode progress bars */
+body.theme-dark .dash-progress-bar {
+  background: #3f2f25;
+}
+
+body.theme-dark .dash-progress-bar > div.blue {
+  background: linear-gradient(90deg, #ff4500, #ff6b4a);
+}
+
+body.theme-dark .streaks-bar {
+  background: #3f2f25;
+}
+
+/* Dark mode list items */
+body.theme-dark .task-subtask-row span,
+body.theme-dark .project-subtask-left span {
+  color: #e8dcd8;
+}
+
+body.theme-dark .task-card-v2.is-overdue {
+  border-left-color: #fb923c;
+  background: #42210f;
+}
+
+body.theme-dark .task-note-readonly {
+  background: #1f2937;
+  border-color: #334155;
+  color: #cbd5e1;
+}
+
+/* Dark mode workout and nutrition stats */
+body.theme-dark .workout-stat-head p,
+body.theme-dark .nutrition-week-stat p {
+  color: #b8a8a0;
+}
+
+body.theme-dark .nutrition-history-time,
+body.theme-dark .nutrition-history-food {
+  color: #e8dcd8;
+}
+
+/* Dark mode project specific elements */
+body.theme-dark .project-head-left,
+body.theme-dark .project-total-time span,
+body.theme-dark .project-total-time strong {
+  color: #e8dcd8;
+}
+
+/* Dark mode calendar specific */
+body.theme-dark .calendar-weekday {
+  color: #b8a8a0;
+}
+
+/* Dark mode statistics elements */
+body.theme-dark .statistics-summary-note {
+  color: #ff8866;
+}
+
+body.theme-dark .statistics-legend-item,
+body.theme-dark .statistics-legend-left {
+  background: #1a1410;
+  border-color: #3f2f25;
+  color: #e8dcd8;
+}
+
+body.theme-dark .statistics-legend-value {
+  color: #ff6b4a;
+}
+
+/* Dark mode due dates */
+body.theme-dark .is-remaining {
+  color: #ff8866;
+}
+
+body.theme-dark .is-overdue {
+  color: #ffaa88;
+}
+
+/* Dark mode mini pill elements */
+body.theme-dark .dash-timer-pill {
+  background: #2a2218;
+  border-color: #ff6b4a;
+  color: #ff8866;
+}
+
+body.theme-dark .dash-timer-pill.running {
+  background: rgba(255, 69, 0, 0.15);
+  border-color: #ff4500;
+  color: #ff8866;
+}
+
+/* Dark mode workout battery */
+body.theme-dark .workout-battery {
+  border-color: #3f2f25;
+  background: #0f0908;
+}
+
+/* Dark mode profile quick list */
+body.theme-dark .profile-quick-list > div {
+  background: #1a1410;
+  border-color: #3f2f25;
+  color: #e8dcd8;
+}
+
+body.theme-dark .profile-quick-list span {
+  color: #b8a8a0;
+}
+
+body.theme-dark .profile-quick-list strong {
+  color: #ff6b4a;
+}
+
+/* Dark mode checkbox and form controls */
+body.theme-dark .task-main-check,
+body.theme-dark .project-task-check {
+  background: #0f0908;
+  border-color: #3f2f25;
+}
+
+body.theme-dark .task-subtask-check,
+body.theme-dark .project-subtask-left button {
+  background: #0f0908;
+  border-color: #3f2f25;
+}
+
+/* Dark mode delete and action buttons */
+body.theme-dark .minimal-delete-btn {
+  color: #ff8866;
+}
+
+body.theme-dark .minimal-delete-btn:hover {
+  background: rgba(255, 69, 0, 0.1);
+}
+
+body.theme-dark .task-delete-btn-v2 {
+  color: #ff8866;
+}
+
+/* Dark mode streak achievement tiles */
+body.theme-dark .streaks-achievement {
+  background: #1a1410;
+  border-color: #ff6b4a;
+  color: #e8dcd8;
+}
+
+body.theme-dark .streaks-achievement h4,
+body.theme-dark .streaks-achievement p {
+  color: #e8dcd8;
+}
+
+body.theme-dark .streaks-achievement span {
+  color: #b8a8a0;
+}
+
+
+/* ---------- Dark Mode Contrast & Visibility Fix ---------- */
+body.theme-dark .sidebar,
+body.theme-dark .global-topbar,
+body.theme-dark .workspace-header,
+body.theme-dark .page-section,
+body.theme-dark .dash-panel,
+body.theme-dark .dash-stat-card,
+body.theme-dark .streaks-panel,
+body.theme-dark .projects-panel,
+body.theme-dark .workout-panel,
+body.theme-dark .statistics-panel,
+body.theme-dark .profile-card,
+body.theme-dark .nutrition-today-card,
+body.theme-dark .nutrition-week-card,
+body.theme-dark .nutrition-block,
+body.theme-dark .calendar-detail-card,
+body.theme-dark .calendar-add-card {
+  background: var(--bg-surface);
+  border-color: var(--border-subtle);
+  box-shadow: var(--ui-shadow-soft);
+}
+
+body.theme-dark .page-section {
+  background:
+    radial-gradient(620px 300px at 105% -12%, rgba(37, 99, 235, 0.14) 0%, rgba(37, 99, 235, 0) 72%),
+    radial-gradient(520px 240px at -8% 106%, rgba(16, 185, 129, 0.1) 0%, rgba(16, 185, 129, 0) 72%),
+    linear-gradient(165deg, #111a2b 0%, #101a29 46%, #0f1827 100%);
+  border-color: var(--border-strong);
+}
+
+body.theme-dark .logo,
+body.theme-dark h1,
+body.theme-dark h2,
+body.theme-dark h3,
+body.theme-dark h4,
+body.theme-dark strong {
+  color: var(--text-primary);
+}
+
+body.theme-dark p,
+body.theme-dark span,
+body.theme-dark label,
+body.theme-dark small,
+body.theme-dark .tasks-head-row p,
+body.theme-dark .nutrition-header-row p {
+  color: var(--text-secondary);
+}
+
+body.theme-dark .dash-head p,
+body.theme-dark .dash-stat-card p,
+body.theme-dark .statistics-head p,
+body.theme-dark .profile-head p {
+  color: var(--text-muted);
+}
+
+body.theme-dark #tasks .tasks-head-row h2 {
+  color: var(--ui-focus);
+}
+
+body.theme-dark #dashboard {
+  --dash-ink: var(--text-primary);
+  --dash-muted: var(--text-muted);
+  --dash-border: var(--border-subtle);
+  --dash-surface: var(--bg-surface);
+  --dash-surface-strong: var(--bg-card);
+  --dash-shadow: var(--ui-shadow-soft);
+  border-color: var(--border-strong);
+  box-shadow: var(--ui-shadow-strong);
+  background:
+    radial-gradient(1200px 450px at -8% -16%, rgba(66, 153, 225, 0.24) 0%, rgba(66, 153, 225, 0) 58%),
+    radial-gradient(900px 340px at 110% 0%, rgba(20, 184, 166, 0.2) 0%, rgba(20, 184, 166, 0) 62%),
+    linear-gradient(165deg, #0f1828 0%, #0c1625 45%, #0a1422 100%);
+}
+
+body.theme-dark .dash-stat-card,
+body.theme-dark .dash-panel,
+body.theme-dark .dash-activity-item {
+  background: var(--bg-card);
+  border-color: var(--dash-border);
+}
+
+body.theme-dark .dash-stat-card:hover,
+body.theme-dark .dash-panel:hover {
+  border-color: var(--border-strong);
+  box-shadow: var(--ui-shadow-strong);
+}
+
+body.theme-dark .tasks-progress-panel,
+body.theme-dark .nutrition-goals-panel {
+  box-shadow: var(--ui-shadow-soft);
+}
+
+body.theme-dark input,
+body.theme-dark select,
+body.theme-dark textarea,
+body.theme-dark .projects-create-form input,
+body.theme-dark .projects-create-form textarea,
+body.theme-dark .workout-inline-form input,
+body.theme-dark .workout-inline-form select,
+body.theme-dark .calendar-quick-add input,
+body.theme-dark .calendar-quick-add select {
+  background: #0f1828;
+  color: var(--text-primary);
+  border-color: var(--border-subtle);
+}
+
+body.theme-dark .streaks-level-inner {
+  background: var(--bg-card);
+}
+
+body.theme-dark .streaks-level-inner strong,
+body.theme-dark .streaks-level-progress-head,
+body.theme-dark .streaks-panel > h3 {
+  color: var(--text-primary);
+}
+
+body.theme-dark .streaks-level-inner span,
+body.theme-dark .streaks-level-progress-line p,
+body.theme-dark .streaks-activity-main .meta {
+  color: var(--text-secondary);
+}
+
+body.theme-dark .workout-routine-item {
+  background: var(--bg-card);
+  border-color: var(--border-subtle);
+}
+
+body.theme-dark .workout-routine-title {
+  color: var(--text-primary);
+}
+
+body.theme-dark .workout-routine-meta,
+body.theme-dark .workout-routine-extra {
+  color: var(--text-secondary);
+}
+
+body.theme-dark .workout-routine-chip.done,
+body.theme-dark .workout-routine-chip.pending,
+body.theme-dark .nutrition-track-badge,
+body.theme-dark .nutrition-track-badge.off {
+  color: var(--text-primary);
+}
+
+body.theme-dark .workout-routine-icon,
+body.theme-dark .streaks-activity-icon,
+body.theme-dark .streaks-achievement .icon,
+body.theme-dark .streaks-level-inner i {
+  color: var(--icon-color-dark);
+}
+
+body.theme-dark .workout-routine-item i,
+body.theme-dark .streaks-panel i,
+body.theme-dark .tasks-progress-panel i {
+  color: var(--icon-secondary);
+}
+
+body.theme-dark .sidebar svg,
+body.theme-dark .workout-routine-icon svg,
+body.theme-dark .streaks-activity-icon svg,
+body.theme-dark .streaks-achievement .icon svg,
+body.theme-dark .dash-stat-icon svg,
+body.theme-dark .nutrition-goals-icon svg,
+body.theme-dark .statistics-icon-badge svg,
+body.theme-dark .profile-menu-avatar svg {
+  color: currentColor;
+  fill: currentColor;
+}
+
+
+/* ===========================================================================
+   BREAKPOINT ≤768 px  —  phones
+   =========================================================================== */
+@media (max-width: 768px) {
+
+  /* ── root ── */
+  body { padding: 0; }
+
+  .mobile-hamburger { display: flex; }
+
+  .app-wrapper {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    max-width: 100vw;
+    padding: 0;
+  }
+
+  /* ── sidebar → slide-in drawer ── */
+  .sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: 280px;
+    max-width: 82vw;
+    z-index: 1100;
+    transform: translateX(-100%);
+    transition: transform 0.32s cubic-bezier(.4,0,.2,1);
+    border-radius: 0 24px 24px 0;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-top: 64px;
+    box-shadow: none;
+    display: flex;
+    flex-direction: column;
+  }
+  .sidebar.is-open {
+    transform: translateX(0);
+    box-shadow: 6px 0 32px rgba(0,0,0,0.18);
+  }
+
+  body.theme-dark .sidebar.is-open {
+    box-shadow: 6px 0 32px rgba(0,0,0,0.5);
+  }
+
+  /* ── main content ── */
+  .main-content {
+    padding: 8px;
+    gap: 12px;
+    width: 100%;
+    min-width: 0;
+  }
+
+  /* ── global topbar ── */
+  .global-topbar {
+    margin-top: 52px;
+    padding: 10px 12px;
+    border-radius: 14px;
+    gap: 10px;
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .global-topbar-title h2 { font-size: 1.15rem; }
+  .global-topbar-title p { display: none; }
+
+  .profile-menu-btn {
+    width: 100%;
+    justify-content: space-between;
+    padding: 8px 12px;
+  }
+  .profile-menu-panel {
+    left: 0;
+    right: auto;
+    width: 100%;
+  }
+
+  /* ── page section base ── */
+  .page-section {
+    padding: 14px 10px;
+    border-radius: 18px;
+  }
+
+  /* ── Demo user selector ── */
+  .demo-user-selector { margin: 16px 10px; }
+  .demo-user-cards {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+  .demo-user-shell h1 { font-size: 1.4rem; }
+
+  /* ==== DASHBOARD ==== */
+  #dashboard { padding: 16px 12px; border-radius: 20px; }
+  .dash-head h1 { font-size: 1.35rem; }
+  .dash-head p { font-size: 0.88rem; }
+
+  .dash-streak-banner {
+    flex-direction: column;
+    gap: 12px;
+    padding: 14px;
+  }
+  .dash-streak-left,
+  .dash-streak-right { width: 100%; }
+
+  .dash-stats-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+  .dash-stat-card { padding: 14px 12px; }
+  .dash-stat-card h4 { font-size: 1.1rem; }
+
+  .dash-grid-two {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .dash-panel { padding: 14px 12px; }
+  .dash-panel h3 { font-size: 1rem; }
+
+  .dash-actions { gap: 10px; }
+
+  .dash-floating-timer {
+    left: 10px;
+    right: 10px;
+    bottom: 10px;
+    min-width: unset;
+    width: auto;
+  }
+
+  /* ==== STREAKS & POINTS ==== */
+  .streaks-shell { gap: 14px; }
+  .streaks-head h1 { font-size: 1.35rem; }
+
+  .streaks-top-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+  .streaks-stat-card { padding: 16px 14px; }
+  .streaks-stat-card h3 { font-size: 1.25rem; }
+
+  .streaks-mid-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .streaks-today-tracker { padding: 14px; }
+  .streaks-today-tracker-head {
+    flex-direction: column;
+    gap: 8px;
+    align-items: flex-start;
+  }
+  .streak-pillar {
+    flex-direction: column;
+    gap: 6px;
+    align-items: flex-start;
+  }
+
+  .streaks-calendar { font-size: 0.72rem; }
+  .streaks-level-ring { width: 100px; height: 100px; }
+
+  .streaks-achievement-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+
+  /* ==== TASKS ==== */
+  .tasks-shell { gap: 14px; }
+  .tasks-head-row {
+    flex-direction: column;
+    gap: 10px;
+  }
+  .tasks-head-row h2 { font-size: 1.3rem; }
+  .tasks-head-actions {
+    width: 100%;
+    justify-content: flex-start;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .tasks-btn { font-size: 0.85rem; padding: 8px 14px; min-height: 44px; }
+
+  .tasks-progress-panel { padding: 14px 12px; }
+
+  .task-row { padding: 12px 10px; }
+  .task-row-main {
+    flex-direction: column;
+    gap: 8px;
+  }
+  .task-main-actions {
+    width: 100%;
+    justify-content: flex-end;
+    gap: 6px;
+  }
+
+  /* Eisenhower matrix → single col */
+  .tasks-matrix-grid,
+  .tasks-matrix-unassigned-list {
+    grid-template-columns: 1fr;
+  }
+
+  /* enlarge tap targets */
+  .task-checkbox { min-width: 22px; min-height: 22px; }
+  .task-main-action-btn { min-width: 38px; min-height: 38px; }
+
+  /* ==== PROJECTS ==== */
+  .projects-head-row { flex-direction: column; gap: 10px; }
+  .projects-head-row h2 { font-size: 1.3rem; }
+  .projects-stats-grid { grid-template-columns: 1fr; gap: 10px; }
+  .project-subtasks-head { flex-direction: column; align-items: flex-start; gap: 8px; }
+
+  /* ==== WORKOUT ==== */
+  .workout-head-row {
+    flex-direction: column;
+    gap: 10px;
+  }
+  .workout-head-row h2 { font-size: 1.3rem; }
+  .workout-head-actions { width: 100%; }
+  .workout-btn { min-height: 44px; font-size: 0.88rem; }
+
+  .workout-stats-grid { grid-template-columns: 1fr; gap: 10px; }
+
+  .workout-inline-form {
+    flex-direction: column;
+    gap: 10px;
+  }
+  .workout-inline-form input,
+  .workout-inline-form select,
+  .workout-inline-form button {
+    width: 100%;
+    min-height: 44px;
+  }
+
+  .workout-routine-list { gap: 10px; }
+
+  /* ==== NUTRITION ==== */
+  .nutrition-header-row {
+    flex-direction: column;
+    gap: 10px;
+  }
+  .nutrition-header-row h2 { font-size: 1.3rem; }
+  .nutrition-header-actions { width: 100%; }
+  .nutrition-btn { min-height: 44px; font-size: 0.88rem; }
+
+  .nutrition-today-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+  .nutrition-today-grid > div { padding: 10px 8px; }
+
+  .nutrition-form-grid {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+  .nutrition-form-macros {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .nutrition-goals-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+
+  .nutrition-saved-grid { gap: 10px; }
+
+  .nutrition-ai-form .nutrition-form-grid {
+    flex-direction: column;
+  }
+
+  .nutrition-builder-grid {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  /* ==== STATISTICS ==== */
+  .statistics-summary-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+  .statistics-head h2 { font-size: 1.3rem; }
+
+  /* ==== CALENDAR ==== */
+  .calendar-grid { gap: 4px; }
+  .calendar-grid > div { padding: 6px 2px; font-size: 0.72rem; }
+  .calendar-quick-add {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+  .calendar-quick-add input,
+  .calendar-quick-add select,
+  .calendar-quick-add button { min-height: 44px; width: 100%; }
+
+  /* ==== PROFILE ==== */
+  .profile-main-grid { grid-template-columns: 1fr; gap: 14px; }
+  .profile-form-grid { grid-template-columns: 1fr; gap: 10px; }
+  .profile-form-grid.three { grid-template-columns: 1fr; }
+  .profile-hero { order: -1; }
+  .profile-head h2 { font-size: 1.3rem; }
+
+  /* ==== MODALS ==== */
+  #add-task-modal > div {
+    width: 96%;
+    max-width: 100%;
+    padding: 20px 16px;
+    max-height: 90vh;
+    overflow-y: auto;
+  }
+  .task-edit-card {
+    width: 96%;
+    max-height: 90vh;
+    overflow-y: auto;
+  }
+  .layout-customize-card {
+    width: 96%;
+    max-height: 90vh;
+    overflow-y: auto;
+  }
+
+  /* ==== AI CHAT ==== */
+  .ai-avatar-fab {
+    bottom: 16px;
+    right: 16px;
+    width: 50px;
+    height: 50px;
+  }
+  .ai-chat-panel {
+    right: 10px;
+    left: 10px;
+    bottom: 80px;
+    width: auto;
+    max-height: 70vh;
+    border-radius: 16px;
+  }
+  .ai-chat-messages { max-height: 45vh; }
+  .ai-chat-input-wrap input { font-size: 16px; } /* prevent iOS zoom */
+
+  /* ── overflow safety ── */
+  html, body { overflow-x: hidden; }
+  img, video, canvas, svg, iframe { max-width: 100%; height: auto; }
+}
+
+/* ===========================================================================
+   BREAKPOINT ≤480 px  —  small phones
+   =========================================================================== */
+@media (max-width: 480px) {
+  .dash-stats-grid { grid-template-columns: 1fr; }
+  .streaks-top-grid { grid-template-columns: 1fr; }
+  .nutrition-today-grid { grid-template-columns: 1fr; }
+  .statistics-summary-grid { grid-template-columns: 1fr; }
+
+  .streaks-achievement-grid { grid-template-columns: 1fr; }
+
+  .dash-head h1 { font-size: 1.2rem; }
+  .page-section { padding: 12px 8px; }
+
+  .global-topbar { margin-top: 52px; padding: 8px 10px; }
+
+  .profile-menu-meta strong { font-size: 0.85rem; }
+  .profile-menu-meta small { font-size: 0.72rem; }
+
+  .ai-chat-panel {
+    left: 5px;
+    right: 5px;
+    bottom: 76px;
+  }
+}
+
+
