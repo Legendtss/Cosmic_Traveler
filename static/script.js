@@ -251,11 +251,18 @@ function saveUserPrefsRecord(record) {
 
 function setSessionView(view) {
   const app = document.getElementById('app-wrapper');
+  const introScreen = document.getElementById('intro-screen');
   const authScreen = document.getElementById('auth-screen');
   const onboarding = document.getElementById('demo-onboarding');
+  const demoTour = document.getElementById('demo-tour');
+  const profileEssentials = document.getElementById('profile-essentials');
+
   if (app) app.style.display = view === 'app' ? 'grid' : 'none';
+  if (introScreen) introScreen.classList.toggle('hidden', view !== 'intro');
   if (authScreen) authScreen.classList.toggle('hidden', view !== 'auth');
   if (onboarding) onboarding.classList.toggle('hidden', view !== 'onboarding');
+  if (demoTour) demoTour.classList.toggle('hidden', view !== 'demo-tour');
+  if (profileEssentials) profileEssentials.classList.toggle('hidden', view !== 'profile-essentials');
 }
 
 function applyUserFeaturePreferences(preferences) {
@@ -394,7 +401,11 @@ function applyAuthUserContext(user) {
     email: user.email || profileState.email,
     level: user.level || profileState.level,
     goal: user.goal || profileState.goal,
-    weightGoal: inferredWeightGoal
+    weightGoal: inferredWeightGoal,
+    // Apply profile essentials from onboarding
+    age: user.age || profileState.age,
+    height: user.height || profileState.height,
+    currentWeight: user.currentWeight || profileState.currentWeight,
   };
   dashboardState.weeklyWorkoutTarget = user.weeklyWorkoutTarget || dashboardState.weeklyWorkoutTarget;
   dashboardState.calorieGoal = user.calorieGoal || dashboardState.calorieGoal;
@@ -424,12 +435,28 @@ async function bootstrapSession() {
   setupOnboarding();
 
   const user = await AuthModule.checkSession();
-  if (!user) {
-    setSessionView('auth');
+  
+  // Use the new routing state machine from 00-auth.js
+  if (typeof window._authRouteToCorrectScreen === 'function') {
+    window._authRouteToCorrectScreen(user, false);
+    
+    // If user is fully onboarded, continue with app setup
+    if (user && user.onboarding?.profileEssentialsCompletedAt) {
+      const record = getUserPrefsRecord();
+      applyAuthUserContext(user);
+      applyUserFeaturePreferences(record?.preferences || DEFAULT_FEATURE_PREFS);
+      return true;
+    }
     return false;
   }
 
-  // Valid session " check if onboarding needed
+  // Fallback to old behavior if routing function not available
+  if (!user) {
+    setSessionView('intro');
+    return false;
+  }
+
+  // Valid session — check if onboarding needed
   const record = getUserPrefsRecord();
   if (!record || record.isFirstLogin !== false) {
     const onboarding = document.getElementById('demo-onboarding');

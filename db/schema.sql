@@ -9,6 +9,15 @@ CREATE TABLE IF NOT EXISTS users (
   goal TEXT NOT NULL DEFAULT 'General Fitness',
   weekly_workout_target INTEGER NOT NULL DEFAULT 3,
   calorie_goal INTEGER NOT NULL DEFAULT 2200,
+  -- Profile essentials (onboarding required)
+  age INTEGER,
+  height INTEGER,
+  current_weight REAL,
+  activity_level TEXT NOT NULL DEFAULT 'moderate' CHECK (activity_level IN ('sedentary','light','moderate','active','very_active')),
+  -- Onboarding state tracking
+  intro_seen_at TEXT,
+  demo_completed_at TEXT,
+  profile_essentials_completed_at TEXT,
   created_at TEXT NOT NULL DEFAULT (CURRENT_TIMESTAMP),
   updated_at TEXT NOT NULL DEFAULT (CURRENT_TIMESTAMP)
 );

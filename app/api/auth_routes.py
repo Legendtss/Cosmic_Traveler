@@ -251,6 +251,93 @@ def update_profile():
     return jsonify({"ok": True, "user": _user_dict(db, uid)})
 
 
+@auth_bp.route("/api/auth/onboarding", methods=["PUT"])
+def update_onboarding():
+    """Update onboarding state flags (intro_seen, demo_completed)."""
+    uid = get_current_user_id()
+    data = request.get_json(silent=True) or {}
+    db = get_db()
+    now = now_iso()
+
+    sets = ["updated_at = ?"]
+    vals = [now]
+
+    # Mark intro as seen
+    if data.get("introSeen"):
+        sets.append("intro_seen_at = ?")
+        vals.append(now)
+
+    # Mark demo as completed (or skipped)
+    if data.get("demoCompleted"):
+        sets.append("demo_completed_at = ?")
+        vals.append(now)
+
+    vals.append(uid)
+    db.execute(f"UPDATE users SET {', '.join(sets)} WHERE id = ?", vals)
+    db.commit()
+
+    return jsonify({"ok": True, "user": _user_dict(db, uid)})
+
+
+@auth_bp.route("/api/auth/profile-essentials", methods=["PUT"])
+def update_profile_essentials():
+    """
+    Save the mandatory profile essentials (age, height, weight, goal, activity level).
+    This completes the onboarding flow.
+    """
+    uid = get_current_user_id()
+    data = request.get_json(silent=True) or {}
+    db = get_db()
+
+    # ── Validation ─────────────────────────────────────────
+    errors = []
+    
+    age = data.get("age")
+    if age is None or not isinstance(age, (int, float)) or age < 10 or age > 120:
+        errors.append("Age must be between 10 and 120.")
+    
+    height = data.get("height")
+    if height is None or not isinstance(height, (int, float)) or height < 50 or height > 300:
+        errors.append("Height must be between 50 and 300 cm.")
+    
+    current_weight = data.get("currentWeight")
+    if current_weight is None or not isinstance(current_weight, (int, float)) or current_weight < 20 or current_weight > 500:
+        errors.append("Weight must be between 20 and 500 kg.")
+    
+    goal = data.get("goal")
+    valid_goals = ["Weight Loss", "Muscle Gain", "Maintain Fitness", "General Fitness"]
+    if not goal or goal not in valid_goals:
+        errors.append(f"Goal must be one of: {', '.join(valid_goals)}.")
+    
+    activity_level = data.get("activityLevel")
+    valid_activity = ["sedentary", "light", "moderate", "active", "very_active"]
+    if not activity_level or activity_level not in valid_activity:
+        errors.append(f"Activity level must be one of: {', '.join(valid_activity)}.")
+    
+    if errors:
+        return jsonify({"ok": False, "errors": errors}), 400
+
+    # ── Update user with essentials ────────────────────────
+    now = now_iso()
+    db.execute(
+        """
+        UPDATE users SET
+            age = ?,
+            height = ?,
+            current_weight = ?,
+            goal = ?,
+            activity_level = ?,
+            profile_essentials_completed_at = ?,
+            updated_at = ?
+        WHERE id = ?
+        """,
+        (int(age), int(height), float(current_weight), goal, activity_level, now, now, uid),
+    )
+    db.commit()
+
+    return jsonify({"ok": True, "user": _user_dict(db, uid)})
+
+
 # ── Internal helpers ──────────────────────────────────────────
 
 def _user_dict(db, user_id):
@@ -258,15 +345,27 @@ def _user_dict(db, user_id):
     row = db.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
     if not row:
         return None
+    cols = row.keys()
     return {
         "id": row["id"],
         "email": row["email"],
         "displayName": row["display_name"],
-        "level": row["level"] if "level" in row.keys() else "Beginner",
-        "goal": row["goal"] if "goal" in row.keys() else "General Fitness",
-        "weeklyWorkoutTarget": row["weekly_workout_target"] if "weekly_workout_target" in row.keys() else 3,
-        "calorieGoal": row["calorie_goal"] if "calorie_goal" in row.keys() else 2200,
+        "level": row["level"] if "level" in cols else "Beginner",
+        "goal": row["goal"] if "goal" in cols else "General Fitness",
+        "weeklyWorkoutTarget": row["weekly_workout_target"] if "weekly_workout_target" in cols else 3,
+        "calorieGoal": row["calorie_goal"] if "calorie_goal" in cols else 2200,
         "createdAt": row["created_at"],
+        # Profile essentials
+        "age": row["age"] if "age" in cols else None,
+        "height": row["height"] if "height" in cols else None,
+        "currentWeight": row["current_weight"] if "current_weight" in cols else None,
+        "activityLevel": row["activity_level"] if "activity_level" in cols else "moderate",
+        # Onboarding state
+        "onboarding": {
+            "introSeenAt": row["intro_seen_at"] if "intro_seen_at" in cols else None,
+            "demoCompletedAt": row["demo_completed_at"] if "demo_completed_at" in cols else None,
+            "profileEssentialsCompletedAt": row["profile_essentials_completed_at"] if "profile_essentials_completed_at" in cols else None,
+        },
     }
 
 

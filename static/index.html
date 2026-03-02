@@ -37,6 +37,7 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
   <link rel="stylesheet" href="styles.css">
   <link rel="stylesheet" href="css/00-auth.css">
+  <link rel="stylesheet" href="css/01-onboarding.css">
   <style>
     .fire-container {
       display: flex;
@@ -373,6 +374,75 @@
   </style>
 </head>
 <body>
+  <!-- ══════════════════════════════════════════════════════════════
+       INTRO LANDING PAGE — shown to unauthenticated users
+       ══════════════════════════════════════════════════════════════ -->
+  <div id="intro-screen" class="intro-screen hidden">
+    <div class="intro-container">
+      <!-- Hero Section -->
+      <header class="intro-hero">
+        <div class="intro-logo">
+          <h1><span>FitTrack</span> Pro</h1>
+        </div>
+        <p class="intro-tagline">Your all-in-one fitness companion</p>
+        <p class="intro-subtitle">Track workouts, nutrition, tasks, and progress — all in one beautiful dashboard.</p>
+        <div class="intro-cta-group">
+          <button id="intro-get-started" class="intro-btn intro-btn-primary">Get Started</button>
+          <button id="intro-login" class="intro-btn intro-btn-secondary">I have an account</button>
+        </div>
+      </header>
+
+      <!-- Features Grid -->
+      <section class="intro-features">
+        <h2>Everything you need to reach your goals</h2>
+        <div class="intro-features-grid">
+          <div class="intro-feature-card">
+            <div class="intro-feature-icon"><i class="fas fa-dumbbell"></i></div>
+            <h3>Workout Tracking</h3>
+            <p>Log exercises, track sets and reps, monitor your progress over time.</p>
+          </div>
+          <div class="intro-feature-card">
+            <div class="intro-feature-icon"><i class="fas fa-utensils"></i></div>
+            <h3>Nutrition Logging</h3>
+            <p>Track calories, macros, and meals with AI-powered food detection.</p>
+          </div>
+          <div class="intro-feature-card">
+            <div class="intro-feature-icon"><i class="fas fa-tasks"></i></div>
+            <h3>Task Management</h3>
+            <p>Stay organized with tasks, projects, and a focused productivity timer.</p>
+          </div>
+          <div class="intro-feature-card">
+            <div class="intro-feature-icon"><i class="fas fa-chart-line"></i></div>
+            <h3>Progress Analytics</h3>
+            <p>Visualize your journey with detailed statistics and streak tracking.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Trust Points -->
+      <section class="intro-trust">
+        <div class="intro-trust-item">
+          <i class="fas fa-shield-alt"></i>
+          <span>Your data stays private</span>
+        </div>
+        <div class="intro-trust-item">
+          <i class="fas fa-mobile-alt"></i>
+          <span>Works on any device</span>
+        </div>
+        <div class="intro-trust-item">
+          <i class="fas fa-cloud"></i>
+          <span>Synced across devices</span>
+        </div>
+      </section>
+
+      <!-- Footer CTA -->
+      <footer class="intro-footer">
+        <p>Ready to transform your fitness journey?</p>
+        <button id="intro-footer-cta" class="intro-btn intro-btn-primary">Start Free</button>
+      </footer>
+    </div>
+  </div>
+
   <!-- ── Auth Screen (login / signup) ─────────────────────── -->
   <div id="auth-screen" class="auth-screen">
     <div class="auth-shell">
@@ -429,6 +499,124 @@
         <label><input id="pref-workout" type="checkbox" checked> Do you want Workout tracking?</label>
         <label><input id="pref-nutrition" type="checkbox" checked> Do you want Nutrition tracking?</label>
         <button type="submit" class="projects-btn projects-btn-primary">Continue to Dashboard</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════
+       DEMO TOUR — quick product walkthrough (2-4 steps, skippable)
+       ══════════════════════════════════════════════════════════════ -->
+  <div id="demo-tour" class="demo-tour hidden">
+    <div class="demo-tour-shell">
+      <div class="demo-tour-header">
+        <h1>Quick Tour</h1>
+        <button id="demo-tour-skip" class="demo-tour-skip">Skip Tour</button>
+      </div>
+
+      <!-- Progress Indicator -->
+      <div class="demo-tour-progress">
+        <div class="demo-tour-dot active" data-step="1"></div>
+        <div class="demo-tour-dot" data-step="2"></div>
+        <div class="demo-tour-dot" data-step="3"></div>
+        <div class="demo-tour-dot" data-step="4"></div>
+      </div>
+
+      <!-- Step Cards -->
+      <div class="demo-tour-steps">
+        <div class="demo-tour-step active" data-step="1">
+          <div class="demo-tour-icon"><i class="fas fa-chart-pie"></i></div>
+          <h2>Your Dashboard</h2>
+          <p>Get a complete overview of your fitness journey. See today's tasks, workouts, nutrition, and track your streaks—all in one place.</p>
+        </div>
+        <div class="demo-tour-step" data-step="2">
+          <div class="demo-tour-icon"><i class="fas fa-dumbbell"></i></div>
+          <h2>Track Workouts</h2>
+          <p>Log your exercises with sets, reps, and duration. Build workout history and watch your strength grow over time.</p>
+        </div>
+        <div class="demo-tour-step" data-step="3">
+          <div class="demo-tour-icon"><i class="fas fa-utensils"></i></div>
+          <h2>Log Nutrition</h2>
+          <p>Track meals, calories, and macros. Use AI to detect foods from descriptions or search our database of thousands of items.</p>
+        </div>
+        <div class="demo-tour-step" data-step="4">
+          <div class="demo-tour-icon"><i class="fas fa-fire"></i></div>
+          <h2>Build Habits</h2>
+          <p>Maintain streaks, earn points, and level up. Stay motivated with gamified progress tracking and daily goals.</p>
+        </div>
+      </div>
+
+      <!-- Navigation -->
+      <div class="demo-tour-nav">
+        <button id="demo-tour-prev" class="demo-tour-btn demo-tour-btn-secondary" disabled>Back</button>
+        <button id="demo-tour-next" class="demo-tour-btn demo-tour-btn-primary">Next</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════
+       PROFILE ESSENTIALS — mandatory quick profile setup
+       ══════════════════════════════════════════════════════════════ -->
+  <div id="profile-essentials" class="profile-essentials hidden">
+    <div class="profile-essentials-shell">
+      <div class="profile-essentials-header">
+        <h1>Let's personalize your experience</h1>
+        <p>We need a few details to calculate your goals and track your progress accurately.</p>
+      </div>
+
+      <form id="profile-essentials-form" class="profile-essentials-form">
+        <div class="profile-essentials-grid">
+          <div class="profile-essentials-field">
+            <label for="pe-age">Age</label>
+            <input id="pe-age" type="number" min="10" max="120" placeholder="e.g., 28" required>
+            <span class="profile-essentials-error" data-field="age"></span>
+          </div>
+
+          <div class="profile-essentials-field">
+            <label for="pe-height">Height (cm)</label>
+            <input id="pe-height" type="number" min="50" max="300" placeholder="e.g., 175" required>
+            <span class="profile-essentials-error" data-field="height"></span>
+          </div>
+
+          <div class="profile-essentials-field">
+            <label for="pe-weight">Current Weight (kg)</label>
+            <input id="pe-weight" type="number" min="20" max="500" step="0.5" placeholder="e.g., 70" required>
+            <span class="profile-essentials-error" data-field="currentWeight"></span>
+          </div>
+
+          <div class="profile-essentials-field">
+            <label for="pe-goal">Primary Goal</label>
+            <select id="pe-goal" required>
+              <option value="">Select your goal</option>
+              <option value="Weight Loss">Weight Loss</option>
+              <option value="Muscle Gain">Muscle Gain</option>
+              <option value="Maintain Fitness">Maintain Fitness</option>
+              <option value="General Fitness">General Fitness</option>
+            </select>
+            <span class="profile-essentials-error" data-field="goal"></span>
+          </div>
+
+          <div class="profile-essentials-field profile-essentials-field-full">
+            <label for="pe-activity">Activity Level</label>
+            <select id="pe-activity" required>
+              <option value="">Select your activity level</option>
+              <option value="sedentary">Sedentary (little or no exercise)</option>
+              <option value="light">Lightly Active (1-3 days/week)</option>
+              <option value="moderate">Moderately Active (3-5 days/week)</option>
+              <option value="active">Very Active (6-7 days/week)</option>
+              <option value="very_active">Extra Active (intense daily exercise)</option>
+            </select>
+            <span class="profile-essentials-error" data-field="activityLevel"></span>
+          </div>
+        </div>
+
+        <div id="profile-essentials-global-error" class="profile-essentials-global-error hidden"></div>
+
+        <div class="profile-essentials-actions">
+          <button id="profile-essentials-submit" type="submit" class="profile-essentials-btn" disabled>
+            Complete Setup
+          </button>
+          <p class="profile-essentials-note">You can update these anytime in Settings.</p>
+        </div>
       </form>
     </div>
   </div>
