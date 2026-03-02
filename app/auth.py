@@ -16,7 +16,8 @@ Depends on:
   - utils.now_iso()
 """
 
-import uuid
+import hashlib
+import secrets
 from datetime import datetime, timedelta
 from functools import wraps
 
@@ -29,6 +30,18 @@ from .utils import now_iso
 # ── Session config ────────────────────────────────────────────
 SESSION_COOKIE_NAME = "ft_session"
 SESSION_LIFETIME_DAYS = 90
+
+
+# ── Token hashing (DB stores hash, not plaintext) ─────────────
+
+def _hash_token(token: str) -> str:
+    """Hash session token using SHA-256 for secure DB storage."""
+    return hashlib.sha256(token.encode()).hexdigest()
+
+
+def _generate_token() -> str:
+    """Generate a cryptographically secure random token."""
+    return secrets.token_hex(32)  # 64 chars, 256 bits of entropy
 
 
 # ── Password helpers ──────────────────────────────────────────
@@ -48,38 +61,61 @@ def verify_password(stored_hash: str, plain: str) -> bool:
 # ── Session helpers ───────────────────────────────────────────
 
 def create_session(user_id: int) -> str:
-    """Insert a new session row and return the session token."""
+    """Create a new session and return the plaintext token (for cookie).
+    
+    The token is hashed before storing in DB. Only the hash is stored,
+    so a DB leak doesn't directly expose usable session tokens.
+    """
     db = get_db()
-    token = uuid.uuid4().hex
+    token = _generate_token()  # Plaintext token for client
+    token_hash = _hash_token(token)  # Hash for DB storage
     expires = (datetime.utcnow() + timedelta(days=SESSION_LIFETIME_DAYS)).isoformat()
     db.execute(
         "INSERT INTO sessions (id, user_id, created_at, expires_at) VALUES (?, ?, ?, ?)",
-        (token, user_id, now_iso(), expires),
+        (token_hash, user_id, now_iso(), expires),
     )
     db.commit()
-    return token
+    return token  # Return plaintext token to be set in cookie
 
 
 def delete_session(token: str) -> None:
-    """Remove a session row (logout)."""
+    """Remove a session row (logout). Token is hashed before lookup."""
+    if not token:
+        return
     db = get_db()
-    db.execute("DELETE FROM sessions WHERE id = ?", (token,))
+    token_hash = _hash_token(token)
+    db.execute("DELETE FROM sessions WHERE id = ?", (token_hash,))
     db.commit()
 
 
+def revoke_all_sessions(user_id: int) -> int:
+    """Revoke all sessions for a user (e.g., password change, security concern).
+    
+    Returns the number of sessions revoked.
+    """
+    db = get_db()
+    cursor = db.execute("DELETE FROM sessions WHERE user_id = ?", (user_id,))
+    db.commit()
+    return cursor.rowcount
+
+
 def validate_session(token: str):
-    """Return the session row if valid and not expired, else None."""
+    """Return the session row if valid and not expired, else None.
+    
+    Token is hashed before DB lookup.
+    """
     if not token:
         return None
     db = get_db()
+    token_hash = _hash_token(token)
     row = db.execute(
-        "SELECT * FROM sessions WHERE id = ?", (token,)
+        "SELECT * FROM sessions WHERE id = ?", (token_hash,)
     ).fetchone()
     if not row:
         return None
     if row["expires_at"] < datetime.utcnow().isoformat():
         # Expired — clean up
-        db.execute("DELETE FROM sessions WHERE id = ?", (token,))
+        db.execute("DELETE FROM sessions WHERE id = ?", (token_hash,))
         db.commit()
         return None
     return row
