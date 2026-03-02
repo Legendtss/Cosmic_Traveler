@@ -45,7 +45,8 @@
 
     var fetchOpts = {
       method: method,
-      headers: { 'Content-Type': 'application/json' }
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'same-origin'
     };
 
     if (opts.body && method !== 'GET') {

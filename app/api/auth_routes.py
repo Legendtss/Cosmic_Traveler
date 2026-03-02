@@ -196,11 +196,14 @@ def _user_dict(db, user_id):
 
 def _set_session_cookie(resp, token):
     """Set the session cookie on the response with proper attributes."""
+    import os
+    is_production = os.environ.get("RAILWAY_ENVIRONMENT") or os.environ.get("RENDER")
     resp.set_cookie(
         SESSION_COOKIE_NAME,
         token,
         max_age=SESSION_LIFETIME_DAYS * 86400,
         httponly=True,
         samesite="Lax",
+        secure=bool(is_production),
         path="/",
     )

@@ -1117,7 +1117,7 @@ async function loadTasks() {
   try {
     taskUiState.layout = loadTaskLayoutPreference();
     renderTaskViewToggleState();
-    const response = await fetch('/api/tasks');
+    const response = await fetch('/api/tasks', { credentials: 'same-origin' });
     if (!response.ok) throw new Error('Failed to load tasks');
     const tasks = await response.json();
     taskUiState.tasks = (Array.isArray(tasks) ? tasks : []).map(t => {
@@ -1151,9 +1151,8 @@ async function addTask(title, priority, dueDate, repeat, tags = [], noteContent 
     // dueDate is a YYYY-MM-DD string (day-level only)
     const taskDate = dueDate || toLocalDateKey(new Date());
 
-    const response = await fetch('/api/tasks', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+    const response = await fetch('/api/tasks', { credentials: 'same-origin', method: 'POST',
+      headers: { 'Content-Type': 'application/json'},
       body: JSON.stringify({
         title: title,
         priority: priority || 'medium',
@@ -1216,9 +1215,8 @@ async function updateUserProgressAfterTaskCompletion(taskId, occDate) {
 
     // API MODE: delegate to server-side authoritative evaluation
     try {
-        const resp = await fetch('/api/streaks/evaluate', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+        const resp = await fetch('/api/streaks/evaluate', { credentials: 'same-origin', method: 'POST',
+          headers: { 'Content-Type': 'application/json'},
           body: JSON.stringify({ date: todayKey })
         });
         streakResult = await resp.json();
@@ -1272,7 +1270,7 @@ async function _updateTaskStatus(taskId, occDate) {
     });
   } else {
     // Single task: toggle via API
-    const response = await fetch(`/api/tasks/${taskId}/toggle`, { method: 'PATCH' });
+    const response = await fetch(`/api/tasks/${taskId}/toggle`, { credentials: 'same-origin', method: 'PATCH'});
     if (!response.ok) throw new Error('Failed to toggle task on server');
 
     const currTask = taskUiState.tasks.find(t => t.id === taskId);
@@ -1303,9 +1301,7 @@ async function toggleTask(taskId, occDate) {
 }
 async function deleteTask(taskId) {
   try {
-    const response = await fetch(`/api/tasks/${taskId}`, {
-      method: 'DELETE'
-    });
+    const response = await fetch(`/api/tasks/${taskId}`, { credentials: 'same-origin', method: 'DELETE'});
 
     if (response.ok) {
       delete taskEnhancements[String(taskId)];
@@ -1320,9 +1316,8 @@ async function deleteTask(taskId) {
 }
 async function updateTask(taskId, payload) {
 
-  const response = await fetch(`/api/tasks/${taskId}`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
+  const response = await fetch(`/api/tasks/${taskId}`, { credentials: 'same-origin', method: 'PUT',
+    headers: { 'Content-Type': 'application/json'},
     body: JSON.stringify(payload)
   });
   return response.ok;
@@ -3178,7 +3173,7 @@ async function deleteMealEntry(mealId) {
   if (!Number.isFinite(idNum) || idNum <= 0) return;
 
   try {
-    const response = await fetch(`/api/meals/${idNum}`, { method: 'DELETE' });
+    const response = await fetch(`/api/meals/${idNum}`, { credentials: 'same-origin', method: 'DELETE'});
     if (!response.ok) throw new Error(`API error: ${response.status}`);
     await loadMeals();
   } catch (err) {
@@ -3246,9 +3241,8 @@ async function submitAIDetect() {
 
   try {
     let data;
-    const response = await fetch('/api/nutrition/ai-detect', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+    const response = await fetch('/api/nutrition/ai-detect', { credentials: 'same-origin', method: 'POST',
+      headers: { 'Content-Type': 'application/json'},
       body: JSON.stringify({ user_input: userInput, meal_type: mealType })
     });
     data = await response.json();
@@ -3426,9 +3420,8 @@ async function confirmAIMealLog() {
 
     let savedCount = 0;
 
-    const response = await fetch('/api/nutrition/ai-log', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+    const response = await fetch('/api/nutrition/ai-log', { credentials: 'same-origin', method: 'POST',
+      headers: { 'Content-Type': 'application/json'},
       body: JSON.stringify({
         meal_type: mealType,
         foods: confirmedFoods,
@@ -3526,7 +3519,7 @@ async function loadMeals() {
   const requestId = ++mealsLoadRequestId;
   try {
     let meals;
-    const response = await fetch('/api/meals');
+    const response = await fetch('/api/meals', { credentials: 'same-origin' });
     if (!response.ok) throw new Error('Failed to load meals');
     meals = await response.json();
     if (requestId !== mealsLoadRequestId) return;
@@ -3593,9 +3586,8 @@ async function submitNutritionForm(e) {
 
 1
 
-    const response = await fetch('/api/meals', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+    const response = await fetch('/api/meals', { credentials: 'same-origin', method: 'POST',
+      headers: { 'Content-Type': 'application/json'},
       body: JSON.stringify(mealData)
     });
 
@@ -3667,9 +3659,8 @@ async function useSavedMeal(savedId) {
   };
 
   try {
-    const response = await fetch('/api/meals', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+    const response = await fetch('/api/meals', { credentials: 'same-origin', method: 'POST',
+      headers: { 'Content-Type': 'application/json'},
       body: JSON.stringify(mealData)
     });
     if (!response.ok) throw new Error(`API error: ${response.status}`);
@@ -4034,8 +4025,8 @@ async function refreshDashboardMetrics() {
   try {
     let summary;
     let workouts;
-    const summaryRes = await fetch('/api/analytics/summary');
-    const workoutsRes = await fetch('/api/workouts');
+    const summaryRes = await fetch('/api/analytics/summary', { credentials: 'same-origin' });
+    const workoutsRes = await fetch('/api/workouts', { credentials: 'same-origin' });
     if (!summaryRes.ok || !workoutsRes.ok) return;
     summary = await summaryRes.json();
     workouts = await workoutsRes.json();
@@ -4572,13 +4563,12 @@ async function streakFetchFromApi() {
   try {
     const proteinGoal = nutritionState.baseGoals.protein || 140;
     // Trigger server-side evaluation first
-    await fetch('/api/streaks/evaluate', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+    await fetch('/api/streaks/evaluate', { credentials: 'same-origin', method: 'POST',
+      headers: { 'Content-Type': 'application/json'},
       body: JSON.stringify({ protein_goal: proteinGoal }),
     });
     // Then fetch progress
-    const res = await fetch(`/api/streaks/progress?protein_goal=${proteinGoal}`);
+    const res = await fetch(`/api/streaks/progress?protein_goal=${proteinGoal}`, { credentials: 'same-origin' });
     if (!res.ok) throw new Error('Failed to fetch streaks progress');
     const data = await res.json();
     // Normalize server snake_case keys â†’ camelCase for renderStreaksUI
@@ -5670,7 +5660,7 @@ function formatWorkoutDate(value) {
 async function loadWorkoutsForPage() {
   try {
     let rows;
-    const res = await fetch('/api/workouts');
+    const res = await fetch('/api/workouts', { credentials: 'same-origin' });
     if (!res.ok) throw new Error('Failed to load workouts');
     rows = await res.json();
     workoutState.workouts = (Array.isArray(rows) ? rows : []).map((w, index) => {
@@ -5758,9 +5748,8 @@ function thisWeekRoutine() {
 async function updateWorkoutApi(id, payload) {
 1
 
-  const res = await fetch(`/api/workouts/${id}`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
+  const res = await fetch(`/api/workouts/${id}`, { credentials: 'same-origin', method: 'PUT',
+    headers: { 'Content-Type': 'application/json'},
     body: JSON.stringify(payload)
   });
   return res.ok;
@@ -5793,9 +5782,8 @@ async function skipWorkout(workoutId) {
 async function createWorkout(payload) {
 1
 
-  const res = await fetch('/api/workouts', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+  const res = await fetch('/api/workouts', { credentials: 'same-origin', method: 'POST',
+    headers: { 'Content-Type': 'application/json'},
     body: JSON.stringify(payload)
   });
   return res.ok ? res.json() : null;
@@ -7408,7 +7396,7 @@ async function renderProfileDynamicStats() {
 
   try {
     let workouts;
-      const workoutsRes = await fetch('/api/workouts');
+      const workoutsRes = await fetch('/api/workouts', { credentials: 'same-origin' });
       workouts = workoutsRes.ok ? await workoutsRes.json() : [];
     const totalWorkouts = Array.isArray(workouts) ? workouts.length : 0;
     const goalsDone = (taskUiState.tasks || []).filter(t => t.completed).length;
@@ -7867,9 +7855,8 @@ async function sendAIMessage() {
 
     console.log('[AI] Sending to Gemini proxy:', payload);
 
-    const response = await fetch('/api/ai/chat', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+    const response = await fetch('/api/ai/chat', { credentials: 'same-origin', method: 'POST',
+      headers: { 'Content-Type': 'application/json'},
       body: JSON.stringify(payload)
     });
 
@@ -8090,9 +8077,8 @@ async function aiConfirmAction() {
   try {
     let result;
 
-    const response = await fetch('/api/ai/execute', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+    const response = await fetch('/api/ai/execute', { credentials: 'same-origin', method: 'POST',
+      headers: { 'Content-Type': 'application/json'},
       body: JSON.stringify({
         confirmed: true,
         action_type: data.action_type,
@@ -8618,7 +8604,7 @@ function _buildMentorContextDemo() {
  * Fetch mentor context from the server (API mode).
  */
 async function _fetchMentorContextAPI() {
-  const res = await fetch('/api/mentor/context');
+  const res = await fetch('/api/mentor/context', { credentials: 'same-origin' });
   if (!res.ok) throw new Error(`Mentor context failed (${res.status})`);
   return await res.json();
 }
@@ -8739,9 +8725,8 @@ async function generateMentorMessage() {
       }
     };
 
-    const response = await fetch('/api/ai/chat', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+    const response = await fetch('/api/ai/chat', { credentials: 'same-origin', method: 'POST',
+      headers: { 'Content-Type': 'application/json'},
       body: JSON.stringify(payload)
     });
 
@@ -9286,9 +9271,8 @@ function _focusLogSession(completed, actualMinutes) {
     stored.push(session);
     localStorage.setItem(key, JSON.stringify(stored));
   } else {
-    fetch('/api/focus/sessions', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+    fetch('/api/focus/sessions', { credentials: 'same-origin', method: 'POST',
+      headers: { 'Content-Type': 'application/json'},
       body: JSON.stringify(session),
     }).catch(err => console.warn('Focus session save failed:', err));
   }
@@ -9308,7 +9292,7 @@ function _focusLoadSessions() {
     _focusRenderSessions();
     _focusUpdateSummary();
   } else {
-    fetch(`/api/focus/sessions?date=${today}`)
+    fetch(`/api/focus/sessions?date=${today}`, { credentials: 'same-origin' })
       .then(r => r.json())
       .then(data => {
         _focus.sessions = data || [];
@@ -9609,9 +9593,9 @@ const _notes = {
 };
 
 // ---------- API ----------
-async function notesApiFetch(url, opts) {
+async function notesApiFetch(url, opts = {}) {
   try {
-    const res = await fetch(url, opts);
+    const res = await fetch(url, { credentials: 'same-origin', ...opts });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return await res.json();
   } catch (e) {
