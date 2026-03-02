@@ -9658,11 +9658,7 @@ function renderNotes() {
   });
 }
 
-function escapeHtml(str) {
-  const d = document.createElement('div');
-  d.textContent = str || '';
-  return d.innerHTML;
-}
+// Note: escapeHtml is defined globally at ~line 545. Do not duplicate.
 
 // ---------- Filters ----------
 function setNotesFilter(f) {

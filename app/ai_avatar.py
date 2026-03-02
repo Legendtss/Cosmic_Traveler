@@ -17,7 +17,25 @@ import os
 import re
 import time
 
-import google.generativeai as genai
+# Lazy import of Gemini SDK to prevent startup crash if dependency missing
+_genai_module = None
+_genai_import_error = None
+
+def _get_genai():
+    """Lazily import google.generativeai. Returns None if unavailable."""
+    global _genai_module, _genai_import_error
+    if _genai_module is not None:
+        return _genai_module
+    if _genai_import_error is not None:
+        return None
+    try:
+        import google.generativeai as genai
+        _genai_module = genai
+        return genai
+    except ImportError as e:
+        _genai_import_error = str(e)
+        print(f"[AI Avatar] Gemini SDK not available: {e}. AI features disabled.")
+        return None
 
 # ---------------------------------------------------------------------------
 # Configuration
@@ -27,12 +45,33 @@ from .config import Config
 GEMINI_API_KEY = Config.GEMINI_API_KEY
 GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
 
-# Initialize the SDK client
-if GEMINI_API_KEY:
-    genai.configure(api_key=GEMINI_API_KEY)
-    _genai_client = genai
-else:
-    _genai_client = None
+# Initialize the SDK client (lazy)
+_genai_client = None
+_genai_initialized = False
+
+def _init_genai_client():
+    """Initialize Gemini client on first use."""
+    global _genai_client, _genai_initialized
+    if _genai_initialized:
+        return _genai_client
+    _genai_initialized = True
+    
+    if not GEMINI_API_KEY:
+        _genai_client = None
+        return None
+    
+    genai = _get_genai()
+    if genai is None:
+        return None
+    
+    try:
+        genai.configure(api_key=GEMINI_API_KEY)
+        _genai_client = genai
+    except Exception as e:
+        print(f"[AI Avatar] Failed to configure Gemini: {e}")
+        _genai_client = None
+    
+    return _genai_client
 
 # ---------------------------------------------------------------------------
 # Rate-limit state  (module-level singleton — safe for single-process Flask)
@@ -254,6 +293,7 @@ def _call_gemini(user_message, context=None, system_prompt_override=None):
     global _gemini_last_call_ts, _gemini_lock
 
     # --- Guard 1: no client → fail ---
+    _init_genai_client()  # Lazy-init on first use
     if not _genai_client:
         _log_safe("[AI Avatar] Gemini client not initialized (no API key?).")
         return None
@@ -1002,6 +1042,7 @@ def process_avatar_message(user_input, context=None, mode="general"):
     mentor_prompt_override = MENTOR_SYSTEM_PROMPT if is_mentor else None
 
     # --- Try Gemini first ---
+    _init_genai_client()  # Lazy-init on first use
     gemini_result = None
     if _genai_client:
         gemini_result = _call_gemini(user_input, context, system_prompt_override=mentor_prompt_override)
@@ -1026,7 +1067,7 @@ def process_avatar_message(user_input, context=None, mode="general"):
         result = _local_workout(user_input, context)
     else:
         # General mode — try local chat, or report error if Gemini was expected
-        if not _genai_client:
+        if not _genai_client:  # Already attempted init earlier
             return {"error": "Gemini API key is not configured on the server."}
         if not gemini_result:
             return {"error": "Gemini API request failed. Check server logs for details."}
