@@ -101,6 +101,7 @@ def delete_meal(meal_id):
 
 @nutrition_bp.route("/api/nutrition/ai-detect", methods=["POST"])
 def ai_detect_foods():
+    default_user_id()  # Require auth
     req_data = request.get_json(silent=True) or {}
     user_input = (req_data.get("user_input") or "").strip()
     if not user_input:
@@ -150,6 +151,7 @@ def ai_log_meal():
 
 @nutrition_bp.route("/api/nutrition/search", methods=["GET"])
 def search_usda_foods():
+    default_user_id()  # Require auth
     query = (request.args.get("q") or "").strip()
     if not query:
         return jsonify([])

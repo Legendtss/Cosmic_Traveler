@@ -28,7 +28,7 @@ from .utils import now_iso
 
 # ── Session config ────────────────────────────────────────────
 SESSION_COOKIE_NAME = "ft_session"
-SESSION_LIFETIME_DAYS = 30
+SESSION_LIFETIME_DAYS = 90
 
 
 # ── Password helpers ──────────────────────────────────────────

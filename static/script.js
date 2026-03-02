@@ -9319,7 +9319,7 @@ function _focusRenderSessions() {
     const icon = s.completed ? 'check-circle' : 'times-circle';
     const iconClass = s.completed ? 'completed' : 'abandoned';
     const modeLabel = s.mode === 'pomodoro' ? '🍅' : (s.mode === 'stopwatch' ? '⏱️' : '⏰');
-    const label = s.label || s.mode;
+    const label = escapeHtml(s.label || s.mode);
     const time = s.startedAt ? new Date(s.startedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
 
     return `<div class="focus-session-item">
@@ -9327,7 +9327,7 @@ function _focusRenderSessions() {
         <div class="focus-session-icon ${iconClass}"><i class="fas fa-${icon}"></i></div>
         <div class="focus-session-info">
           <span class="focus-session-title">${modeLabel} ${label}</span>
-          <span class="focus-session-meta">${time}${s.durationPlanned ? ` Â· Planned: ${s.durationPlanned}m` : ''}</span>
+          <span class="focus-session-meta">${time}${s.durationPlanned ? ` · Planned: ${s.durationPlanned}m` : ''}</span>
         </div>
       </div>
       <span class="focus-session-duration">${s.durationActual}m</span>

@@ -117,6 +117,7 @@ def mentor_context():
 
 @ai_bp.route("/api/ai/chat", methods=["POST"])
 def ai_avatar_chat():
+    default_user_id()  # Require auth
     req_data = request.get_json(silent=True) or {}
     message = (req_data.get("message") or "").strip()
     if not message:
@@ -134,6 +135,7 @@ def ai_avatar_chat():
 
 @ai_bp.route("/api/ai/analytics", methods=["GET"])
 def ai_avatar_analytics():
+    default_user_id()  # Require auth
     return jsonify(get_gemini_analytics()), 200
 
 
