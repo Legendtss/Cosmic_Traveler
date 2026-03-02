@@ -20,6 +20,8 @@ Depends on:
 """
 
 import re
+import time
+from collections import defaultdict
 
 from flask import Blueprint, jsonify, make_response, request
 
@@ -39,6 +41,61 @@ auth_bp = Blueprint("auth", __name__)
 
 # Simple email regex — not exhaustive but catches obvious mistakes
 _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+# ── Brute-force protection ────────────────────────────────────
+# In-memory rate limiter (resets on server restart, fine for single-instance)
+_login_attempts = defaultdict(lambda: {"count": 0, "locked_until": 0})
+_MAX_ATTEMPTS = 5
+_LOCKOUT_SECONDS = 300  # 5 minutes
+_ATTEMPT_WINDOW = 900   # 15 minutes
+
+
+def _get_client_ip():
+    """Get client IP, considering reverse proxy headers."""
+    # Check X-Forwarded-For for proxied requests (Render, Railway, etc.)
+    xff = request.headers.get("X-Forwarded-For", "")
+    if xff:
+        return xff.split(",")[0].strip()
+    return request.remote_addr or "unknown"
+
+
+def _check_rate_limit(identifier: str) -> tuple[bool, int]:
+    """Check if identifier is rate-limited. Returns (is_blocked, seconds_remaining)."""
+    now = time.time()
+    record = _login_attempts[identifier]
+    
+    # Check if locked out
+    if record["locked_until"] > now:
+        return True, int(record["locked_until"] - now)
+    
+    # Reset if window expired
+    if now - record.get("first_attempt", 0) > _ATTEMPT_WINDOW:
+        record["count"] = 0
+        record["first_attempt"] = now
+    
+    return False, 0
+
+
+def _record_failed_attempt(identifier: str):
+    """Record a failed login attempt."""
+    now = time.time()
+    record = _login_attempts[identifier]
+    
+    if record["count"] == 0:
+        record["first_attempt"] = now
+    
+    record["count"] += 1
+    
+    # Lock out after max attempts
+    if record["count"] >= _MAX_ATTEMPTS:
+        record["locked_until"] = now + _LOCKOUT_SECONDS
+        record["count"] = 0  # Reset for next window
+
+
+def _clear_attempts(identifier: str):
+    """Clear attempts after successful login."""
+    if identifier in _login_attempts:
+        del _login_attempts[identifier]
 
 
 @auth_bp.route("/api/auth/signup", methods=["POST"])
@@ -108,10 +165,29 @@ def login():
     if not email or not password:
         return jsonify({"ok": False, "errors": ["Email and password are required."]}), 400
 
+    # Rate limiting: check both IP and email
+    client_ip = _get_client_ip()
+    ip_blocked, ip_wait = _check_rate_limit(f"ip:{client_ip}")
+    email_blocked, email_wait = _check_rate_limit(f"email:{email}")
+    
+    if ip_blocked or email_blocked:
+        wait_time = max(ip_wait, email_wait)
+        return jsonify({
+            "ok": False,
+            "errors": [f"Too many login attempts. Please wait {wait_time} seconds."]
+        }), 429
+
     db = get_db()
     user = db.execute("SELECT * FROM users WHERE email = ?", (email,)).fetchone()
     if not user or not verify_password(user["password_hash"], password):
+        # Record failed attempt for both IP and email
+        _record_failed_attempt(f"ip:{client_ip}")
+        _record_failed_attempt(f"email:{email}")
         return jsonify({"ok": False, "errors": ["Invalid email or password."]}), 401
+
+    # Clear attempts on successful login
+    _clear_attempts(f"ip:{client_ip}")
+    _clear_attempts(f"email:{email}")
 
     token = create_session(user["id"])
 

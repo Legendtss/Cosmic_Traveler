@@ -15,6 +15,8 @@ Depends on:
   - db.py (init_app_data, register_db)
 """
 
+import os
+
 from flask import Flask
 from flask_cors import CORS
 
@@ -31,6 +33,42 @@ from .config import Config
 from .db import init_app_data, register_db
 
 
+def _get_cors_config():
+    """Build CORS configuration based on environment."""
+    # Check if running in production (Render, Railway, etc.)
+    is_production = bool(
+        os.environ.get("RENDER") or
+        os.environ.get("RAILWAY_ENVIRONMENT") or
+        os.environ.get("PRODUCTION")
+    )
+    
+    # Allow custom origins via env var (comma-separated)
+    custom_origins = os.environ.get("CORS_ORIGINS", "").strip()
+    
+    if custom_origins:
+        origins = [o.strip() for o in custom_origins.split(",") if o.strip()]
+    elif is_production:
+        # In production with no custom config: same-origin only (no CORS needed)
+        # CORS headers only apply to cross-origin requests
+        origins = []  # Empty = no cross-origin allowed
+    else:
+        # Development: allow localhost variants
+        origins = [
+            "http://localhost:5000",
+            "http://127.0.0.1:5000",
+            "http://localhost:3000",
+            "http://127.0.0.1:3000",
+        ]
+    
+    return {
+        "origins": origins if origins else False,  # False = no CORS headers
+        "methods": ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+        "allow_headers": ["Content-Type", "Authorization"],
+        "supports_credentials": True,
+        "max_age": 600,  # Cache preflight for 10 minutes
+    }
+
+
 def create_app(config_class=Config):
     app = Flask(
         __name__,
@@ -40,7 +78,11 @@ def create_app(config_class=Config):
     app.config.from_object(config_class)
     app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0
 
-    CORS(app)
+    # Restricted CORS configuration
+    cors_config = _get_cors_config()
+    if cors_config["origins"] is not False:
+        CORS(app, **cors_config)
+    # If origins is False, skip CORS entirely (same-origin only)
     register_db(app)
     init_app_data(app)
 
