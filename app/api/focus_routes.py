@@ -51,7 +51,7 @@ def get_focus_sessions():
 @focus_bp.route("/api/focus/sessions", methods=["POST"])
 def create_focus_session():
     db = get_db()
-    data = request.get_json(force=True) if request.is_json else {}
+    data = request.get_json(silent=True) or {}
     mode = data.get("mode", "pomodoro")
     if mode not in ("pomodoro", "custom", "stopwatch"):
         mode = "pomodoro"

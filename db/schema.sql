@@ -32,6 +32,15 @@ CREATE TABLE IF NOT EXISTS sessions (
 
 CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
 
+CREATE TABLE IF NOT EXISTS login_attempts (
+  identifier TEXT PRIMARY KEY,
+  count INTEGER NOT NULL DEFAULT 0 CHECK (count >= 0),
+  first_attempt REAL NOT NULL DEFAULT 0,
+  locked_until REAL NOT NULL DEFAULT 0
+);
+
+CREATE INDEX IF NOT EXISTS idx_login_attempts_locked_until ON login_attempts(locked_until);
+
 CREATE TABLE IF NOT EXISTS projects (
   id INTEGER PRIMARY KEY,
   user_id INTEGER NOT NULL,
@@ -56,6 +65,8 @@ CREATE TABLE IF NOT EXISTS tasks (
   completed INTEGER NOT NULL DEFAULT 0 CHECK (completed IN (0,1)),
   date TEXT NOT NULL,
   time_spent INTEGER NOT NULL DEFAULT 0 CHECK (time_spent >= 0),
+  note_content TEXT NOT NULL DEFAULT '',
+  note_saved_to_notes INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL DEFAULT (CURRENT_TIMESTAMP),
   updated_at TEXT NOT NULL DEFAULT (CURRENT_TIMESTAMP),
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
@@ -155,7 +166,11 @@ CREATE TABLE IF NOT EXISTS notes (
   tags_json TEXT NOT NULL DEFAULT '[]',
   created_at TEXT NOT NULL DEFAULT (CURRENT_TIMESTAMP),
   updated_at TEXT NOT NULL DEFAULT (CURRENT_TIMESTAMP),
-  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  CHECK (
+    (source_type = 'manual' AND source_id IS NULL) OR
+    (source_type = 'task' AND source_id IS NOT NULL)
+  )
 );
 
 CREATE INDEX IF NOT EXISTS idx_tasks_user_date ON tasks(user_id, date);
@@ -168,3 +183,58 @@ CREATE INDEX IF NOT EXISTS idx_stats_user_date ON stats_snapshots(user_id, snaps
 CREATE INDEX IF NOT EXISTS idx_focus_user_date ON focus_sessions(user_id, date);
 CREATE INDEX IF NOT EXISTS idx_notes_user ON notes(user_id);
 CREATE INDEX IF NOT EXISTS idx_notes_source ON notes(source_type, source_id);
+
+-- Enforce that task-linked notes reference a task owned by the same user.
+CREATE TRIGGER IF NOT EXISTS trg_notes_task_link_insert
+BEFORE INSERT ON notes
+WHEN NEW.source_type = 'task'
+  AND NOT EXISTS (
+    SELECT 1 FROM tasks
+    WHERE id = NEW.source_id
+      AND user_id = NEW.user_id
+  )
+BEGIN
+  SELECT RAISE(ABORT, 'Invalid task-linked note: task missing or not owned by user');
+END;
+
+CREATE TRIGGER IF NOT EXISTS trg_notes_task_link_update
+BEFORE UPDATE OF source_type, source_id, user_id ON notes
+WHEN NEW.source_type = 'task'
+  AND NOT EXISTS (
+    SELECT 1 FROM tasks
+    WHERE id = NEW.source_id
+      AND user_id = NEW.user_id
+  )
+BEGIN
+  SELECT RAISE(ABORT, 'Invalid task-linked note: task missing or not owned by user');
+END;
+
+CREATE TRIGGER IF NOT EXISTS trg_users_constraints_insert
+BEFORE INSERT ON users
+WHEN
+  NEW.level NOT IN ('Beginner','Intermediate','Advanced')
+  OR NEW.goal NOT IN ('Weight Loss','Muscle Gain','Maintain Fitness','General Fitness')
+  OR NEW.weekly_workout_target < 1 OR NEW.weekly_workout_target > 14
+  OR NEW.calorie_goal < 500 OR NEW.calorie_goal > 10000
+  OR NEW.activity_level NOT IN ('sedentary','light','moderate','active','very_active')
+  OR (NEW.age IS NOT NULL AND (NEW.age < 10 OR NEW.age > 120))
+  OR (NEW.height IS NOT NULL AND (NEW.height < 50 OR NEW.height > 300))
+  OR (NEW.current_weight IS NOT NULL AND (NEW.current_weight < 20 OR NEW.current_weight > 500))
+BEGIN
+  SELECT RAISE(ABORT, 'Invalid users row: constraint violation');
+END;
+
+CREATE TRIGGER IF NOT EXISTS trg_users_constraints_update
+BEFORE UPDATE ON users
+WHEN
+  NEW.level NOT IN ('Beginner','Intermediate','Advanced')
+  OR NEW.goal NOT IN ('Weight Loss','Muscle Gain','Maintain Fitness','General Fitness')
+  OR NEW.weekly_workout_target < 1 OR NEW.weekly_workout_target > 14
+  OR NEW.calorie_goal < 500 OR NEW.calorie_goal > 10000
+  OR NEW.activity_level NOT IN ('sedentary','light','moderate','active','very_active')
+  OR (NEW.age IS NOT NULL AND (NEW.age < 10 OR NEW.age > 120))
+  OR (NEW.height IS NOT NULL AND (NEW.height < 50 OR NEW.height > 300))
+  OR (NEW.current_weight IS NOT NULL AND (NEW.current_weight < 20 OR NEW.current_weight > 500))
+BEGIN
+  SELECT RAISE(ABORT, 'Invalid users row: constraint violation');
+END;

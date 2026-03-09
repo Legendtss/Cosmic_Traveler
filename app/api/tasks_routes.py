@@ -112,7 +112,7 @@ def update_task(task_id):
         priority = row["priority"]
 
     note_content_val = (note_content or "").strip()
-    note_saved_val = bool(save_note and note_content_val) or old_note_saved
+    note_saved_val = bool(save_note and note_content_val)
 
     TaskRepository.update(
         task_id, uid,
@@ -131,6 +131,8 @@ def update_task(task_id):
     # Sync linked note: create if newly checked, update if already exists
     if save_note and note_content_val:
         NoteLinker.upsert_linked_note(uid, task_id, title, note_content_val, json.dumps(json.loads(tags_json)))
+    else:
+        NoteLinker.delete_linked_note(uid, task_id)
 
     updated = TaskRepository.get_by_id(task_id)
     return jsonify(map_task(updated))

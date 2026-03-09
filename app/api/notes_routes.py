@@ -19,6 +19,7 @@ import json
 
 from flask import Blueprint, jsonify, request
 
+from ..db import get_db
 from ..repositories.notes_repo import NoteRepository
 from .helpers import default_user_id, normalize_tags
 
@@ -43,7 +44,8 @@ def get_notes():
 
 @notes_bp.route("/api/notes", methods=["POST"])
 def create_note():
-    data = request.get_json(force=True) if request.is_json else {}
+    data = request.get_json(silent=True) or {}
+    uid = default_user_id()
 
     title = (data.get("title") or "").strip()
     if not title:
@@ -54,16 +56,34 @@ def create_note():
     if source_type not in ("manual", "task"):
         source_type = "manual"
     source_id = data.get("source_id")
+    if source_type == "manual":
+        source_id = None
+    else:
+        # Require valid ownership when linking note -> task.
+        try:
+            source_id = int(source_id)
+        except (TypeError, ValueError):
+            return jsonify({"error": "Valid source_id is required for task-linked notes"}), 400
+        db = get_db()
+        linked_task = db.execute(
+            "SELECT id FROM tasks WHERE id = ? AND user_id = ?",
+            (source_id, uid),
+        ).fetchone()
+        if not linked_task:
+            return jsonify({"error": "Linked task not found"}), 400
     tags = normalize_tags(data.get("tags"))
 
-    row = NoteRepository.create(
-        default_user_id(),
-        title=title,
-        content=content,
-        source_type=source_type,
-        source_id=source_id,
-        tags=tags,
-    )
+    try:
+        row = NoteRepository.create(
+            uid,
+            title=title,
+            content=content,
+            source_type=source_type,
+            source_id=source_id,
+            tags=tags,
+        )
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
     return jsonify(NoteRepository.map_note(row)), 201
 
 
@@ -82,7 +102,7 @@ def update_note(note_id):
     if not existing:
         return jsonify({"error": "Note not found"}), 404
 
-    data = request.get_json(force=True) if request.is_json else {}
+    data = request.get_json(silent=True) or {}
     title = (data.get("title") or "").strip() or existing["title"]
     content = data.get("content", existing["content"])
     tags = normalize_tags(data.get("tags")) if "tags" in data else existing["tags"]

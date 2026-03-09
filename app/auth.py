@@ -17,8 +17,9 @@ Depends on:
 """
 
 import hashlib
+import random
 import secrets
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from functools import wraps
 
 from flask import abort, g, request
@@ -44,6 +45,18 @@ def _generate_token() -> str:
     return secrets.token_hex(32)  # 64 chars, 256 bits of entropy
 
 
+def _cleanup_expired_sessions(sample_rate: float = 0.10) -> None:
+    """Best-effort periodic cleanup of expired sessions."""
+    if random.random() > sample_rate:
+        return
+    db = get_db()
+    db.execute(
+        "DELETE FROM sessions WHERE expires_at < ?",
+        (datetime.now(timezone.utc).isoformat(),),
+    )
+    db.commit()
+
+
 # ── Password helpers ──────────────────────────────────────────
 
 def hash_password(plain: str) -> str:
@@ -67,9 +80,10 @@ def create_session(user_id: int) -> str:
     so a DB leak doesn't directly expose usable session tokens.
     """
     db = get_db()
+    _cleanup_expired_sessions()
     token = _generate_token()  # Plaintext token for client
     token_hash = _hash_token(token)  # Hash for DB storage
-    expires = (datetime.utcnow() + timedelta(days=SESSION_LIFETIME_DAYS)).isoformat()
+    expires = (datetime.now(timezone.utc) + timedelta(days=SESSION_LIFETIME_DAYS)).isoformat()
     db.execute(
         "INSERT INTO sessions (id, user_id, created_at, expires_at) VALUES (?, ?, ?, ?)",
         (token_hash, user_id, now_iso(), expires),
@@ -107,13 +121,14 @@ def validate_session(token: str):
     if not token:
         return None
     db = get_db()
+    _cleanup_expired_sessions()
     token_hash = _hash_token(token)
     row = db.execute(
         "SELECT * FROM sessions WHERE id = ?", (token_hash,)
     ).fetchone()
     if not row:
         return None
-    if row["expires_at"] < datetime.utcnow().isoformat():
+    if row["expires_at"] < datetime.now(timezone.utc).isoformat():
         # Expired — clean up
         db.execute("DELETE FROM sessions WHERE id = ?", (token_hash,))
         db.commit()
@@ -133,6 +148,8 @@ def get_current_user_id():
         return g.current_user_id
 
     token = request.cookies.get(SESSION_COOKIE_NAME)
+    if not token:
+        abort(401, description="Authentication required")
     session_row = validate_session(token)
     if not session_row:
         abort(401, description="Authentication required")

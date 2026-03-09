@@ -19,9 +19,9 @@ Depends on:
   - utils.now_iso()
 """
 
+import ipaddress
 import re
 import time
-from collections import defaultdict
 
 from flask import Blueprint, jsonify, make_response, request
 
@@ -43,59 +43,120 @@ auth_bp = Blueprint("auth", __name__)
 _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 # ── Brute-force protection ────────────────────────────────────
-# In-memory rate limiter (resets on server restart, fine for single-instance)
-_login_attempts = defaultdict(lambda: {"count": 0, "locked_until": 0})
 _MAX_ATTEMPTS = 5
 _LOCKOUT_SECONDS = 300  # 5 minutes
 _ATTEMPT_WINDOW = 900   # 15 minutes
 
 
 def _get_client_ip():
-    """Get client IP, considering reverse proxy headers."""
-    # Check X-Forwarded-For for proxied requests (Render, Railway, etc.)
-    xff = request.headers.get("X-Forwarded-For", "")
-    if xff:
-        return xff.split(",")[0].strip()
-    return request.remote_addr or "unknown"
+    """Return the most-likely real client IP for rate-limiting.
+
+    Strategy (works for Render / Railway / Cloudflare single-proxy setups
+    AND multi-hop CDN chains):
+
+    1. Only consult X-Forwarded-For when the *direct* connection comes from
+       a private / loopback address (i.e. a local reverse proxy).  This
+       prevents an external attacker from injecting a fake header.
+    2. Walk XFF entries left-to-right (client → proxies).  Return the first
+       *public* IP — that is the address the outermost trusted proxy saw.
+       If every entry is private (unusual), fall back to the leftmost entry.
+    3. If there is no proxy, just use request.remote_addr.
+    """
+    remote = request.remote_addr or "unknown"
+
+    # Only trust XFF when direct connection comes from a local proxy
+    try:
+        ip = ipaddress.ip_address(remote)
+        is_proxy = ip.is_private or ip.is_loopback
+    except ValueError:
+        is_proxy = False
+
+    if is_proxy:
+        xff = request.headers.get("X-Forwarded-For", "")
+        if xff:
+            parts = [p.strip() for p in xff.split(",") if p.strip()]
+            # First globally-routable IP (leftmost) = real client
+            for part in parts:
+                try:
+                    if ipaddress.ip_address(part).is_global:
+                        return part
+                except ValueError:
+                    continue
+            # All entries private — use leftmost as best guess
+            if parts:
+                return parts[0]
+
+    return remote
 
 
 def _check_rate_limit(identifier: str) -> tuple[bool, int]:
     """Check if identifier is rate-limited. Returns (is_blocked, seconds_remaining)."""
     now = time.time()
-    record = _login_attempts[identifier]
-    
-    # Check if locked out
-    if record["locked_until"] > now:
-        return True, int(record["locked_until"] - now)
-    
-    # Reset if window expired
-    if now - record.get("first_attempt", 0) > _ATTEMPT_WINDOW:
-        record["count"] = 0
-        record["first_attempt"] = now
-    
+    db = get_db()
+    row = db.execute(
+        "SELECT count, first_attempt, locked_until FROM login_attempts WHERE identifier = ?",
+        (identifier,),
+    ).fetchone()
+    if not row:
+        return False, 0
+
+    locked_until = float(row["locked_until"] or 0)
+    if locked_until > now:
+        return True, int(locked_until - now)
+
+    first_attempt = float(row["first_attempt"] or 0)
+    if first_attempt and (now - first_attempt > _ATTEMPT_WINDOW):
+        db.execute("DELETE FROM login_attempts WHERE identifier = ?", (identifier,))
+        db.commit()
     return False, 0
 
 
 def _record_failed_attempt(identifier: str):
     """Record a failed login attempt."""
     now = time.time()
-    record = _login_attempts[identifier]
-    
-    if record["count"] == 0:
-        record["first_attempt"] = now
-    
-    record["count"] += 1
-    
-    # Lock out after max attempts
-    if record["count"] >= _MAX_ATTEMPTS:
-        record["locked_until"] = now + _LOCKOUT_SECONDS
-        record["count"] = 0  # Reset for next window
+    db = get_db()
+    row = db.execute(
+        "SELECT count, first_attempt FROM login_attempts WHERE identifier = ?",
+        (identifier,),
+    ).fetchone()
+
+    if not row:
+        db.execute(
+            "INSERT INTO login_attempts (identifier, count, first_attempt, locked_until) VALUES (?, ?, ?, ?)",
+            (identifier, 1, now, 0),
+        )
+        db.commit()
+        return
+
+    first_attempt = float(row["first_attempt"] or now)
+    count = int(row["count"] or 0)
+    if now - first_attempt > _ATTEMPT_WINDOW:
+        first_attempt = now
+        count = 0
+    count += 1
+    locked_until = 0
+
+    if count >= _MAX_ATTEMPTS:
+        locked_until = now + _LOCKOUT_SECONDS
+        count = 0
+        first_attempt = now
+
+    db.execute(
+        """
+        UPDATE login_attempts
+        SET count = ?, first_attempt = ?, locked_until = ?
+        WHERE identifier = ?
+        """,
+        (count, first_attempt, locked_until, identifier),
+    )
+    db.commit()
 
 
 def _clear_attempts(identifier: str):
     """Clear attempts after successful login."""
-    if identifier in _login_attempts:
-        del _login_attempts[identifier]
+    db = get_db()
+    db.execute("DELETE FROM login_attempts WHERE identifier = ?", (identifier,))
+    db.commit()
 
 
 @auth_bp.route("/api/auth/signup", methods=["POST"])
@@ -134,6 +195,8 @@ def signup():
     )
     db.commit()
     user_id = cur.lastrowid
+    if user_id is None:
+        return jsonify({"ok": False, "errors": ["Account creation failed."]}), 500
 
     # Ensure user_progress row exists
     db.execute(
@@ -223,17 +286,61 @@ def me():
 
 @auth_bp.route("/api/auth/profile", methods=["PUT"])
 def update_profile():
-    """Update display_name, level, goal, weekly_workout_target, calorie_goal."""
+    """Update display_name, level, goal, weekly_workout_target, calorie_goal.
+
+    Values are validated to prevent inconsistent states.
+    """
     uid = get_current_user_id()
     data = request.get_json(silent=True) or {}
     db = get_db()
 
+    # ── Validation ─────────────────────────────────────────
+    errors = []
+
+    display_name = data.get("displayName")
+    if display_name is not None:
+        display_name = str(display_name).strip()
+        if not display_name or len(display_name) > 100:
+            errors.append("Display name must be 1-100 characters.")
+
+    level = data.get("level")
+    valid_levels = ["Beginner", "Intermediate", "Advanced"]
+    if level is not None and level not in valid_levels:
+        errors.append(f"Level must be one of: {', '.join(valid_levels)}.")
+
+    goal = data.get("goal")
+    valid_goals = ["Weight Loss", "Muscle Gain", "Maintain Fitness", "General Fitness"]
+    if goal is not None and goal not in valid_goals:
+        errors.append(f"Goal must be one of: {', '.join(valid_goals)}.")
+
+    weekly_workout_target = data.get("weeklyWorkoutTarget")
+    if weekly_workout_target is not None:
+        try:
+            weekly_workout_target = int(weekly_workout_target)
+            if weekly_workout_target < 1 or weekly_workout_target > 14:
+                raise ValueError
+        except (TypeError, ValueError):
+            errors.append("Weekly workout target must be an integer between 1 and 14.")
+
+    calorie_goal = data.get("calorieGoal")
+    if calorie_goal is not None:
+        try:
+            calorie_goal = int(calorie_goal)
+            if calorie_goal < 500 or calorie_goal > 10000:
+                raise ValueError
+        except (TypeError, ValueError):
+            errors.append("Calorie goal must be an integer between 500 and 10,000.")
+
+    if errors:
+        return jsonify({"ok": False, "errors": errors}), 400
+
+    # ── Build update ───────────────────────────────────────
     allowed = {
-        "display_name": data.get("displayName"),
-        "level": data.get("level"),
-        "goal": data.get("goal"),
-        "weekly_workout_target": data.get("weeklyWorkoutTarget"),
-        "calorie_goal": data.get("calorieGoal"),
+        "display_name": display_name,
+        "level": level,
+        "goal": goal,
+        "weekly_workout_target": weekly_workout_target,
+        "calorie_goal": calorie_goal,
     }
     sets = []
     vals = []
@@ -331,7 +438,7 @@ def update_profile_essentials():
             updated_at = ?
         WHERE id = ?
         """,
-        (int(age), int(height), float(current_weight), goal, activity_level, now, now, uid),
+        (int(age), int(height), float(current_weight), goal, activity_level, now, now, uid),  # type: ignore[arg-type]  # validated above
     )
     db.commit()
 

@@ -17,6 +17,7 @@ Depends on:
 
 
 import json
+from datetime import datetime
 
 from flask import Blueprint, jsonify, request
 
@@ -51,12 +52,14 @@ def create_workout():
     if not isinstance(exercises, list):
         exercises = []
 
-    from datetime import datetime
+    workout_type = (req_data.get("type") or "other").strip().lower()
+    if workout_type not in ("cardio", "strength", "flexibility", "sports", "other"):
+        workout_type = "other"
 
     row = WorkoutRepository.create(
         default_user_id(),
         name=name,
-        workout_type=req_data.get("type", "other"),
+        workout_type=workout_type,
         duration=req_data.get("duration", 0),
         calories_burned=req_data.get("calories_burned", 0),
         exercises=exercises,
@@ -90,10 +93,14 @@ def update_workout(workout_id):
     if not isinstance(exercises, list):
         exercises = []
 
+    workout_type = (req_data.get("type") or row["type"] or "other").strip().lower()
+    if workout_type not in ("cardio", "strength", "flexibility", "sports", "other"):
+        workout_type = row["type"] or "other"
+
     updated = WorkoutRepository.update(
         workout_id, uid,
         name=req_data.get("name", row["name"]),
-        workout_type=req_data.get("type", row["type"]),
+        workout_type=workout_type,
         duration=req_data.get("duration", row["duration"]),
         calories_burned=req_data.get("calories_burned", row["calories_burned"]),
         exercises=exercises,

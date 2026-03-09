@@ -39,6 +39,14 @@ class TaskRepository:
         ).fetchall()
 
     @staticmethod
+    def get_overdue(user_id, before_date, limit=10):
+        db = get_db()
+        return db.execute(
+            "SELECT * FROM tasks WHERE user_id = ? AND date < ? AND completed = 0 ORDER BY date ASC LIMIT ?",
+            (user_id, before_date, limit),
+        ).fetchall()
+
+    @staticmethod
     def get_by_id(task_id, user_id=None):
         db = get_db()
         if user_id:
@@ -161,4 +169,13 @@ class NoteLinker:
                    VALUES (?, ?, ?, 'task', ?, ?, ?, ?)""",
                 (user_id, title, content, task_id, tags_json, now, now),
             )
+        db.commit()
+
+    @staticmethod
+    def delete_linked_note(user_id, task_id):
+        db = get_db()
+        db.execute(
+            "DELETE FROM notes WHERE source_type = 'task' AND source_id = ? AND user_id = ?",
+            (task_id, user_id),
+        )
         db.commit()

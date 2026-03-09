@@ -75,7 +75,8 @@ class NoteRepository:
             note = _map_note(r)
             if note["source_type"] == "task" and note["source_id"]:
                 task_row = db.execute(
-                    "SELECT title FROM tasks WHERE id = ?", (note["source_id"],)
+                    "SELECT title FROM tasks WHERE id = ? AND user_id = ?",
+                    (note["source_id"], user_id),
                 ).fetchone()
                 note["linked_task_title"] = task_row["title"] if task_row else None
             else:
@@ -95,7 +96,8 @@ class NoteRepository:
         note = _map_note(row)
         if note["source_type"] == "task" and note["source_id"]:
             task_row = db.execute(
-                "SELECT title FROM tasks WHERE id = ?", (note["source_id"],)
+                "SELECT title FROM tasks WHERE id = ? AND user_id = ?",
+                (note["source_id"], user_id),
             ).fetchone()
             note["linked_task_title"] = task_row["title"] if task_row else None
         else:
@@ -108,6 +110,20 @@ class NoteRepository:
         db = get_db()
         if tags is None:
             tags = []
+        if source_type != "task":
+            source_type = "manual"
+            source_id = None
+        else:
+            try:
+                source_id = int(source_id)  # type: ignore[arg-type]  # guarded by try/except
+            except (TypeError, ValueError):
+                raise ValueError("source_id must be a valid task id when source_type='task'")
+            linked_task = db.execute(
+                "SELECT id FROM tasks WHERE id = ? AND user_id = ?",
+                (source_id, user_id),
+            ).fetchone()
+            if not linked_task:
+                raise ValueError("Linked task not found for this user")
         now = now_iso()
         cursor = db.execute(
             """INSERT INTO notes

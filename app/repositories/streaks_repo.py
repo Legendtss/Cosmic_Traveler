@@ -13,14 +13,14 @@ MUST NOT:
 Depends on:
   - db.get_db()
   - points_engine (evaluate_and_save, get_recent_activities,
-    check_achievements, level_progress, _get_or_create_progress)
+    check_achievements, level_progress, get_or_create_progress)
 """
 
 from datetime import datetime, timedelta
 
 from ..db import get_db
 from ..points_engine import (
-    _get_or_create_progress,
+    get_or_create_progress,
     check_achievements,
     evaluate_and_save,
     get_recent_activities,
@@ -40,7 +40,7 @@ class StreaksRepository:
     def full_progress(user_id, date, protein_goal):
         db = get_db()
         result = evaluate_and_save(db, user_id, date, protein_goal)
-        activities = get_recent_activities(db, user_id, limit=10)
+        activities = get_recent_activities(db, user_id, limit=10, protein_goal=protein_goal)
         achievements = check_achievements(db, user_id, result["progress"])
         result["activities"] = activities
         result["achievements"] = achievements
@@ -120,39 +120,48 @@ class AnalyticsRepository:
         today = datetime.now()
         week_ago = today - timedelta(days=6)
 
+        start_date = week_ago.strftime("%Y-%m-%d")
+        end_date = today.strftime("%Y-%m-%d")
+
+        # 3 queries instead of 21 (was 3 × 7 days)
+        task_rows = db.execute(
+            """SELECT date, COUNT(*) AS c FROM tasks
+               WHERE user_id = ? AND date BETWEEN ? AND ? AND completed = 1
+               GROUP BY date""",
+            (user_id, start_date, end_date),
+        ).fetchall()
+        task_map = {r["date"]: r["c"] for r in task_rows}
+
+        nutr_rows = db.execute(
+            """SELECT date, COALESCE(SUM(calories), 0) AS calories_consumed
+               FROM nutrition_entries
+               WHERE user_id = ? AND date BETWEEN ? AND ?
+               GROUP BY date""",
+            (user_id, start_date, end_date),
+        ).fetchall()
+        nutr_map = {r["date"]: r["calories_consumed"] for r in nutr_rows}
+
+        work_rows = db.execute(
+            """SELECT date,
+                      COALESCE(SUM(duration), 0)        AS workout_minutes,
+                      COALESCE(SUM(calories_burned), 0)  AS calories_burned
+               FROM workouts
+               WHERE user_id = ? AND date BETWEEN ? AND ?
+               GROUP BY date""",
+            (user_id, start_date, end_date),
+        ).fetchall()
+        work_map = {r["date"]: r for r in work_rows}
+
         weekly_data = []
         for i in range(7):
             date = (week_ago + timedelta(days=i)).strftime("%Y-%m-%d")
-
-            task_completed = db.execute(
-                "SELECT COUNT(*) AS c FROM tasks WHERE user_id = ? AND date = ? AND completed = 1",
-                (user_id, date),
-            ).fetchone()["c"]
-
-            nutrition = db.execute(
-                """
-                SELECT COALESCE(SUM(calories), 0) AS calories_consumed
-                FROM nutrition_entries WHERE user_id = ? AND date = ?
-                """,
-                (user_id, date),
-            ).fetchone()
-
-            workouts = db.execute(
-                """
-                SELECT
-                  COALESCE(SUM(duration), 0) AS workout_minutes,
-                  COALESCE(SUM(calories_burned), 0) AS calories_burned
-                FROM workouts WHERE user_id = ? AND date = ?
-                """,
-                (user_id, date),
-            ).fetchone()
-
+            w = work_map.get(date, {})
             weekly_data.append({
                 "date": date,
-                "tasks_completed": task_completed or 0,
-                "calories_consumed": nutrition["calories_consumed"] or 0,
-                "workout_minutes": workouts["workout_minutes"] or 0,
-                "calories_burned": workouts["calories_burned"] or 0,
+                "tasks_completed": task_map.get(date, 0),
+                "calories_consumed": nutr_map.get(date, 0),
+                "workout_minutes": w.get("workout_minutes", 0) or 0,
+                "calories_burned": w.get("calories_burned", 0) or 0,
             })
 
         return weekly_data

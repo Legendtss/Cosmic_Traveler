@@ -489,19 +489,7 @@
     </div>
   </div>
 
-  <!-- ── Onboarding (feature preferences — shown once after signup) ── -->
-  <div id="demo-onboarding" class="demo-user-selector hidden">
-    <div class="demo-user-shell">
-      <h1>Setup Your Experience</h1>
-      <p id="demo-onboarding-subtitle">Choose what you want to see in the app.</p>
-      <form id="demo-onboarding-form" class="demo-onboarding-form">
-        <label><input id="pref-projects" type="checkbox" checked> Do you want the Projects section?</label>
-        <label><input id="pref-workout" type="checkbox" checked> Do you want Workout tracking?</label>
-        <label><input id="pref-nutrition" type="checkbox" checked> Do you want Nutrition tracking?</label>
-        <button type="submit" class="projects-btn projects-btn-primary">Continue to Dashboard</button>
-      </form>
-    </div>
-  </div>
+
 
   <!-- ══════════════════════════════════════════════════════════════
        DEMO TOUR — quick product walkthrough (2-4 steps, skippable)
@@ -2149,6 +2137,10 @@
   <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
 
   <!-- ── State Infrastructure ──────────────────────────────── -->
+  <!-- NOTE: The feature modules below (state/*, features/*) are scaffolding
+       for a planned modular migration.  They register on window.FT but
+       NO callers have been migrated yet — the monolith script.js still
+       drives everything.  Safe to remove if the migration is abandoned. -->
   <script src="state/state.js"></script>
   <script src="state/eventBus.js"></script>
   <script src="state/apiClient.js"></script>

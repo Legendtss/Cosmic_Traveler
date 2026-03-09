@@ -81,21 +81,39 @@ def ensure_tasks_tags_column(conn):
 
 
 def ensure_auth_columns(conn):
-    """Add auth-related columns/tables if missing (non-breaking migration)."""
-    # Users table — add password_hash, level, goal, targets
+    """Add ALL required columns/tables if missing (non-breaking migration).
+
+    This must stay in sync with db/schema.sql.  Every column that exists in the
+    CREATE TABLE statement for 'users' should have a corresponding ALTER TABLE
+    fallback here so that databases created by older schema versions are
+    upgraded transparently.
+    """
+    # ── users table ──────────────────────────────────────────
     cols = conn.execute("PRAGMA table_info(users)").fetchall()
     names = {row["name"] for row in cols}
-    if "password_hash" not in names:
-        conn.execute("ALTER TABLE users ADD COLUMN password_hash TEXT NOT NULL DEFAULT ''")
-    if "level" not in names:
-        conn.execute("ALTER TABLE users ADD COLUMN level TEXT NOT NULL DEFAULT 'Beginner'")
-    if "goal" not in names:
-        conn.execute("ALTER TABLE users ADD COLUMN goal TEXT NOT NULL DEFAULT 'General Fitness'")
-    if "weekly_workout_target" not in names:
-        conn.execute("ALTER TABLE users ADD COLUMN weekly_workout_target INTEGER NOT NULL DEFAULT 3")
-    if "calorie_goal" not in names:
-        conn.execute("ALTER TABLE users ADD COLUMN calorie_goal INTEGER NOT NULL DEFAULT 2200")
-    # Sessions table
+
+    _add_missing = [
+        # Auth basics
+        ("password_hash", "TEXT NOT NULL DEFAULT ''"),
+        ("level",         "TEXT NOT NULL DEFAULT 'Beginner'"),
+        ("goal",          "TEXT NOT NULL DEFAULT 'General Fitness'"),
+        ("weekly_workout_target", "INTEGER NOT NULL DEFAULT 3"),
+        ("calorie_goal",  "INTEGER NOT NULL DEFAULT 2200"),
+        # Profile essentials (onboarding)
+        ("age",           "INTEGER"),
+        ("height",        "INTEGER"),
+        ("current_weight", "REAL"),
+        ("activity_level", "TEXT NOT NULL DEFAULT 'moderate'"),
+        # Onboarding state tracking
+        ("intro_seen_at", "TEXT"),
+        ("demo_completed_at", "TEXT"),
+        ("profile_essentials_completed_at", "TEXT"),
+    ]
+    for col_name, col_def in _add_missing:
+        if col_name not in names:
+            conn.execute(f"ALTER TABLE users ADD COLUMN {col_name} {col_def}")
+
+    # ── Sessions table ───────────────────────────────────────
     conn.execute("""
         CREATE TABLE IF NOT EXISTS sessions (
           id TEXT PRIMARY KEY,
@@ -106,9 +124,25 @@ def ensure_auth_columns(conn):
         )
     """)
     conn.execute("CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id)")
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS login_attempts (
+          identifier TEXT PRIMARY KEY,
+          count INTEGER NOT NULL DEFAULT 0,
+          first_attempt REAL NOT NULL DEFAULT 0,
+          locked_until REAL NOT NULL DEFAULT 0
+        )
+    """)
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_login_attempts_locked_until ON login_attempts(locked_until)")
 
 
 def ensure_default_user(conn):
+    """Seed the default user ONLY during JSON migration.
+
+    With session-based multi-user auth now in place the default-user row is
+    only needed when importing legacy JSON data.  Callers should invoke this
+    exclusively inside migrate_json_to_sqlite(); it is NOT called during
+    normal startup.
+    """
     conn.execute(
         """
         INSERT INTO users (id, email, display_name, created_at, updated_at)

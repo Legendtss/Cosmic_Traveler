@@ -15,10 +15,12 @@ Depends on:
   - db.py (init_app_data, register_db)
 """
 
+import logging
 import os
 
-from flask import Flask
+from flask import Flask, jsonify, request
 from flask_cors import CORS
+from werkzeug.exceptions import HTTPException
 
 from .api.dashboard_routes import dashboard_bp, web_bp
 from .api.tasks_routes import tasks_bp
@@ -76,13 +78,35 @@ def create_app(config_class=Config):
         static_url_path="",
     )
     app.config.from_object(config_class)
-    app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0
+
+    is_production = bool(
+        os.environ.get("RENDER") or
+        os.environ.get("RAILWAY_ENVIRONMENT") or
+        os.environ.get("PRODUCTION")
+    )
+
+    # Zero cache in dev for instant reload; 1 hour in production
+    app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 3600 if is_production else 0
+
+    if is_production and app.config.get("SECRET_KEY") == "dev-secret-change-in-production":
+        raise RuntimeError("SECRET_KEY must be set in production.")
 
     # Restricted CORS configuration
     cors_config = _get_cors_config()
     if cors_config["origins"] is not False:
         CORS(app, **cors_config)
     # If origins is False, skip CORS entirely (same-origin only)
+
+    @app.errorhandler(HTTPException)
+    def _handle_http_exception_json(err):
+        if request.path.startswith("/api/"):
+            return jsonify({
+                "ok": False,
+                "error": err.description or err.name,
+                "status": err.code,
+            }), err.code
+        return err
+
     register_db(app)
     init_app_data(app)
 
@@ -96,6 +120,14 @@ def create_app(config_class=Config):
     app.register_blueprint(ai_bp)
     app.register_blueprint(focus_bp)
     app.register_blueprint(notes_bp)
+
+    # Warn about missing optional API keys at startup
+    _log = logging.getLogger(__name__)
+    if not config_class.GEMINI_API_KEY:
+        _log.warning("GEMINI_API_KEY not set — AI chat will use local fallback only.")
+    if config_class.USDA_API_KEY == "DEMO_KEY":
+        _log.warning("USDA_API_KEY is DEMO_KEY — nutrition search may be rate-limited.")
+
     return app
 
 

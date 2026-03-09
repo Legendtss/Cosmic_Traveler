@@ -253,14 +253,12 @@ function setSessionView(view) {
   const app = document.getElementById('app-wrapper');
   const introScreen = document.getElementById('intro-screen');
   const authScreen = document.getElementById('auth-screen');
-  const onboarding = document.getElementById('demo-onboarding');
   const demoTour = document.getElementById('demo-tour');
   const profileEssentials = document.getElementById('profile-essentials');
 
   if (app) app.style.display = view === 'app' ? 'grid' : 'none';
   if (introScreen) introScreen.classList.toggle('hidden', view !== 'intro');
   if (authScreen) authScreen.classList.toggle('hidden', view !== 'auth');
-  if (onboarding) onboarding.classList.toggle('hidden', view !== 'onboarding');
   if (demoTour) demoTour.classList.toggle('hidden', view !== 'demo-tour');
   if (profileEssentials) profileEssentials.classList.toggle('hidden', view !== 'profile-essentials');
 }
@@ -361,33 +359,6 @@ function setupLayoutCustomizer() {
   });
 }
 
-function setupOnboarding() {
-  const form = document.getElementById('demo-onboarding-form');
-  if (!form) return;
-  form.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const preferences = {
-      showProjects: !!document.getElementById('pref-projects')?.checked,
-      showWorkout: !!document.getElementById('pref-workout')?.checked,
-      showNutrition: !!document.getElementById('pref-nutrition')?.checked
-    };
-    saveUserPrefsRecord({
-      isFirstLogin: false,
-      preferences
-    });
-
-    // Apply user context from AuthModule
-    const user = AuthModule.currentUser;
-    if (user && typeof window._authShowApp === 'function') {
-      window._authShowApp(user);
-    }
-    applyUserFeaturePreferences(preferences);
-    setSessionView('app');
-    showPage('dashboard');
-    await loadActiveUserDataViews();
-  });
-}
-
 function applyAuthUserContext(user) {
   if (!user) return;
   const inferredWeightGoal = user.goal === 'Weight Loss'
@@ -432,8 +403,6 @@ async function loadActiveUserDataViews() {
 }
 
 async function bootstrapSession() {
-  setupOnboarding();
-
   const user = await AuthModule.checkSession();
   
   // Use the new routing state machine from 00-auth.js
@@ -449,30 +418,6 @@ async function bootstrapSession() {
     }
     return false;
   }
-
-  // Fallback to old behavior if routing function not available
-  if (!user) {
-    setSessionView('intro');
-    return false;
-  }
-
-  // Valid session — check if onboarding needed
-  const record = getUserPrefsRecord();
-  if (!record || record.isFirstLogin !== false) {
-    const onboarding = document.getElementById('demo-onboarding');
-    const subtitle = document.getElementById('demo-onboarding-subtitle');
-    if (subtitle) subtitle.textContent = `Welcome ${user.displayName}! Choose what you want to enable.`;
-    if (onboarding) onboarding.classList.remove('hidden');
-    const authScreen = document.getElementById('auth-screen');
-    if (authScreen) authScreen.classList.add('hidden');
-    const app = document.getElementById('app-wrapper');
-    if (app) app.style.display = 'none';
-    return false;
-  }
-
-  applyAuthUserContext(user);
-  applyUserFeaturePreferences(record.preferences || DEFAULT_FEATURE_PREFS);
-  setSessionView('app');
   return true;
 }
 
@@ -569,7 +514,7 @@ const taskUiState = {
 };
 let taskEnhancements = {};
 
-function escapeHtml(value) {
+function _escapeHtml(value) {
   return String(value || '')
     .replaceAll('&', '&amp;')
     .replaceAll('<', '&lt;')
@@ -577,6 +522,7 @@ function escapeHtml(value) {
     .replaceAll('"', '&quot;')
     .replaceAll("'", '&#39;');
 }
+const escapeHtml = _escapeHtml;
 
 function loadTaskEnhancements() {
   try {
@@ -6913,7 +6859,11 @@ function setupStatistics() {
 // âš ï¸ Theme is applied via body.classList.toggle('theme-dark').
 // âš ï¸ Nutrition targets from profile feed into nutritionState goals.
 
-const PROFILE_STORAGE_KEY = 'fittrack_profile_v1';
+const _PROFILE_STORAGE_BASE = 'fittrack_profile_v1';
+function _profileStoreKey() {
+  const u = AuthModule.currentUser;
+  return u ? `${_PROFILE_STORAGE_BASE}_${u.id}` : _PROFILE_STORAGE_BASE;
+}
 const THEME_STORAGE_KEY = 'fittrack_theme_v1';
 const defaultProfile = {
   fullName: 'Alex Johnson',
@@ -7013,7 +6963,12 @@ function setupProfileMenu() {
       closeProfileMenu();
       AuthModule.logout().then(() => {
         activeFeaturePrefs = { ...DEFAULT_FEATURE_PREFS };
-        setSessionView('auth');
+        // Use new auth routing state machine (unauthenticated → intro screen)
+        if (typeof window._authRouteToCorrectScreen === 'function') {
+          window._authRouteToCorrectScreen(null, false);
+        } else {
+          setSessionView('intro');
+        }
       });
       return;
     }
@@ -7028,7 +6983,7 @@ function setupProfileMenu() {
 
 function loadProfileState() {
   try {
-    const raw = localStorage.getItem(PROFILE_STORAGE_KEY);
+    const raw = localStorage.getItem(_profileStoreKey());
     if (!raw) return;
     const parsed = JSON.parse(raw);
     profileState = { ...defaultProfile, ...parsed };
@@ -7078,7 +7033,7 @@ function loadProfileState() {
 }
 
 function persistProfileState() {
-  localStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify(profileState));
+  localStorage.setItem(_profileStoreKey(), JSON.stringify(profileState));
   if (typeof syncToAppState === 'function') syncToAppState('profile');
 }
 
@@ -7800,12 +7755,6 @@ function _aiShowConfirmBar(show) {
   if (bar) bar.classList.toggle('ai-chat-hidden', !show);
 }
 
-function _escapeHtml(text) {
-  const div = document.createElement('div');
-  div.textContent = text;
-  return div.innerHTML;
-}
-
 /** Lightweight markdown-to-HTML for bot messages (bold, italic, bullets, newlines, code) */
 function _aiMarkdown(text) {
   if (!text) return '';
@@ -8084,8 +8033,8 @@ function _renderAIResponse(data) {
     return;
   }
 
-  // Unknown status
-  _aiAddMessage(data.message || JSON.stringify(data), 'bot');
+  // Unknown status — safe text-only rendering
+  _aiAddMessage(_escapeHtml(data.message || 'Unexpected response format.'), 'bot');
 }
 
 async function aiConfirmAction() {

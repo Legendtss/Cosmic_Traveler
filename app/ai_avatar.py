@@ -1066,11 +1066,9 @@ def process_avatar_message(user_input, context=None, mode="general"):
     elif mode == "workout":
         result = _local_workout(user_input, context)
     else:
-        # General mode — try local chat, or report error if Gemini was expected
-        if not _genai_client:  # Already attempted init earlier
+        # General mode — fall back to local chat if Gemini unavailable or failed
+        if not _genai_client and not gemini_result:
             return {"error": "Gemini API key is not configured on the server."}
-        if not gemini_result:
-            return {"error": "Gemini API request failed. Check server logs for details."}
         result = _local_chat(user_input, context)
 
     result["analytics"] = get_gemini_analytics()

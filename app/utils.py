@@ -13,15 +13,15 @@ Depends on:
   - Standard library only (datetime)
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 
 
 def now_iso():
-    return datetime.utcnow().isoformat()
+    return datetime.now(timezone.utc).isoformat()
 
 
 def today_str():
-    return datetime.now().strftime("%Y-%m-%d")
+    return datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
 
 def safe_int(value, default=0):

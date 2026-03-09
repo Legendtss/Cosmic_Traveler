@@ -208,7 +208,7 @@ def save_daily_snapshot(db, user_id, day_eval):
     level = level_from_xp(total_points)
 
     # Get or compute longest streak
-    progress = _get_or_create_progress(db, user_id)
+    progress = get_or_create_progress(db, user_id)
     longest_streak = max(progress["longest_streak"], current_streak)
 
     # Upsert user_progress
@@ -236,11 +236,13 @@ def save_daily_snapshot(db, user_id, day_eval):
 def _compute_current_streak(db, user_id, from_date_str):
     """
     Walk backwards from `from_date_str` counting consecutive valid days.
+    Capped at 1000 to prevent runaway queries on anomalous data.
     """
     streak = 0
     d = datetime.strptime(from_date_str, "%Y-%m-%d").date()
+    max_lookback = 1000
 
-    while True:
+    while streak < max_lookback:
         ds = d.strftime("%Y-%m-%d")
         row = db.execute(
             "SELECT streak_days FROM stats_snapshots WHERE user_id = ? AND snapshot_date = ?",
@@ -255,7 +257,7 @@ def _compute_current_streak(db, user_id, from_date_str):
     return streak
 
 
-def _get_or_create_progress(db, user_id):
+def get_or_create_progress(db, user_id):
     """Get user_progress row, creating it if it doesn't exist."""
     row = db.execute(
         "SELECT * FROM user_progress WHERE user_id = ?", (user_id,)
@@ -296,11 +298,12 @@ def evaluate_and_save(db, user_id, date_str, protein_goal=None):
 # ---------------------------------------------------------------------------
 # Activity Feed (recent point-earning actions)
 # ---------------------------------------------------------------------------
-def get_recent_activities(db, user_id, limit=10):
+def get_recent_activities(db, user_id, limit=10, protein_goal=None):
     """
     Build an activity feed from recent completed tasks, meals, and workouts.
     Returns list of { action, points, time, category } dicts.
     """
+    protein_goal = protein_goal if protein_goal is not None else DEFAULT_PROTEIN_GOAL
     activities = []
 
     # Recent completed tasks
@@ -328,7 +331,7 @@ def get_recent_activities(db, user_id, limit=10):
         (user_id, limit),
     ).fetchall()
     for r in meal_dates:
-        met = float(r["total_protein"]) >= DEFAULT_PROTEIN_GOAL
+        met = float(r["total_protein"]) >= protein_goal
         if met:
             activities.append({
                 "action": f"Met daily protein goal ({round(float(r['total_protein']), 1)}g)",
