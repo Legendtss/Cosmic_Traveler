@@ -17,6 +17,6 @@ python-dotenv==1.2.1
 
 # Database
 # SQLite is built-in, but PostgreSQL requires psycopg2
-# psycopg2-binary is the recommended package (includes all dependencies)
+# psycopg2 compiles from source, which is more compatible with Render/Alpine Linux
 # Set DATABASE_URL environment variable to enable PostgreSQL support
-psycopg2-binary==2.9.9
+psycopg2==2.9.9
