@@ -1,11 +1,8 @@
 services:
   - type: web
     name: fittrack-pro
-    runtime: python
-    buildCommand: bash build.sh
-    startCommand: gunicorn run:app --bind 0.0.0.0:$PORT
+    runtime: docker
+    dockerfilePath: ./Dockerfile
     envVars:
       - key: SECRET_KEY
         generateValue: true
-      - key: PYTHON_VERSION
-        value: 3.12.0
