@@ -586,23 +586,51 @@ def migrate_json_to_sqlite(conn):
 def init_app_data(app):
     """Initialize database schema and migrate data if needed.
     
-    For PostgreSQL: May skip if database is not yet initialized (normal
-    for fresh deployments - run migrate_to_postgres.py first).
+    For PostgreSQL: Skips initialization if DATABASE_URL is set (assumes
+    external database is already initialized via migration script).
+    For SQLite: Initializes schema on first run.
     """
     config = app.config["DB_CONFIG"]
     
-    try:
-        if config["type"] == "postgresql":
-            if not HAS_PSYCOPG2:
-                raise RuntimeError("psycopg2 not available for PostgreSQL")
-            psycopg2_conn = psycopg2.connect(config["url"])
-            conn = PostgreSQLConnectionWrapper(psycopg2_conn)
+    # Skip initialization for PostgreSQL - assume external DB is ready
+    # or manual migration script was run
+    if config["type"] == "postgresql":
+        if not HAS_PSYCOPG2:
+            print("[DB] WARNING: DATABASE_URL set but psycopg2 not available")
+            print("[DB] Install psycopg2-binary or remove DATABASE_URL to use SQLite")
+            print("[DB] Skipping PostgreSQL initialization...")
         else:
-            db_file = str(config.get("path"))
-            os.makedirs(os.path.dirname(db_file), exist_ok=True)
-            conn = sqlite3.connect(db_file)
-            conn.row_factory = sqlite3.Row
-            conn.execute("PRAGMA foreign_keys = ON")
+            # Try to connect, but don't fail if database not ready
+            try:
+                psycopg2_conn = psycopg2.connect(config["url"])
+                conn = PostgreSQLConnectionWrapper(psycopg2_conn)
+                
+                try:
+                    with app.app_context():
+                        # Just verify tables exist - don't recreate
+                        init_schema(conn)
+                        ensure_tasks_tags_column(conn)
+                        ensure_auth_columns(conn)
+                    if config["type"] == "postgresql":
+                        conn.commit()
+                finally:
+                    conn.close()
+            except psycopg2.OperationalError as e:
+                # Database might not be ready yet - normal for fresh Render deployment
+                print(f"[DB] PostgreSQL database not yet ready: {e}")
+                print("[DB] This is normal on first deploy. Run migration script manually.")
+            except Exception as e:
+                print(f"[DB] Error initializing PostgreSQL: {e}")
+                # Don't fail the app startup
+        return
+    
+    # SQLite initialization
+    try:
+        db_file = str(config.get("path"))
+        os.makedirs(os.path.dirname(db_file), exist_ok=True)
+        conn = sqlite3.connect(db_file)
+        conn.row_factory = sqlite3.Row
+        conn.execute("PRAGMA foreign_keys = ON")
         
         try:
             with app.app_context():
@@ -611,15 +639,8 @@ def init_app_data(app):
                 ensure_auth_columns(conn)
                 if should_migrate_json(conn):
                     migrate_json_to_sqlite(conn)
-            if config["type"] == "postgresql":
-                conn.commit()
         finally:
             conn.close()
-    
-    except (psycopg2.OperationalError if HAS_PSYCOPG2 else Exception) as e:
-        if isinstance(e, psycopg2.OperationalError) if HAS_PSYCOPG2 else False:
-            # PostgreSQL database not ready - normal for fresh Render deployment
-            print("[DB] PostgreSQL database not yet initialized (normal on first deploy)")
-        else:
-            # For SQLite or other errors, fail loudly
-            raise e
+    except Exception as e:
+        print(f"[DB] Error initializing SQLite: {e}")
+        raise e
