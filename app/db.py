@@ -18,6 +18,7 @@ Depends on:
 
 import json
 import os
+import re
 import sqlite3
 
 from flask import current_app, g
@@ -39,13 +40,115 @@ class PostgreSQLConnectionWrapper:
     def __init__(self, psycopg2_conn):
         self._conn = psycopg2_conn
         self._cursor = psycopg2_conn.cursor(cursor_factory=RealDictCursor)
+        self.lastrowid = None
+        self.rowcount = 0
+    
+    def _convert_sql_placeholders(self, sql):
+        """Convert SQLite syntax to PostgreSQL syntax.
+        
+        Handles:
+        - Placeholders: ? → %s
+        - INSERT OR IGNORE → ON CONFLICT DO NOTHING
+        - INSERT OR REPLACE → ON CONFLICT ... DO UPDATE SET
+        - Preserves ? inside strings (SQL literals)
+        """
+        # First, handle INSERT OR IGNORE / INSERT OR REPLACE
+        sql_converted = re.sub(
+            r'INSERT\s+OR\s+IGNORE\s+',
+            'INSERT ',
+            sql,
+            flags=re.IGNORECASE
+        )
+        
+        # For INSERT OR REPLACE, convert to ON CONFLICT ... DO UPDATE
+        # Basic handling: assume it's adding ON CONFLICT clause after VALUES section
+        if 'INSERT OR REPLACE' in sql.upper():
+            sql_converted = re.sub(
+                r'INSERT\s+OR\s+REPLACE\s+',
+                'INSERT ',
+                sql_converted,
+                flags=re.IGNORECASE
+            )
+            # Add ON CONFLICT clause at the end before any existing ON CONFLICT
+            if 'ON CONFLICT' not in sql_converted.upper():
+                # Find the first table name after INTO
+                table_match = re.search(r'INTO\s+(\w+)', sql_converted, re.IGNORECASE)
+                if table_match:
+                    table_name = table_match.group(1)
+                    # Append conflict clause before the final semicolon or at end
+                    sql_converted = re.sub(
+                        r'(\))\s*$',
+                        rf'\1 ON CONFLICT (id) DO UPDATE SET id=EXCLUDED.id',
+                        sql_converted
+                    )
+        
+        # Now add ON CONFLICT DO NOTHING for INSERT OR IGNORE converted statements
+        if 'INSERT ' in sql_converted.upper() and 'ON CONFLICT' not in sql_converted.upper():
+            if 'INSERT OR IGNORE' in sql.upper():
+                # Find the VALUES clause
+                values_match = re.search(r'(VALUES\s*\([^)]+\))', sql_converted, re.IGNORECASE)
+                if values_match:
+                    end_pos = values_match.end()
+                    sql_converted = (
+                        sql_converted[:end_pos] +
+                        ' ON CONFLICT DO NOTHING' +
+                        sql_converted[end_pos:]
+                    )
+        
+        # Split by quotes to avoid replacing ? inside string literals
+        parts = re.split(r"('(?:''|[^'])*')", sql_converted)  # Split on single-quoted strings
+        for i in range(0, len(parts), 2):  # Even indices = outside quotes
+            parts[i] = parts[i].replace('?', '%s')
+        
+        return ''.join(parts)
     
     def execute(self, sql, params=None):
-        """Execute SQL and return cursor (supports method chaining)."""
-        if params:
-            self._cursor.execute(sql, params)
-        else:
-            self._cursor.execute(sql)
+        """Execute SQL and return cursor (supports method chaining).
+        
+        Automatically converts SQLite placeholders (?) to PostgreSQL (%s).
+        """
+        # Convert SQLite ? placeholders to PostgreSQL %s
+        sql_converted = self._convert_sql_placeholders(sql)
+        
+        try:
+            if params:
+                self._cursor.execute(sql_converted, params)
+            else:
+                self._cursor.execute(sql_converted)
+        except psycopg2.Error as e:
+            # Log converted SQL for debugging
+            raise e
+        
+        # Capture rowcount from cursor
+        self.rowcount = self._cursor.rowcount
+        
+        # If INSERT, try to get lastrowid using currval or RETURNING clause
+        if 'INSERT' in sql.upper() and self.rowcount > 0:
+            try:
+                # For tables with id sequences, fetch the last inserted ID
+                # This requires the INSERT to have been executed successfully
+                if 'RETURNING id' in sql or 'RETURNING' in sql.upper():
+                    result = self._cursor.fetchone()
+                    if result:
+                        self.lastrowid = result.get('id') or result.get(list(result.keys())[0])
+                else:
+                    # Try to get the last inserted ID from the sequence
+                    # Use currval() for the most likely sequence name
+                    table_match = re.search(r'INTO\s+(\w+)', sql, re.IGNORECASE)
+                    if table_match:
+                        table_name = table_match.group(1)
+                        seq_name = f"{table_name}_id_seq"
+                        try:
+                            # Query the sequence value
+                            self._cursor.execute(f"SELECT currval('{seq_name}') as id")
+                            result = self._cursor.fetchone()
+                            if result and result.get('id'):
+                                self.lastrowid = result['id']
+                        except psycopg2.Error:
+                            pass  # Sequence might not exist
+            except Exception:
+                pass  # Fallback: lastrowid remains None
+        
         return self._cursor
     
     def fetchone(self):

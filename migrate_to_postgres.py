@@ -19,7 +19,7 @@ from pathlib import Path
 
 try:
     import psycopg2
-    from psycopg2.extras import execute_batch
+    from psycopg2.extras import execute_batch, RealDictCursor
 except ImportError:
     print("ERROR: psycopg2 not installed. Run: pip install psycopg2-binary")
     sys.exit(1)
@@ -35,9 +35,11 @@ def get_sqlite_connection(db_file):
 
 
 def get_postgres_connection(db_url):
-    """Connect to PostgreSQL database."""
+    """Connect to PostgreSQL database with dictionary cursor."""
     try:
         conn = psycopg2.connect(db_url)
+        # Set default cursor factory to RealDictCursor for easy dict access
+        conn.cursor_factory = RealDictCursor
         return conn
     except psycopg2.OperationalError as e:
         print(f"ERROR: Failed to connect to PostgreSQL: {e}")
@@ -130,7 +132,8 @@ def migrate_sequences(postgres_conn, table_names):
                 WHERE id IS NOT NULL
             """)
             result = cursor.fetchone()
-            max_id = result[0] if result and result[0] else 0
+            # Use dict access for RealDictCursor
+            max_id = result['max_id'] if result and result['max_id'] else 0
             
             if max_id and int(max_id) > 0:
                 seq_name = f"{table_name}_id_seq"

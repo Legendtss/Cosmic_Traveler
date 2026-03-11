@@ -213,7 +213,8 @@ def init_schema(postgres_url):
             SELECT COUNT(*) FROM information_schema.tables 
             WHERE table_schema = 'public'
         """)
-        table_count = cursor.fetchone()[0]
+        result = cursor.fetchone()
+        table_count = result[0] if result else 0
         print(f"    - Created {table_count} tables and indexes")
         cursor.close()
         

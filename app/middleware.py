@@ -15,6 +15,7 @@ Depends on:
 """
 
 import functools
+import threading
 import time
 from collections import defaultdict
 
@@ -22,26 +23,32 @@ from flask import g, jsonify, request
 
 
 class RateLimiter:
-    """Simple in-memory rate limiter (per IP, non-persistent)."""
+    """Simple in-memory rate limiter (per IP, non-persistent) with thread-safety."""
     
     def __init__(self, max_requests=100, window_seconds=60):
         self.max_requests = max_requests
         self.window_seconds = window_seconds
         self.requests = defaultdict(list)
+        self._lock = threading.Lock()  # Thread-safe access
     
     def is_allowed(self, client_id):
-        """Check if request is allowed for client. Returns True if within limit."""
-        now = time.time()
-        # Clean old requests outside window
-        self.requests[client_id] = [
-            req_time for req_time in self.requests[client_id]
-            if now - req_time < self.window_seconds
-        ]
+        """Check if request is allowed for client. Returns True if within limit.
         
-        if len(self.requests[client_id]) < self.max_requests:
-            self.requests[client_id].append(now)
-            return True
-        return False
+        Thread-safe using a lock for concurrent requests.
+        """
+        now = time.time()
+        
+        with self._lock:
+            # Clean old requests outside window
+            self.requests[client_id] = [
+                req_time for req_time in self.requests[client_id]
+                if now - req_time < self.window_seconds
+            ]
+            
+            if len(self.requests[client_id]) < self.max_requests:
+                self.requests[client_id].append(now)
+                return True
+            return False
 
 
 # Global rate limiter instance

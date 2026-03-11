@@ -46,10 +46,15 @@ def create_meal():
     if not name:
         return jsonify({"error": "Meal name is required"}), 400
 
+    meal_type = req_data.get("meal_type", "other")
+    valid_meal_types = ("breakfast", "lunch", "dinner", "snack", "other")
+    if meal_type not in valid_meal_types:
+        return jsonify({"error": f"Meal type must be one of: {', '.join(valid_meal_types)}"}), 400
+
     meal_id = NutritionRepository.create(
         default_user_id(),
         name=name,
-        meal_type=req_data.get("meal_type", "other"),
+        meal_type=meal_type,
         calories=max(0, safe_int(req_data.get("calories"), 0)),
         protein=max(0.0, safe_float(req_data.get("protein", 0), 0.0)),
         carbs=max(0.0, safe_float(req_data.get("carbs", 0), 0.0)),
@@ -72,10 +77,15 @@ def update_meal(meal_id):
 
     req_data = request.get_json(silent=True) or {}
 
+    meal_type = req_data.get("meal_type", row["meal_type"])
+    valid_meal_types = ("breakfast", "lunch", "dinner", "snack", "other")
+    if meal_type not in valid_meal_types:
+        return jsonify({"error": f"Meal type must be one of: {', '.join(valid_meal_types)}"}), 400
+
     NutritionRepository.update(
         meal_id, uid,
         name=req_data.get("name", row["name"]),
-        meal_type=req_data.get("meal_type", row["meal_type"]),
+        meal_type=meal_type,
         calories=max(0, safe_int(req_data.get("calories", row["calories"]), row["calories"])),
         protein=max(0.0, safe_float(req_data.get("protein", row["protein"]), row["protein"])),
         carbs=max(0.0, safe_float(req_data.get("carbs", row["carbs"]), row["carbs"])),

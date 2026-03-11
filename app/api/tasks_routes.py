@@ -46,9 +46,12 @@ def create_task():
     if not title:
         return jsonify({"error": "Title is required"}), 400
 
+    # Validate priority
     priority = req_data.get("priority", "medium")
-    if priority not in ("low", "medium", "high"):
-        priority = "medium"
+    valid_priorities = ("low", "medium", "high")
+    if priority not in valid_priorities:
+        return jsonify({"error": f"Priority must be one of: {', '.join(valid_priorities)}"}), 400
+    
     due_date = req_data.get("date") or today_str()
 
     tags = normalize_tags(req_data.get("tags"))
@@ -111,8 +114,10 @@ def update_task(task_id):
     save_note = req_data.get("save_to_notes", old_note_saved)
     due_date = req_data.get("date", row["date"])
 
-    if priority not in ("low", "medium", "high"):
-        priority = row["priority"]
+    # Validate priority
+    valid_priorities = ("low", "medium", "high")
+    if priority not in valid_priorities:
+        return jsonify({"error": f"Priority must be one of: {', '.join(valid_priorities)}"}), 400
 
     note_content_val = (note_content or "").strip()
     note_saved_val = bool(save_note and note_content_val)
