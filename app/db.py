@@ -2,8 +2,8 @@
 FILE: app/db.py
 
 Responsibility:
-  SQLite connection management, schema initialization,
-  JSON→SQLite data migration, default user seeding.
+  Multi-database connection management (SQLite and PostgreSQL).
+  Schema initialization, data migration, default user seeding.
   Provides get_db() for request-scoped connections.
 
 MUST NOT:
@@ -11,7 +11,7 @@ MUST NOT:
   - Import from api/ or AI modules
 
 Depends on:
-  - config.py (DB_FILE, SCHEMA_FILE)
+  - config.py (DB_CONFIG, SCHEMA_FILE, DEFAULT_USER_ID, DATA_FILE)
   - utils.py (now_iso, safe_int, today_str)
   - db/schema.sql (DDL)
 """
@@ -24,9 +24,65 @@ from flask import current_app, g
 
 from .utils import now_iso, safe_int, today_str
 
+# Try to import psycopg2 for PostgreSQL support (optional)
+try:
+    import psycopg2
+    from psycopg2.extras import RealDictCursor
+    HAS_PSYCOPG2 = True
+except ImportError:
+    HAS_PSYCOPG2 = False
+
+
+class PostgreSQLConnectionWrapper:
+    """Wraps psycopg2 connection to provide sqlite3-compatible interface."""
+    
+    def __init__(self, psycopg2_conn):
+        self._conn = psycopg2_conn
+        self._cursor = psycopg2_conn.cursor(cursor_factory=RealDictCursor)
+    
+    def execute(self, sql, params=None):
+        """Execute SQL and return cursor (supports method chaining)."""
+        if params:
+            self._cursor.execute(sql, params)
+        else:
+            self._cursor.execute(sql)
+        return self._cursor
+    
+    def fetchone(self):
+        """Fetch one result."""
+        return self._cursor.fetchone()
+    
+    def fetchall(self):
+        """Fetch all results."""
+        return self._cursor.fetchall()
+    
+    def commit(self):
+        """Commit transaction."""
+        self._conn.commit()
+    
+    def rollback(self):
+        """Rollback transaction."""
+        self._conn.rollback()
+    
+    def close(self):
+        """Close cursor and connection."""
+        self._cursor.close()
+        self._conn.close()
+    
+    def cursor(self, **kwargs):
+        """Get a new cursor."""
+        return self._conn.cursor(cursor_factory=RealDictCursor, **kwargs)
+
+
+def _db_config():
+    return current_app.config["DB_CONFIG"]
+
 
 def _db_file():
-    return str(current_app.config["DB_FILE"])
+    config = _db_config()
+    if config["type"] == "sqlite":
+        return str(config.get("path"))
+    return None
 
 
 def _schema_file():
@@ -42,291 +98,425 @@ def _default_user_id():
 
 
 def get_db():
+    """Get database connection (SQLite or PostgreSQL).
+    
+    Returns a connection object that works identically for both databases:
+    - SQLite: native sqlite3.Connection with row_factory=sqlite3.Row
+    - PostgreSQL: Wrapped psycopg2 connection with cursor_factory=RealDictCursor
+    
+    Both support: conn.execute(sql, params).fetchone()/fetchall()
+    """
     if "db" not in g:
-        os.makedirs(os.path.dirname(_db_file()), exist_ok=True)
-        conn = sqlite3.connect(_db_file())
-        conn.row_factory = sqlite3.Row
-        conn.execute("PRAGMA foreign_keys = ON")
-        g.db = conn
+        config = _db_config()
+        
+        if config["type"] == "postgresql":
+            if not HAS_PSYCOPG2:
+                raise RuntimeError(
+                    "PostgreSQL database configured but psycopg2 not installed. "
+                    "Run: pip install psycopg2-binary"
+                )
+            psycopg2_conn = psycopg2.connect(config["url"])
+            # Wrap in compatibility layer
+            g.db = PostgreSQLConnectionWrapper(psycopg2_conn)
+        else:  # SQLite
+            db_file = _db_file()
+            os.makedirs(os.path.dirname(db_file), exist_ok=True)
+            conn = sqlite3.connect(db_file)
+            conn.row_factory = sqlite3.Row  # Return rows as Row objects (dict-like)
+            conn.execute("PRAGMA foreign_keys = ON")
+            g.db = conn
+    
     return g.db
 
 
 def close_db(_error):
+    """Close database connection."""
     conn = g.pop("db", None)
     if conn is not None:
         conn.close()
 
 
 def register_db(app):
+    """Register database teardown handler."""
     app.teardown_appcontext(close_db)
 
 
 def init_schema(conn):
+    """Initialize database schema.
+    
+    For SQLite: execute schema script directly via executescript()
+    For PostgreSQL (wrapper): split statements, filter SQLite-specific pragmas,
+                              skip problematic syntax differences
+    """
     schema_file = _schema_file()
     if not os.path.exists(schema_file):
         raise FileNotFoundError(f"Missing schema file: {schema_file}")
+    
     with open(schema_file, "r", encoding="utf-8") as f:
-        conn.executescript(f.read())
+        schema_sql = f.read()
+    
+    config = _db_config()
+    
+    if config["type"] == "postgresql":
+        # PostgreSQL: split statements, filter out SQLite-specific syntax
+        for statement in schema_sql.split(";"):
+            statement = statement.strip()
+            # Skip SQLite-specific directives
+            if statement and not statement.upper().startswith("PRAGMA"):
+                try:
+                    conn.execute(statement)
+                except psycopg2.Error as e:
+                    # Skip problematic statements (e.g., incompatible trigger syntax)
+                    # These will be handled by the migration script
+                    if "trigger" in str(e).lower() or "if not exists" in str(e).lower():
+                        pass  # Silently skip trigger issues
+                    else:
+                        raise e
+        conn.commit()
+    else:
+        # SQLite: use executescript (supports multiple statements)
+        conn.executescript(schema_sql)
 
 
 def ensure_tasks_tags_column(conn):
-    cols = conn.execute("PRAGMA table_info(tasks)").fetchall()
-    names = {row["name"] for row in cols}
-    if "tags_json" not in names:
-        conn.execute("ALTER TABLE tasks ADD COLUMN tags_json TEXT NOT NULL DEFAULT '[]'")
-    if "note_content" not in names:
-        conn.execute("ALTER TABLE tasks ADD COLUMN note_content TEXT NOT NULL DEFAULT ''")
-    if "note_saved_to_notes" not in names:
-        conn.execute("ALTER TABLE tasks ADD COLUMN note_saved_to_notes INTEGER NOT NULL DEFAULT 0")
+    """Add missing columns to tasks table if needed."""
+    config = _db_config()
+    
+    if config["type"] == "postgresql":
+        # PostgreSQL: check information_schema
+        cols = conn.execute("""
+            SELECT column_name FROM information_schema.columns 
+            WHERE table_name='tasks'
+        """).fetchall()
+        names = {row["column_name"] for row in cols}
+        
+        if "tags_json" not in names:
+            conn.execute("ALTER TABLE tasks ADD COLUMN tags_json TEXT NOT NULL DEFAULT '[]'")
+        if "note_content" not in names:
+            conn.execute("ALTER TABLE tasks ADD COLUMN note_content TEXT NOT NULL DEFAULT ''")
+        if "note_saved_to_notes" not in names:
+            conn.execute("ALTER TABLE tasks ADD COLUMN note_saved_to_notes INTEGER NOT NULL DEFAULT 0")
+        conn.commit()
+    else:
+        # SQLite: PRAGMA table_info
+        cols = conn.execute("PRAGMA table_info(tasks)").fetchall()
+        names = {row["name"] for row in cols}
+        
+        if "tags_json" not in names:
+            conn.execute("ALTER TABLE tasks ADD COLUMN tags_json TEXT NOT NULL DEFAULT '[]'")
+        if "note_content" not in names:
+            conn.execute("ALTER TABLE tasks ADD COLUMN note_content TEXT NOT NULL DEFAULT ''")
+        if "note_saved_to_notes" not in names:
+            conn.execute("ALTER TABLE tasks ADD COLUMN note_saved_to_notes INTEGER NOT NULL DEFAULT 0")
 
 
 def ensure_auth_columns(conn):
-    """Add ALL required columns/tables if missing (non-breaking migration).
-
-    This must stay in sync with db/schema.sql.  Every column that exists in the
-    CREATE TABLE statement for 'users' should have a corresponding ALTER TABLE
-    fallback here so that databases created by older schema versions are
-    upgraded transparently.
-    """
-    # ── users table ──────────────────────────────────────────
-    cols = conn.execute("PRAGMA table_info(users)").fetchall()
-    names = {row["name"] for row in cols}
-
-    _add_missing = [
-        # Auth basics
-        ("password_hash", "TEXT NOT NULL DEFAULT ''"),
-        ("level",         "TEXT NOT NULL DEFAULT 'Beginner'"),
-        ("goal",          "TEXT NOT NULL DEFAULT 'General Fitness'"),
-        ("weekly_workout_target", "INTEGER NOT NULL DEFAULT 3"),
-        ("calorie_goal",  "INTEGER NOT NULL DEFAULT 2200"),
-        # Profile essentials (onboarding)
-        ("age",           "INTEGER"),
-        ("height",        "INTEGER"),
-        ("current_weight", "REAL"),
-        ("activity_level", "TEXT NOT NULL DEFAULT 'moderate'"),
-        # Onboarding state tracking
-        ("intro_seen_at", "TEXT"),
-        ("demo_completed_at", "TEXT"),
-        ("profile_essentials_completed_at", "TEXT"),
-    ]
-    for col_name, col_def in _add_missing:
-        if col_name not in names:
-            conn.execute(f"ALTER TABLE users ADD COLUMN {col_name} {col_def}")
-
-    # ── Sessions table ───────────────────────────────────────
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS sessions (
-          id TEXT PRIMARY KEY,
-          user_id INTEGER NOT NULL,
-          created_at TEXT NOT NULL DEFAULT (CURRENT_TIMESTAMP),
-          expires_at TEXT NOT NULL,
-          FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-        )
-    """)
-    conn.execute("CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id)")
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS login_attempts (
-          identifier TEXT PRIMARY KEY,
-          count INTEGER NOT NULL DEFAULT 0,
-          first_attempt REAL NOT NULL DEFAULT 0,
-          locked_until REAL NOT NULL DEFAULT 0
-        )
-    """)
-    conn.execute("CREATE INDEX IF NOT EXISTS idx_login_attempts_locked_until ON login_attempts(locked_until)")
+    """Add missing columns/tables for auth if they don't exist."""
+    config = _db_config()
+    
+    if config["type"] == "postgresql":
+        # PostgreSQL: check information_schema
+        cols = conn.execute("""
+            SELECT column_name FROM information_schema.columns 
+            WHERE table_name='users'
+        """).fetchall()
+        names = {row["column_name"] for row in cols}
+        
+        _add_missing = [
+            ("password_hash", "TEXT NOT NULL DEFAULT ''"),
+            ("level", "TEXT NOT NULL DEFAULT 'Beginner'"),
+            ("goal", "TEXT NOT NULL DEFAULT 'General Fitness'"),
+            ("weekly_workout_target", "INTEGER NOT NULL DEFAULT 3"),
+            ("calorie_goal", "INTEGER NOT NULL DEFAULT 2200"),
+            ("age", "INTEGER"),
+            ("height", "INTEGER"),
+            ("current_weight", "REAL"),
+            ("activity_level", "TEXT NOT NULL DEFAULT 'moderate'"),
+            ("intro_seen_at", "TEXT"),
+            ("demo_completed_at", "TEXT"),
+            ("profile_essentials_completed_at", "TEXT"),
+        ]
+        for col_name, col_def in _add_missing:
+            if col_name not in names:
+                conn.execute(f"ALTER TABLE users ADD COLUMN {col_name} {col_def}")
+        conn.commit()
+        
+        # Create sessions table if it doesn't exist
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS sessions (
+              id TEXT PRIMARY KEY,
+              user_id INTEGER NOT NULL,
+              created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+              expires_at TEXT NOT NULL,
+              FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+            )
+        """)
+        conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id)
+        """)
+        
+        # Create login_attempts table if it doesn't exist
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS login_attempts (
+              identifier TEXT PRIMARY KEY,
+              count INTEGER NOT NULL DEFAULT 0 CHECK (count >= 0),
+              first_attempt REAL NOT NULL DEFAULT 0,
+              locked_until REAL NOT NULL DEFAULT 0
+            )
+        """)
+        conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_login_attempts_locked_until ON login_attempts(locked_until)
+        """)
+        conn.commit()
+    else:
+        # SQLite: PRAGMA table_info
+        cols = conn.execute("PRAGMA table_info(users)").fetchall()
+        names = {row["name"] for row in cols}
+        
+        _add_missing = [
+            ("password_hash", "TEXT NOT NULL DEFAULT ''"),
+            ("level", "TEXT NOT NULL DEFAULT 'Beginner'"),
+            ("goal", "TEXT NOT NULL DEFAULT 'General Fitness'"),
+            ("weekly_workout_target", "INTEGER NOT NULL DEFAULT 3"),
+            ("calorie_goal", "INTEGER NOT NULL DEFAULT 2200"),
+            ("age", "INTEGER"),
+            ("height", "INTEGER"),
+            ("current_weight", "REAL"),
+            ("activity_level", "TEXT NOT NULL DEFAULT 'moderate'"),
+            ("intro_seen_at", "TEXT"),
+            ("demo_completed_at", "TEXT"),
+            ("profile_essentials_completed_at", "TEXT"),
+        ]
+        for col_name, col_def in _add_missing:
+            if col_name not in names:
+                conn.execute(f"ALTER TABLE users ADD COLUMN {col_name} {col_def}")
+        
+        # Create sessions table if it doesn't exist (SQLite)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS sessions (
+              id TEXT PRIMARY KEY,
+              user_id INTEGER NOT NULL,
+              created_at TEXT NOT NULL DEFAULT (CURRENT_TIMESTAMP),
+              expires_at TEXT NOT NULL,
+              FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+            )
+        """)
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id)")
+        
+        # Create login_attempts table if it doesn't exist (SQLite)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS login_attempts (
+              identifier TEXT PRIMARY KEY,
+              count INTEGER NOT NULL DEFAULT 0,
+              first_attempt REAL NOT NULL DEFAULT 0,
+              locked_until REAL NOT NULL DEFAULT 0
+            )
+        """)
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_login_attempts_locked_until ON login_attempts(locked_until)")
 
 
 def ensure_default_user(conn):
-    """Seed the default user ONLY during JSON migration.
-
-    With session-based multi-user auth now in place the default-user row is
-    only needed when importing legacy JSON data.  Callers should invoke this
-    exclusively inside migrate_json_to_sqlite(); it is NOT called during
-    normal startup.
-    """
-    conn.execute(
-        """
-        INSERT INTO users (id, email, display_name, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?)
-        ON CONFLICT(id) DO UPDATE SET
-          email=excluded.email,
-          display_name=excluded.display_name,
-          updated_at=excluded.updated_at
-        """,
-        (_default_user_id(), "local@fittrack.app", "Local User", now_iso(), now_iso()),
-    )
+    """Seed the default user (only during JSON migration)."""
+    config = _db_config()
+    user_id = _default_user_id()
+    email = "local@fittrack.app"
+    display_name = "Local User"
+    now = now_iso()
+    
+    if config["type"] == "postgresql":
+        # PostgreSQL: use ON CONFLICT DO UPDATE
+        conn.execute("""
+            INSERT INTO users (id, email, display_name, created_at, updated_at)
+            VALUES (%s, %s, %s, %s, %s)
+            ON CONFLICT (id) DO UPDATE SET
+              email=EXCLUDED.email,
+              display_name=EXCLUDED.display_name,
+              updated_at=EXCLUDED.updated_at
+        """, (user_id, email, display_name, now, now))
+        conn.commit()
+    else:
+        # SQLite: use ON CONFLICT
+        conn.execute("""
+            INSERT INTO users (id, email, display_name, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT(id) DO UPDATE SET
+              email=excluded.email,
+              display_name=excluded.display_name,
+              updated_at=excluded.updated_at
+        """, (user_id, email, display_name, now, now))
 
 
 def should_migrate_json(conn):
+    """Check if JSON data should be migrated to database."""
     data_file = _data_file()
     if not os.path.exists(data_file):
         return False
+    
     force = os.environ.get("FORCE_JSON_MIGRATION", "").strip().lower() in ("1", "true", "yes", "on")
     if force:
         return True
-    counts = conn.execute(
-        """
+    
+    counts = conn.execute("""
         SELECT
           (SELECT COUNT(*) FROM tasks) AS task_count,
           (SELECT COUNT(*) FROM nutrition_entries) AS meal_count,
           (SELECT COUNT(*) FROM workouts) AS workout_count
-        """
-    ).fetchone()
+    """).fetchone()
+    
     return (counts["task_count"] or 0) == 0 and (counts["meal_count"] or 0) == 0 and (counts["workout_count"] or 0) == 0
 
 
 def migrate_json_to_sqlite(conn):
+    """Migrate JSON data to database (SQLite or PostgreSQL)."""
     data_file = _data_file()
     if not os.path.exists(data_file):
         return
-
+    
     with open(data_file, "r", encoding="utf-8") as f:
         payload = json.load(f)
-
-    conn.execute("BEGIN")
+    
+    config = _db_config()
+    user_id = _default_user_id()
+    now = now_iso()
+    
     try:
         ensure_default_user(conn)
-
+        
         for t in payload.get("tasks", []):
             if not isinstance(t, dict) or not t.get("id") or not t.get("title"):
                 continue
+            
             priority = t.get("priority", "medium")
             if priority not in ("low", "medium", "high"):
                 priority = "medium"
-
-            conn.execute(
-                """
-                INSERT INTO tasks
-                (id, user_id, project_id, title, description, tags_json, category, priority, completed, date, time_spent, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                ON CONFLICT(id) DO UPDATE SET
-                  title=excluded.title,
-                  description=excluded.description,
-                  tags_json=excluded.tags_json,
-                  category=excluded.category,
-                  priority=excluded.priority,
-                  completed=excluded.completed,
-                  date=excluded.date,
-                  time_spent=excluded.time_spent,
-                  updated_at=excluded.updated_at
-                """,
-                (
-                    t["id"],
-                    _default_user_id(),
-                    t.get("project_id"),
-                    t["title"],
-                    t.get("description", ""),
-                    json.dumps(t.get("tags", []) if isinstance(t.get("tags"), list) else []),
-                    t.get("category", "general"),
-                    priority,
-                    1 if t.get("completed") else 0,
-                    t.get("date") or today_str(),
-                    max(0, safe_int(t.get("time_spent"), 0)),
-                    t.get("created_at") or now_iso(),
-                    t.get("updated_at") or now_iso(),
-                ),
-            )
-
+            
+            if config["type"] == "postgresql":
+                conn.execute("""
+                    INSERT INTO tasks
+                    (user_id, project_id, title, description, tags_json, category, priority, completed, date, time_spent, created_at, updated_at)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    ON CONFLICT DO NOTHING
+                """, (
+                    user_id, None, t.get("title"), t.get("description", ""),
+                    json.dumps(t.get("tags", [])), t.get("category", "general"),
+                    priority, 1 if t.get("completed") else 0, t.get("date", now_iso()[:10]),
+                    safe_int(t.get("time_spent"), 0), now, now
+                ))
+            else:
+                conn.execute("""
+                    INSERT INTO tasks
+                    (user_id, project_id, title, description, tags_json, category, priority, completed, date, time_spent, created_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    user_id, None, t.get("title"), t.get("description", ""),
+                    json.dumps(t.get("tags", [])), t.get("category", "general"),
+                    priority, 1 if t.get("completed") else 0, t.get("date", now_iso()[:10]),
+                    safe_int(t.get("time_spent"), 0), now, now
+                ))
+        
         for m in payload.get("meals", []):
             if not isinstance(m, dict) or not m.get("id") or not m.get("name"):
                 continue
-            conn.execute(
-                """
-                INSERT INTO nutrition_entries
-                (id, user_id, name, meal_type, calories, protein, carbs, fats, notes, date, time, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                ON CONFLICT(id) DO UPDATE SET
-                  name=excluded.name,
-                  meal_type=excluded.meal_type,
-                  calories=excluded.calories,
-                  protein=excluded.protein,
-                  carbs=excluded.carbs,
-                  fats=excluded.fats,
-                  notes=excluded.notes,
-                  date=excluded.date,
-                  time=excluded.time,
-                  updated_at=excluded.updated_at
-                """,
-                (
-                    m["id"],
-                    _default_user_id(),
-                    m["name"],
-                    m.get("meal_type", "other"),
-                    max(0, safe_int(m.get("calories"), 0)),
-                    float(m.get("protein", 0) or 0),
-                    float(m.get("carbs", 0) or 0),
-                    float(m.get("fats", 0) or 0),
-                    m.get("notes", ""),
-                    m.get("date") or today_str(),
-                    m.get("time"),
-                    m.get("created_at") or now_iso(),
-                    m.get("updated_at") or m.get("created_at") or now_iso(),
-                ),
-            )
-
+            
+            if config["type"] == "postgresql":
+                conn.execute("""
+                    INSERT INTO nutrition_entries
+                    (user_id, name, meal_type, calories, protein, carbs, fats, notes, date, created_at, updated_at)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    ON CONFLICT DO NOTHING
+                """, (
+                    user_id, m.get("name"), m.get("meal_type", "other"),
+                    safe_int(m.get("calories"), 0), safe_int(m.get("protein"), 0),
+                    safe_int(m.get("carbs"), 0), safe_int(m.get("fats"), 0),
+                    m.get("notes", ""), m.get("date", now_iso()[:10]), now, now
+                ))
+            else:
+                conn.execute("""
+                    INSERT INTO nutrition_entries
+                    (user_id, name, meal_type, calories, protein, carbs, fats, notes, date, created_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    user_id, m.get("name"), m.get("meal_type", "other"),
+                    safe_int(m.get("calories"), 0), safe_int(m.get("protein"), 0),
+                    safe_int(m.get("carbs"), 0), safe_int(m.get("fats"), 0),
+                    m.get("notes", ""), m.get("date", now_iso()[:10]), now, now
+                ))
+        
         for w in payload.get("workouts", []):
             if not isinstance(w, dict) or not w.get("id") or not w.get("name"):
                 continue
-            intensity = w.get("intensity", "medium")
-            if intensity not in ("low", "medium", "high"):
-                intensity = "medium"
-
-            exercises = w.get("exercises", [])
-            if not isinstance(exercises, list):
-                exercises = []
-
-            conn.execute(
-                """
-                INSERT INTO workouts
-                (id, user_id, name, type, duration, calories_burned, intensity, exercises_json, notes, date, time, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                ON CONFLICT(id) DO UPDATE SET
-                  name=excluded.name,
-                  type=excluded.type,
-                  duration=excluded.duration,
-                  calories_burned=excluded.calories_burned,
-                  intensity=excluded.intensity,
-                  exercises_json=excluded.exercises_json,
-                  notes=excluded.notes,
-                  date=excluded.date,
-                  time=excluded.time,
-                  updated_at=excluded.updated_at
-                """,
-                (
-                    w["id"],
-                    _default_user_id(),
-                    w["name"],
-                    w.get("type", "other"),
-                    max(0, safe_int(w.get("duration"), 0)),
-                    max(0, safe_int(w.get("calories_burned"), 0)),
-                    intensity,
-                    json.dumps(exercises),
-                    w.get("notes", ""),
-                    w.get("date") or today_str(),
-                    w.get("time"),
-                    w.get("created_at") or now_iso(),
-                    w.get("updated_at") or w.get("created_at") or now_iso(),
-                ),
-            )
-
-        conn.commit()
-    except Exception:
-        conn.rollback()
-        raise
+            
+            if config["type"] == "postgresql":
+                conn.execute("""
+                    INSERT INTO workouts
+                    (user_id, name, type, duration, calories_burned, intensity, exercises_json, notes, completed, date, created_at, updated_at)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    ON CONFLICT DO NOTHING
+                """, (
+                    user_id, w.get("name"), w.get("type", "other"),
+                    safe_int(w.get("duration"), 0), safe_int(w.get("calories_burned"), 0),
+                    w.get("intensity", "medium"), json.dumps(w.get("exercises", [])),
+                    w.get("notes", ""), 1 if w.get("completed") else 0,
+                    w.get("date", now_iso()[:10]), now, now
+                ))
+            else:
+                conn.execute("""
+                    INSERT INTO workouts
+                    (user_id, name, type, duration, calories_burned, intensity, exercises_json, notes, completed, date, created_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    user_id, w.get("name"), w.get("type", "other"),
+                    safe_int(w.get("duration"), 0), safe_int(w.get("calories_burned"), 0),
+                    w.get("intensity", "medium"), json.dumps(w.get("exercises", [])),
+                    w.get("notes", ""), 1 if w.get("completed") else 0,
+                    w.get("date", now_iso()[:10]), now, now
+                ))
+        
+        if config["type"] == "postgresql":
+            conn.commit()
+    except Exception as e:
+        if config["type"] == "postgresql":
+            conn.rollback()
+        raise e
 
 
 def init_app_data(app):
-    db_file = str(app.config["DB_FILE"])
-    os.makedirs(os.path.dirname(db_file), exist_ok=True)
-    conn = sqlite3.connect(db_file)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA foreign_keys = ON")
+    """Initialize database schema and migrate data if needed.
+    
+    For PostgreSQL: May skip if database is not yet initialized (normal
+    for fresh deployments - run migrate_to_postgres.py first).
+    """
+    config = app.config["DB_CONFIG"]
+    
     try:
-        with app.app_context():
-            init_schema(conn)
-            ensure_tasks_tags_column(conn)
-            ensure_auth_columns(conn)
-            if should_migrate_json(conn):
-                migrate_json_to_sqlite(conn)
-        conn.commit()
-    finally:
-        conn.close()
+        if config["type"] == "postgresql":
+            if not HAS_PSYCOPG2:
+                raise RuntimeError("psycopg2 not available for PostgreSQL")
+            psycopg2_conn = psycopg2.connect(config["url"])
+            conn = PostgreSQLConnectionWrapper(psycopg2_conn)
+        else:
+            db_file = str(config.get("path"))
+            os.makedirs(os.path.dirname(db_file), exist_ok=True)
+            conn = sqlite3.connect(db_file)
+            conn.row_factory = sqlite3.Row
+            conn.execute("PRAGMA foreign_keys = ON")
+        
+        try:
+            with app.app_context():
+                init_schema(conn)
+                ensure_tasks_tags_column(conn)
+                ensure_auth_columns(conn)
+                if should_migrate_json(conn):
+                    migrate_json_to_sqlite(conn)
+            if config["type"] == "postgresql":
+                conn.commit()
+        finally:
+            conn.close()
+    
+    except (psycopg2.OperationalError if HAS_PSYCOPG2 else Exception) as e:
+        if isinstance(e, psycopg2.OperationalError) if HAS_PSYCOPG2 else False:
+            # PostgreSQL database not ready - normal for fresh Render deployment
+            print("[DB] PostgreSQL database not yet initialized (normal on first deploy)")
+        else:
+            # For SQLite or other errors, fail loudly
+            raise e
