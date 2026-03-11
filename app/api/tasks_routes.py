@@ -20,6 +20,7 @@ import json
 
 from flask import Blueprint, jsonify, request
 
+from ..middleware import rate_limit
 from ..mappers import map_task
 from ..utils import safe_int, today_str
 from ..repositories.task_repo import TaskRepository, NoteLinker
@@ -29,6 +30,7 @@ tasks_bp = Blueprint("tasks", __name__)
 
 
 @tasks_bp.route("/api/tasks", methods=["GET"])
+@rate_limit(max_requests=50, window_seconds=60)
 def get_tasks():
     date_filter = request.args.get("date")
     rows = TaskRepository.get_all(default_user_id(), date_filter)
@@ -36,6 +38,7 @@ def get_tasks():
 
 
 @tasks_bp.route("/api/tasks", methods=["POST"])
+@rate_limit(max_requests=20, window_seconds=60)
 def create_task():
     req_data = request.get_json(silent=True) or {}
 

@@ -20,6 +20,7 @@ from datetime import datetime
 
 from flask import Blueprint, jsonify, request
 
+from ..middleware import rate_limit
 from ..mappers import map_meal
 from ..nutrition_ai import detect_foods, process_confirmed_foods, search_foods
 from ..repositories.nutrition_repo import NutritionRepository
@@ -37,6 +38,7 @@ def get_meals():
 
 
 @nutrition_bp.route("/api/meals", methods=["POST"])
+@rate_limit(max_requests=20, window_seconds=60)
 def create_meal():
     req_data = request.get_json(silent=True) or {}
 
@@ -100,6 +102,7 @@ def delete_meal(meal_id):
 # ---------------------------------------------------------------------------
 
 @nutrition_bp.route("/api/nutrition/ai-detect", methods=["POST"])
+@rate_limit(max_requests=20, window_seconds=60)
 def ai_detect_foods():
     default_user_id()  # Require auth
     req_data = request.get_json(silent=True) or {}
@@ -117,6 +120,7 @@ def ai_detect_foods():
 
 
 @nutrition_bp.route("/api/nutrition/ai-log", methods=["POST"])
+@rate_limit(max_requests=20, window_seconds=60)
 def ai_log_meal():
     req_data = request.get_json(silent=True) or {}
     confirmed_foods = req_data.get("foods", [])

@@ -30,9 +30,11 @@ from .api.streaks_routes import streaks_bp
 from .api.ai_routes import ai_bp
 from .api.focus_routes import focus_bp
 from .api.notes_routes import notes_bp
+from .api.projects_routes import projects_bp
 from .api.auth_routes import auth_bp
 from .config import Config
 from .db import init_app_data, register_db
+from .middleware import setup_middleware
 
 
 def _get_cors_config():
@@ -109,6 +111,7 @@ def create_app(config_class=Config):
 
     register_db(app)
     init_app_data(app)
+    setup_middleware(app)
 
     app.register_blueprint(web_bp)
     app.register_blueprint(auth_bp)
@@ -120,6 +123,7 @@ def create_app(config_class=Config):
     app.register_blueprint(ai_bp)
     app.register_blueprint(focus_bp)
     app.register_blueprint(notes_bp)
+    app.register_blueprint(projects_bp)
 
     # Warn about missing optional API keys at startup
     _log = logging.getLogger(__name__)

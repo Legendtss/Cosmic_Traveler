@@ -21,6 +21,7 @@ from datetime import datetime
 
 from flask import Blueprint, jsonify, request
 
+from ..middleware import rate_limit
 from ..mappers import map_workout
 from ..utils import safe_int, today_str
 from ..repositories.workout_repo import WorkoutRepository
@@ -37,6 +38,7 @@ def get_workouts():
 
 
 @workouts_bp.route("/api/workouts", methods=["POST"])
+@rate_limit(max_requests=20, window_seconds=60)
 def create_workout():
     req_data = request.get_json(silent=True) or {}
 
