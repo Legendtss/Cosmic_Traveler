@@ -44,62 +44,18 @@ class PostgreSQLConnectionWrapper:
         self.rowcount = 0
     
     def _convert_sql_placeholders(self, sql):
-        """Convert SQLite syntax to PostgreSQL syntax.
+        """Convert SQLite placeholders (?) to PostgreSQL placeholders (%s).
         
         Handles:
-        - Placeholders: ? → %s
-        - INSERT OR IGNORE → ON CONFLICT DO NOTHING
-        - INSERT OR REPLACE → ON CONFLICT ... DO UPDATE SET
+        - Simple ? replacement
         - Preserves ? inside strings (SQL literals)
+        - Handles format strings like %s (leaves them alone)
         """
-        # First, handle INSERT OR IGNORE / INSERT OR REPLACE
-        sql_converted = re.sub(
-            r'INSERT\s+OR\s+IGNORE\s+',
-            'INSERT ',
-            sql,
-            flags=re.IGNORECASE
-        )
-        
-        # For INSERT OR REPLACE, convert to ON CONFLICT ... DO UPDATE
-        # Basic handling: assume it's adding ON CONFLICT clause after VALUES section
-        if 'INSERT OR REPLACE' in sql.upper():
-            sql_converted = re.sub(
-                r'INSERT\s+OR\s+REPLACE\s+',
-                'INSERT ',
-                sql_converted,
-                flags=re.IGNORECASE
-            )
-            # Add ON CONFLICT clause at the end before any existing ON CONFLICT
-            if 'ON CONFLICT' not in sql_converted.upper():
-                # Find the first table name after INTO
-                table_match = re.search(r'INTO\s+(\w+)', sql_converted, re.IGNORECASE)
-                if table_match:
-                    table_name = table_match.group(1)
-                    # Append conflict clause before the final semicolon or at end
-                    sql_converted = re.sub(
-                        r'(\))\s*$',
-                        rf'\1 ON CONFLICT (id) DO UPDATE SET id=EXCLUDED.id',
-                        sql_converted
-                    )
-        
-        # Now add ON CONFLICT DO NOTHING for INSERT OR IGNORE converted statements
-        if 'INSERT ' in sql_converted.upper() and 'ON CONFLICT' not in sql_converted.upper():
-            if 'INSERT OR IGNORE' in sql.upper():
-                # Find the VALUES clause
-                values_match = re.search(r'(VALUES\s*\([^)]+\))', sql_converted, re.IGNORECASE)
-                if values_match:
-                    end_pos = values_match.end()
-                    sql_converted = (
-                        sql_converted[:end_pos] +
-                        ' ON CONFLICT DO NOTHING' +
-                        sql_converted[end_pos:]
-                    )
-        
+        import re
         # Split by quotes to avoid replacing ? inside string literals
-        parts = re.split(r"('(?:''|[^'])*')", sql_converted)  # Split on single-quoted strings
+        parts = re.split(r"('(?:''|[^'])*')", sql)  # Split on single-quoted strings
         for i in range(0, len(parts), 2):  # Even indices = outside quotes
             parts[i] = parts[i].replace('?', '%s')
-        
         return ''.join(parts)
     
     def execute(self, sql, params=None):
@@ -586,48 +542,39 @@ def migrate_json_to_sqlite(conn):
 def init_app_data(app):
     """Initialize database schema and migrate data if needed.
     
-    For PostgreSQL: Skips initialization if DATABASE_URL is set (assumes
-    external database is already initialized via migration script).
+    For PostgreSQL: Connects to external database (assumes migration script was run).
     For SQLite: Initializes schema on first run.
     """
     config = app.config["DB_CONFIG"]
     
-    # Skip initialization for PostgreSQL - assume external DB is ready
-    # or manual migration script was run
     if config["type"] == "postgresql":
         if not HAS_PSYCOPG2:
-            print("[DB] WARNING: DATABASE_URL set but psycopg2 not available")
-            print("[DB] Falling back to SQLite...")
-            # Fall through to SQLite initialization below
-        else:
-            # Try to connect, but don't fail if database not ready
+            raise RuntimeError(
+                "DATABASE_URL is set but psycopg2 is not available. "
+                "This usually means the build failed. Check Render build logs for errors. "
+                "Error: psycopg2 compilation failed or missing dependencies."
+            )
+        
+        try:
+            psycopg2_conn = psycopg2.connect(config["url"])
+            conn = PostgreSQLConnectionWrapper(psycopg2_conn)
+            
             try:
-                psycopg2_conn = psycopg2.connect(config["url"])
-                conn = PostgreSQLConnectionWrapper(psycopg2_conn)
-                
-                try:
-                    with app.app_context():
-                        # Just verify tables exist - don't recreate
-                        init_schema(conn)
-                        ensure_tasks_tags_column(conn)
-                        ensure_auth_columns(conn)
-                    if config["type"] == "postgresql":
-                        conn.commit()
-                finally:
-                    conn.close()
-            except psycopg2.OperationalError as e:
-                # Database might not be ready yet - normal for fresh Render deployment
-                print(f"[DB] PostgreSQL database not yet ready: {e}")
-                print("[DB] This is normal on first deploy. Run migration script manually.")
-                print("[DB] Falling back to SQLite...")
-            except Exception as e:
-                print(f"[DB] Error initializing PostgreSQL: {e}")
-                print("[DB] Falling back to SQLite...")
-                # Fall through to SQLite initialization
-            else:
-                # PostgreSQL initialized successfully
-                return
-        # Fall through to SQLite initialization if PostgreSQL unavailable or failed
+                with app.app_context():
+                    init_schema(conn)
+                    ensure_tasks_tags_column(conn)
+                    ensure_auth_columns(conn)
+                conn.commit()
+            finally:
+                conn.close()
+        except psycopg2.OperationalError as e:
+            # Database not ready - normal on fresh Render deployment
+            print(f"[DB] PostgreSQL not ready: {e}")
+            print("[DB] Run: python migrate_to_postgres.py")
+        except Exception as e:
+            print(f"[DB] PostgreSQL error: {e}")
+            raise
+        return
     
     # SQLite initialization
     try:
