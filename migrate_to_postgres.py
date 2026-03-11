@@ -8,7 +8,7 @@ It preserves all table structures, sequences, and data.
 Usage:
     python migrate_to_postgres.py --source data/fitness.sqlite --target postgresql://user:pass@host/dbname
 
-If --source or --target is omitted, defaults from config.py will be used.
+If --source or --target is omitted, will read from DATABASE_URL environment variable.
 """
 
 import argparse
@@ -17,17 +17,12 @@ import sqlite3
 import sys
 from pathlib import Path
 
-# Add project root to path
-sys.path.insert(0, str(Path(__file__).parent))
-
 try:
     import psycopg2
     from psycopg2.extras import execute_batch
 except ImportError:
     print("ERROR: psycopg2 not installed. Run: pip install psycopg2-binary")
     sys.exit(1)
-
-from app.config import Config
 
 
 def get_sqlite_connection(db_file):
@@ -50,13 +45,35 @@ def get_postgres_connection(db_url):
 
 
 def get_table_names(sqlite_conn):
-    """Get list of all user tables from SQLite (excluding internal tables)."""
+    """Get list of all user tables from SQLite (excluding internal tables).
+    
+    Returns tables in dependency order: users first, then others.
+    """
     cursor = sqlite_conn.execute("""
         SELECT name FROM sqlite_master 
         WHERE type='table' AND name NOT LIKE 'sqlite_%'
         ORDER BY name
     """)
-    return [row[0] for row in cursor.fetchall()]
+    tables = [row[0] for row in cursor.fetchall()]
+    
+    # Reorder for dependency: users must be first, then everything else
+    # This ensures foreign key constraints are satisfied
+    priority_order = ['users', 'projects', 'tasks', 'project_subtasks', 
+                      'focus_sessions', 'workouts', 'nutrition_entries',
+                      'stats_snapshots', 'user_progress', 'notes', 
+                      'sessions', 'login_attempts']
+    
+    ordered_tables = []
+    for prio_table in priority_order:
+        if prio_table in tables:
+            ordered_tables.append(prio_table)
+    
+    # Add any remaining tables not in priority order
+    for table in tables:
+        if table not in ordered_tables:
+            ordered_tables.append(table)
+    
+    return ordered_tables
 
 
 def get_column_info(sqlite_conn, table_name):
@@ -115,9 +132,9 @@ def migrate_sequences(postgres_conn, table_names):
             result = cursor.fetchone()
             max_id = result[0] if result and result[0] else 0
             
-            if max_id > 0:
+            if max_id and int(max_id) > 0:
                 seq_name = f"{table_name}_id_seq"
-                cursor.execute(f"SELECT setval('{seq_name}', %s)", (max_id,))
+                cursor.execute(f"SELECT setval('{seq_name}', %s)", (int(max_id),))
                 print(f"    {seq_name} → {max_id}")
         except psycopg2.Error:
             # Sequence might not exist for this table, skip
@@ -132,12 +149,12 @@ def main():
     )
     parser.add_argument(
         "--source",
-        help="Path to SQLite database (default: from config)",
-        default=None
+        help="Path to SQLite database (default: data/fitness.sqlite)",
+        default="data/fitness.sqlite"
     )
     parser.add_argument(
         "--target",
-        help="PostgreSQL connection URL (default: from config)",
+        help="PostgreSQL connection URL (default: from DATABASE_URL env var)",
         default=None
     )
     parser.add_argument(
@@ -148,20 +165,16 @@ def main():
     
     args = parser.parse_args()
     
-    # Determine source and target
-    if args.source:
-        sqlite_path = args.source
-    else:
-        config = Config.DB_CONFIG
-        if config["type"] != "sqlite":
-            print("ERROR: Current config is not SQLite. Specify --source explicitly.")
-            sys.exit(1)
-        sqlite_path = str(config["path"])
+    # Determine source
+    sqlite_path = args.source
+    if not os.path.exists(sqlite_path):
+        print(f"ERROR: SQLite database not found at {sqlite_path}")
+        sys.exit(1)
     
+    # Determine target
     if args.target:
         postgres_url = args.target
     else:
-        # Try to read from DATABASE_URL environment variable
         postgres_url = os.environ.get("DATABASE_URL")
         if not postgres_url:
             print("ERROR: No PostgreSQL URL specified. Use --target or set DATABASE_URL.")
@@ -169,7 +182,13 @@ def main():
     
     print(f"\n=== PostgreSQL Migration ===")
     print(f"  Source: {sqlite_path}")
-    print(f"  Target: {postgres_url.split('@')[1] if '@' in postgres_url else 'unknown'}")
+    
+    # Show masked URL
+    if "@" in postgres_url:
+        masked_url = postgres_url.split("@")[0] + "://...@" + postgres_url.split("@")[1]
+    else:
+        masked_url = postgres_url[:50] + "..."
+    print(f"  Target: {masked_url}")
     
     if args.dry_run:
         print("\n[DRY RUN MODE - No changes will be made]\n")
@@ -206,6 +225,7 @@ def main():
         migrate_sequences(postgres_conn, table_names)
         
         print("\n  ✓ Migration completed successfully!")
+        print("\n  Next: Deploy to Render with DATABASE_URL environment variable set")
         
     except psycopg2.Error as e:
         print(f"\n  ✗ Migration failed: {e}")
