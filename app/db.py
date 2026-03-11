@@ -597,8 +597,8 @@ def init_app_data(app):
     if config["type"] == "postgresql":
         if not HAS_PSYCOPG2:
             print("[DB] WARNING: DATABASE_URL set but psycopg2 not available")
-            print("[DB] Install psycopg2-binary or remove DATABASE_URL to use SQLite")
-            print("[DB] Skipping PostgreSQL initialization...")
+            print("[DB] Falling back to SQLite...")
+            # Fall through to SQLite initialization below
         else:
             # Try to connect, but don't fail if database not ready
             try:
@@ -619,10 +619,15 @@ def init_app_data(app):
                 # Database might not be ready yet - normal for fresh Render deployment
                 print(f"[DB] PostgreSQL database not yet ready: {e}")
                 print("[DB] This is normal on first deploy. Run migration script manually.")
+                print("[DB] Falling back to SQLite...")
             except Exception as e:
                 print(f"[DB] Error initializing PostgreSQL: {e}")
-                # Don't fail the app startup
-        return
+                print("[DB] Falling back to SQLite...")
+                # Fall through to SQLite initialization
+            else:
+                # PostgreSQL initialized successfully
+                return
+        # Fall through to SQLite initialization if PostgreSQL unavailable or failed
     
     # SQLite initialization
     try:
