@@ -26,12 +26,15 @@ from flask import current_app, g
 from .utils import now_iso, safe_int, today_str
 
 # Try to import psycopg2 for PostgreSQL support (optional)
+HAS_PSYCOPG2 = False
+PSYCOPG2_IMPORT_ERROR = None
 try:
     import psycopg2
     from psycopg2.extras import RealDictCursor
     HAS_PSYCOPG2 = True
-except ImportError:
-    HAS_PSYCOPG2 = False
+except Exception as e:
+    PSYCOPG2_IMPORT_ERROR = str(e)
+    print(f"[DB] psycopg2 import failed: {e}")
 
 
 class PostgreSQLConnectionWrapper:
@@ -550,9 +553,10 @@ def init_app_data(app):
     if config["type"] == "postgresql":
         if not HAS_PSYCOPG2:
             raise RuntimeError(
-                "DATABASE_URL is set but psycopg2 is not available. "
-                "This usually means the build failed. Check Render build logs for errors. "
-                "Error: psycopg2 compilation failed or missing dependencies."
+                f"DATABASE_URL is set but psycopg2 is not available. "
+                f"Import error: {PSYCOPG2_IMPORT_ERROR}. "
+                f"Python version: {os.sys.version}. "
+                f"Try: pip install psycopg2-binary"
             )
         
         try:
