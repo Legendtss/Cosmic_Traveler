@@ -207,35 +207,40 @@ def init_schema(conn):
     """Initialize database schema.
     
     For SQLite: execute schema script directly via executescript()
-    For PostgreSQL (wrapper): split statements, filter SQLite-specific pragmas,
-                              skip problematic syntax differences
+    For PostgreSQL: use dedicated PostgreSQL-compatible schema file
     """
-    schema_file = _schema_file()
-    if not os.path.exists(schema_file):
-        raise FileNotFoundError(f"Missing schema file: {schema_file}")
-    
-    with open(schema_file, "r", encoding="utf-8") as f:
-        schema_sql = f.read()
-    
     config = _db_config()
     
     if config["type"] == "postgresql":
-        # PostgreSQL: split statements, filter out SQLite-specific syntax
-        for statement in schema_sql.split(";"):
-            statement = statement.strip()
-            # Skip SQLite-specific directives
-            if statement and not statement.upper().startswith("PRAGMA"):
-                try:
-                    conn.execute(statement)
-                except psycopg2.Error as e:
-                    # Skip problematic statements (e.g., incompatible trigger syntax)
-                    # These will be handled by the migration script
-                    if "trigger" in str(e).lower() or "if not exists" in str(e).lower():
-                        pass  # Silently skip trigger issues
-                    else:
-                        raise e
-        conn.commit()
+        # Use PostgreSQL-specific schema file
+        pg_schema = os.path.join(os.path.dirname(_schema_file()), "schema_postgres.sql")
+        if not os.path.exists(pg_schema):
+            raise FileNotFoundError(f"Missing PostgreSQL schema file: {pg_schema}")
+        
+        with open(pg_schema, "r", encoding="utf-8") as f:
+            schema_sql = f.read()
+        
+        # Use raw psycopg2 connection for schema init (bypass wrapper overhead)
+        raw_conn = conn._conn
+        cur = raw_conn.cursor()
+        try:
+            cur.execute(schema_sql)
+            raw_conn.commit()
+            print("[DB] PostgreSQL schema initialized successfully")
+        except Exception as e:
+            raw_conn.rollback()
+            print(f"[DB] Schema error: {e}")
+            raise
+        finally:
+            cur.close()
     else:
+        schema_file = _schema_file()
+        if not os.path.exists(schema_file):
+            raise FileNotFoundError(f"Missing schema file: {schema_file}")
+        
+        with open(schema_file, "r", encoding="utf-8") as f:
+            schema_sql = f.read()
+        
         # SQLite: use executescript (supports multiple statements)
         conn.executescript(schema_sql)
 
@@ -562,6 +567,7 @@ def init_app_data(app):
         try:
             psycopg2_conn = psycopg2.connect(config["url"])
             conn = PostgreSQLConnectionWrapper(psycopg2_conn)
+            print("[DB] Connected to PostgreSQL successfully")
             
             try:
                 with app.app_context():
@@ -569,6 +575,7 @@ def init_app_data(app):
                     ensure_tasks_tags_column(conn)
                     ensure_auth_columns(conn)
                 conn.commit()
+                print("[DB] PostgreSQL initialization complete")
             finally:
                 conn.close()
         except psycopg2.OperationalError as e:
@@ -576,7 +583,9 @@ def init_app_data(app):
             print(f"[DB] PostgreSQL not ready: {e}")
             print("[DB] Run: python migrate_to_postgres.py")
         except Exception as e:
-            print(f"[DB] PostgreSQL error: {e}")
+            print(f"[DB] PostgreSQL error during init: {e}")
+            import traceback
+            traceback.print_exc()
             raise
         return
     
