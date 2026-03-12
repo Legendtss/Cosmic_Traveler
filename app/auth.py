@@ -127,12 +127,17 @@ def validate_session(token: str):
         "SELECT * FROM sessions WHERE id = ?", (token_hash,)
     ).fetchone()
     if not row:
+        print(f"[AUTH] Session not found in DB for token hash: {token_hash[:16]}...")
         return None
-    if row["expires_at"] < datetime.now(timezone.utc).isoformat():
+    expires_at = row["expires_at"]
+    now = datetime.now(timezone.utc).isoformat()
+    if expires_at < now:
+        print(f"[AUTH] Session expired: {expires_at} < {now}")
         # Expired — clean up
         db.execute("DELETE FROM sessions WHERE id = ?", (token_hash,))
         db.commit()
         return None
+    print(f"[AUTH] Session valid: user_id={row['user_id']}, expires={expires_at}")
     return row
 
 
@@ -149,12 +154,16 @@ def get_current_user_id():
 
     token = request.cookies.get(SESSION_COOKIE_NAME)
     if not token:
-        abort(401, description="Authentication required")
+        print(f"[AUTH] No session cookie found. Available cookies: {request.cookies}")
+        abort(401, description="Authentication required: no session cookie")
+    
     session_row = validate_session(token)
     if not session_row:
-        abort(401, description="Authentication required")
+        print(f"[AUTH] Session token invalid or expired. Token hash: {_hash_token(token)[:16]}...")
+        abort(401, description="Authentication required: invalid session")
 
     g.current_user_id = session_row["user_id"]
+    print(f"[AUTH] ✓ Session valid for user_id={session_row['user_id']}")
     return g.current_user_id
 
 

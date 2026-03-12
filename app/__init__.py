@@ -52,9 +52,11 @@ def _get_cors_config():
     if custom_origins:
         origins = [o.strip() for o in custom_origins.split(",") if o.strip()]
     elif is_production:
-        # In production: allow same-origin + any app domain
-        # This enables session cookies to work with all same-domain API calls
-        origins = ["*"]  # Same-origin requests always allowed; credentials still work
+        # In production: same-origin requests don't need CORS
+        # But we need to allow the app origin explicitly for credentials to work
+        # Get the origin from request (will be cosmic-traveler.onrender.com)
+        # For now, allow any HTTPS origin - credentials only work for actual origin anyway
+        origins = ["https://cosmic-traveler.onrender.com"]
     else:
         # Development: allow localhost variants
         origins = [
