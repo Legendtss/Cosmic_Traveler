@@ -52,9 +52,9 @@ def _get_cors_config():
     if custom_origins:
         origins = [o.strip() for o in custom_origins.split(",") if o.strip()]
     elif is_production:
-        # In production with no custom config: same-origin only (no CORS needed)
-        # CORS headers only apply to cross-origin requests
-        origins = []  # Empty = no cross-origin allowed
+        # In production: allow same-origin + any app domain
+        # This enables session cookies to work with all same-domain API calls
+        origins = ["*"]  # Same-origin requests always allowed; credentials still work
     else:
         # Development: allow localhost variants
         origins = [
@@ -65,7 +65,7 @@ def _get_cors_config():
         ]
     
     return {
-        "origins": origins if origins else False,  # False = no CORS headers
+        "origins": origins,
         "methods": ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
         "allow_headers": ["Content-Type", "Authorization"],
         "supports_credentials": True,

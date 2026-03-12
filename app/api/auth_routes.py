@@ -485,7 +485,8 @@ def _set_session_cookie(resp, token):
         token,
         max_age=SESSION_LIFETIME_DAYS * 86400,
         httponly=True,
-        samesite="Lax",
+        samesite="Lax",  # Allow cookies in same-site navigation
         secure=bool(is_production),
         path="/",
+        domain=None,  # Explicit: use default domain (current host)
     )
