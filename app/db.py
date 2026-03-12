@@ -47,14 +47,20 @@ class PostgreSQLConnectionWrapper:
         self.rowcount = 0
     
     def _convert_sql_placeholders(self, sql):
-        """Convert SQLite placeholders (?) to PostgreSQL placeholders (%s).
-        
+        """Convert SQLite-specific SQL to PostgreSQL-compatible SQL.
+
         Handles:
-        - Simple ? replacement
-        - Preserves ? inside strings (SQL literals)
-        - Handles format strings like %s (leaves them alone)
+        - ? → %s placeholder conversion (preserves ? inside string literals)
+        - INSERT OR IGNORE → INSERT ... ON CONFLICT DO NOTHING
         """
         import re
+
+        # Handle INSERT OR IGNORE (SQLite) → INSERT ... ON CONFLICT DO NOTHING (PostgreSQL)
+        if re.search(r'\bINSERT\s+OR\s+IGNORE\b', sql, re.IGNORECASE):
+            sql = re.sub(r'\bINSERT\s+OR\s+IGNORE\s+INTO\b', 'INSERT INTO', sql, flags=re.IGNORECASE)
+            if 'ON CONFLICT' not in sql.upper():
+                sql = sql.rstrip().rstrip(';') + ' ON CONFLICT DO NOTHING'
+
         # Split by quotes to avoid replacing ? inside string literals
         parts = re.split(r"('(?:''|[^'])*')", sql)  # Split on single-quoted strings
         for i in range(0, len(parts), 2):  # Even indices = outside quotes
@@ -80,33 +86,30 @@ class PostgreSQLConnectionWrapper:
         
         # Capture rowcount from cursor
         self.rowcount = self._cursor.rowcount
-        
-        # If INSERT, try to get lastrowid using currval or RETURNING clause
+
+        # If INSERT, try to capture lastrowid
         if 'INSERT' in sql.upper() and self.rowcount > 0:
             try:
-                # For tables with id sequences, fetch the last inserted ID
-                # This requires the INSERT to have been executed successfully
-                if 'RETURNING id' in sql or 'RETURNING' in sql.upper():
+                if 'RETURNING' in sql.upper():
                     result = self._cursor.fetchone()
                     if result:
-                        self.lastrowid = result.get('id') or result.get(list(result.keys())[0])
+                        keys = list(result.keys())
+                        self.lastrowid = result.get('id') or (result[keys[0]] if keys else None)
                 else:
-                    # Try to get the last inserted ID from the sequence
-                    # Use currval() for the most likely sequence name
-                    table_match = re.search(r'INTO\s+(\w+)', sql, re.IGNORECASE)
-                    if table_match:
-                        table_name = table_match.group(1)
-                        seq_name = f"{table_name}_id_seq"
-                        try:
-                            # Query the sequence value
-                            self._cursor.execute(f"SELECT currval('{seq_name}') as id")
-                            result = self._cursor.fetchone()
-                            if result and result.get('id'):
-                                self.lastrowid = result['id']
-                        except psycopg2.Error:
-                            pass  # Sequence might not exist
+                    # Use lastval() wrapped in a SAVEPOINT. If no sequence was used
+                    # (e.g. sessions table uses TEXT PK), lastval() raises an error.
+                    # The SAVEPOINT prevents that error from aborting the outer transaction.
+                    self._cursor.execute('SAVEPOINT _get_lastrowid')
+                    try:
+                        self._cursor.execute('SELECT lastval() AS id')
+                        result = self._cursor.fetchone()
+                        if result and result.get('id'):
+                            self.lastrowid = result['id']
+                        self._cursor.execute('RELEASE SAVEPOINT _get_lastrowid')
+                    except psycopg2.Error:
+                        self._cursor.execute('ROLLBACK TO SAVEPOINT _get_lastrowid')
             except Exception:
-                pass  # Fallback: lastrowid remains None
+                pass  # lastrowid remains None — caller must handle
         
         return self._cursor
     
@@ -205,25 +208,49 @@ def register_db(app):
 
 def init_schema(conn):
     """Initialize database schema.
-    
+
     For SQLite: execute schema script directly via executescript()
-    For PostgreSQL: use dedicated PostgreSQL-compatible schema file
+    For PostgreSQL: use dedicated PostgreSQL-compatible schema file.
+      Detects tables created by a broken SQLite-schema migration (no SERIAL/
+      sequences) and drops them so they can be recreated properly.
     """
     config = _db_config()
-    
+
     if config["type"] == "postgresql":
-        # Use PostgreSQL-specific schema file
         pg_schema = os.path.join(os.path.dirname(_schema_file()), "schema_postgres.sql")
         if not os.path.exists(pg_schema):
             raise FileNotFoundError(f"Missing PostgreSQL schema file: {pg_schema}")
-        
+
         with open(pg_schema, "r", encoding="utf-8") as f:
             schema_sql = f.read()
-        
-        # Use raw psycopg2 connection for schema init (bypass wrapper overhead)
+
         raw_conn = conn._conn
         cur = raw_conn.cursor()
         try:
+            # Detect broken schema: if users.id has no nextval() default it was
+            # created by the old SQLite schema (no SERIAL auto-increment).
+            cur.execute("""
+                SELECT column_default
+                FROM information_schema.columns
+                WHERE table_schema = 'public'
+                  AND table_name   = 'users'
+                  AND column_name  = 'id'
+            """)
+            row = cur.fetchone()
+            schema_broken = (row is None) or (row[0] is None) or ('nextval' not in str(row[0]))
+
+            if schema_broken:
+                print("[DB] Broken/missing schema detected — dropping all tables for clean rebuild...")
+                # Drop in reverse-dependency order; CASCADE handles any strays.
+                for tbl in [
+                    'focus_sessions', 'notes', 'stats_snapshots', 'user_progress',
+                    'nutrition_entries', 'project_subtasks', 'tasks', 'workouts',
+                    'projects', 'login_attempts', 'sessions', 'users',
+                ]:
+                    cur.execute(f'DROP TABLE IF EXISTS {tbl} CASCADE')
+                raw_conn.commit()
+                print("[DB] Dropped broken tables — creating fresh schema")
+
             cur.execute(schema_sql)
             raw_conn.commit()
             print("[DB] PostgreSQL schema initialized successfully")
@@ -237,11 +264,10 @@ def init_schema(conn):
         schema_file = _schema_file()
         if not os.path.exists(schema_file):
             raise FileNotFoundError(f"Missing schema file: {schema_file}")
-        
+
         with open(schema_file, "r", encoding="utf-8") as f:
             schema_sql = f.read()
-        
-        # SQLite: use executescript (supports multiple statements)
+
         conn.executescript(schema_sql)
 
 
