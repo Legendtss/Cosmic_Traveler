@@ -7623,6 +7623,15 @@ document.addEventListener('DOMContentLoaded', async () => {
       clearInterval(dashboardState.timerInterval);
       dashboardState.timerInterval = null;
     }
+    if (_focus.state === 'running') {
+      _focus.state = 'paused';
+      _focus.pauseTimestamp = Date.now();
+      _focusSaveState();
+    }
+    if (_focus.intervalId) {
+      clearInterval(_focus.intervalId);
+      _focus.intervalId = null;
+    }
     taskUiState.expanded.clear();
   });
 
@@ -9466,6 +9475,12 @@ function _focusOnVisibilityChange() {
 }
 
 // ─── Persist timer state in localStorage ────────────
+// ─── Storage key scoped to the logged-in user ───────
+function _focusStorageKey() {
+  const uid = window.AuthModule?.currentUser?.id;
+  return uid ? ('focus_timer_state_' + uid) : 'focus_timer_state';
+}
+
 function _focusSaveState() {
   const state = {
     mode: _focus.mode,
@@ -9486,12 +9501,12 @@ function _focusSaveState() {
     currentTrack: _focus.currentTrack,
     whitelist: _focus.whitelist,
   };
-  try { localStorage.setItem('focus_timer_state', JSON.stringify(state)); } catch(e) {}
+  try { localStorage.setItem(_focusStorageKey(), JSON.stringify(state)); } catch(e) {}
 }
 
 function _focusLoadState() {
   try {
-    const saved = JSON.parse(localStorage.getItem('focus_timer_state'));
+    const saved = JSON.parse(localStorage.getItem(_focusStorageKey()));
     if (!saved) return;
 
     _focus.mode = saved.mode || 'pomodoro';

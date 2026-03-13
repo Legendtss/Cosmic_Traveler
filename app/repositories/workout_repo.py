@@ -81,7 +81,7 @@ class WorkoutRepository:
         )
         db.commit()
         return db.execute(
-            "SELECT * FROM workouts WHERE id = ?", (cursor.lastrowid,)
+            "SELECT * FROM workouts WHERE id = ? AND user_id = ?", (cursor.lastrowid, user_id)
         ).fetchone()
 
     @staticmethod
@@ -115,7 +115,7 @@ class WorkoutRepository:
         )
         db.commit()
         return db.execute(
-            "SELECT * FROM workouts WHERE id = ?", (workout_id,)
+            "SELECT * FROM workouts WHERE id = ? AND user_id = ?", (workout_id, user_id)
         ).fetchone()
 
     @staticmethod
@@ -144,5 +144,5 @@ class WorkoutRepository:
         )
         db.commit()
         return db.execute(
-            "SELECT * FROM workouts WHERE id = ?", (workout_id,)
+            "SELECT * FROM workouts WHERE id = ? AND user_id = ?", (workout_id, user_id)
         ).fetchone()

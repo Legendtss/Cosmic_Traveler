@@ -82,9 +82,29 @@ window.AuthModule = (() => {
     return data;
   }
 
+  function _clearBrowserState() {
+    try {
+      const keysToRemove = [];
+      for (let index = 0; index < localStorage.length; index += 1) {
+        const key = localStorage.key(index);
+        if (key && key.startsWith('focus_timer_state')) {
+          keysToRemove.push(key);
+        }
+      }
+      keysToRemove.forEach(key => localStorage.removeItem(key));
+      sessionStorage.removeItem('fittrack_ai_session_id_v1');
+    } catch (_e) {
+      // Ignore storage cleanup failures and continue logout.
+    }
+  }
+
   async function logout() {
     await _post('/api/auth/logout', {});
+    _clearBrowserState();
     _currentUser = null;
+    // Reload page to clear all in-memory state (AppState, task lists, etc.)
+    // This prevents any data leaking to the next user on the same device.
+    window.location.reload();
   }
 
   async function updateProfile(fields) {

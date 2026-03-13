@@ -73,7 +73,7 @@ class FocusRepository:
         )
         db.commit()
         return db.execute(
-            "SELECT * FROM focus_sessions WHERE id = ?", (cursor.lastrowid,)
+            "SELECT * FROM focus_sessions WHERE id = ? AND user_id = ?", (cursor.lastrowid, user_id)
         ).fetchone()
 
     @staticmethod
@@ -104,7 +104,7 @@ class FocusRepository:
         )
         db.commit()
         return db.execute(
-            "SELECT * FROM focus_sessions WHERE id = ?", (session_id,)
+            "SELECT * FROM focus_sessions WHERE id = ? AND user_id = ?", (session_id, user_id)
         ).fetchone()
 
     @staticmethod

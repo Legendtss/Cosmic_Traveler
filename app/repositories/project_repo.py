@@ -71,7 +71,7 @@ class ProjectRepository:
         db.commit()
 
         project_row = db.execute(
-            "SELECT * FROM projects WHERE id = ?", (project_id,)
+            "SELECT * FROM projects WHERE id = ? AND user_id = ?", (project_id, user_id)
         ).fetchone()
         subtask_rows = db.execute(
             "SELECT * FROM project_subtasks WHERE project_id = ? ORDER BY sort_order",

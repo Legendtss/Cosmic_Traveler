@@ -132,7 +132,7 @@ class TaskRepository:
             (new_val, now_iso(), task_id, user_id),
         )
         db.commit()
-        return db.execute("SELECT * FROM tasks WHERE id = ?", (task_id,)).fetchone()
+        return db.execute("SELECT * FROM tasks WHERE id = ? AND user_id = ?", (task_id, user_id)).fetchone()
 
 
 class NoteLinker:
