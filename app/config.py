@@ -16,6 +16,51 @@ Depends on:
 
 import os
 from pathlib import Path
+from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
+
+
+def _get_int_env(name, default, *, minimum=None):
+    raw = os.environ.get(name, "").strip()
+    if not raw:
+        return default
+    try:
+        value = int(raw)
+    except ValueError:
+        return default
+    if minimum is not None and value < minimum:
+        return minimum
+    return value
+
+
+def _is_local_postgres_host(hostname):
+    normalized = (hostname or "").strip().lower()
+    return normalized in {"", "localhost", "127.0.0.1", "::1"}
+
+
+def _normalize_postgres_url(db_url):
+    parsed = urlparse(db_url)
+    query = dict(parse_qsl(parsed.query, keep_blank_values=True))
+
+    if "connect_timeout" not in query:
+        query["connect_timeout"] = str(_get_int_env("DB_CONNECT_TIMEOUT", 10, minimum=1))
+    if "application_name" not in query:
+        query["application_name"] = os.environ.get("DB_APPLICATION_NAME", "cosmic_traveler").strip() or "cosmic_traveler"
+    if "keepalives" not in query:
+        query["keepalives"] = "1"
+    if "keepalives_idle" not in query:
+        query["keepalives_idle"] = str(_get_int_env("DB_KEEPALIVES_IDLE", 30, minimum=1))
+    if "keepalives_interval" not in query:
+        query["keepalives_interval"] = str(_get_int_env("DB_KEEPALIVES_INTERVAL", 10, minimum=1))
+    if "keepalives_count" not in query:
+        query["keepalives_count"] = str(_get_int_env("DB_KEEPALIVES_COUNT", 5, minimum=1))
+
+    if "sslmode" not in query:
+        sslmode = os.environ.get("DB_SSLMODE", "").strip()
+        if not sslmode:
+            sslmode = "disable" if _is_local_postgres_host(parsed.hostname) else "require"
+        query["sslmode"] = sslmode
+
+    return urlunparse(parsed._replace(query=urlencode(query)))
 
 
 def _get_database_config():
@@ -39,9 +84,15 @@ def _get_database_config():
     
     # Handle postgresql:// or postgres://
     if db_url.startswith(("postgresql://", "postgres://")):
+        pool_minconn = _get_int_env("DB_POOL_MIN_CONN", 1, minimum=1)
+        pool_maxconn = _get_int_env("DB_POOL_MAX_CONN", 5, minimum=1)
+        if pool_maxconn < pool_minconn:
+            pool_maxconn = pool_minconn
         return {
             "type": "postgresql",
-            "url": db_url
+            "url": _normalize_postgres_url(db_url),
+            "pool_minconn": pool_minconn,
+            "pool_maxconn": pool_maxconn,
         }
     
     # Handle sqlite:// URL scheme

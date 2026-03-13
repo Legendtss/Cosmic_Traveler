@@ -20,6 +20,7 @@ import json
 import os
 import re
 import sqlite3
+import threading
 
 from flask import current_app, g
 
@@ -31,10 +32,15 @@ PSYCOPG2_IMPORT_ERROR = None
 try:
     import psycopg2
     from psycopg2.extras import RealDictCursor
+    from psycopg2.pool import ThreadedConnectionPool
     HAS_PSYCOPG2 = True
 except Exception as e:
     PSYCOPG2_IMPORT_ERROR = str(e)
     print(f"[DB] psycopg2 import failed: {e}")
+
+
+_POSTGRES_POOL_KEY = "postgres_db_pool"
+_POSTGRES_POOL_LOCK = threading.Lock()
 
 
 class PostgreSQLConnectionWrapper:
@@ -49,9 +55,11 @@ class PostgreSQLConnectionWrapper:
         'focus_sessions', 'notes',
     })
 
-    def __init__(self, psycopg2_conn):
+    def __init__(self, psycopg2_conn, *, release_callback=None):
         self._conn = psycopg2_conn
         self._cursor = psycopg2_conn.cursor(cursor_factory=RealDictCursor)
+        self._release_callback = release_callback
+        self._closed = False
         self.lastrowid = None
         self.rowcount = 0
 
@@ -130,8 +138,19 @@ class PostgreSQLConnectionWrapper:
 
     def close(self):
         """Close cursor and connection."""
-        self._cursor.close()
-        self._conn.close()
+        if self._closed:
+            return
+
+        self._closed = True
+        try:
+            self._cursor.close()
+        except Exception:
+            pass
+
+        if self._release_callback is not None:
+            self._release_callback(self._conn)
+        else:
+            self._conn.close()
 
     def cursor(self, **kwargs):
         """Get a new raw psycopg2 cursor (used by init_schema)."""
@@ -161,12 +180,65 @@ def _default_user_id():
     return current_app.config["DEFAULT_USER_ID"]
 
 
+def _create_postgres_pool(config):
+    return ThreadedConnectionPool(
+        config.get("pool_minconn", 1),
+        config.get("pool_maxconn", 5),
+        config["url"],
+    )
+
+
+def _get_postgres_pool_for_app(app):
+    pool = app.extensions.get(_POSTGRES_POOL_KEY)
+    if pool is not None:
+        return pool
+
+    with _POSTGRES_POOL_LOCK:
+        pool = app.extensions.get(_POSTGRES_POOL_KEY)
+        if pool is None:
+            pool = _create_postgres_pool(app.config["DB_CONFIG"])
+            app.extensions[_POSTGRES_POOL_KEY] = pool
+    return pool
+
+
+def _get_postgres_pool():
+    return _get_postgres_pool_for_app(current_app._get_current_object())
+
+
+def _return_postgres_connection(pool, conn):
+    if conn is None:
+        return
+
+    close_connection = bool(getattr(conn, "closed", 0))
+    if not close_connection:
+        try:
+            conn.rollback()
+        except Exception:
+            close_connection = True
+
+    try:
+        pool.putconn(conn, close=close_connection)
+    except Exception:
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+
+def _checkout_postgres_connection(pool):
+    raw_conn = pool.getconn()
+    return PostgreSQLConnectionWrapper(
+        raw_conn,
+        release_callback=lambda psycopg2_conn: _return_postgres_connection(pool, psycopg2_conn),
+    )
+
+
 def get_db():
     """Get database connection (SQLite or PostgreSQL).
     
     Returns a connection object that works identically for both databases:
     - SQLite: native sqlite3.Connection with row_factory=sqlite3.Row
-    - PostgreSQL: Wrapped psycopg2 connection with cursor_factory=RealDictCursor
+    - PostgreSQL: pooled psycopg2 connection wrapped with cursor_factory=RealDictCursor
     
     Both support: conn.execute(sql, params).fetchone()/fetchall()
     """
@@ -179,9 +251,7 @@ def get_db():
                     "PostgreSQL database configured but psycopg2 not installed. "
                     "Run: pip install psycopg2-binary"
                 )
-            psycopg2_conn = psycopg2.connect(config["url"])
-            # Wrap in compatibility layer
-            g.db = PostgreSQLConnectionWrapper(psycopg2_conn)
+            g.db = _checkout_postgres_connection(_get_postgres_pool())
         else:  # SQLite
             db_file = _db_file()
             os.makedirs(os.path.dirname(db_file), exist_ok=True)
@@ -575,7 +645,7 @@ def migrate_json_to_sqlite(conn):
 def init_app_data(app):
     """Initialize database schema and migrate data if needed.
     
-    For PostgreSQL: Connects to external database (assumes migration script was run).
+    For PostgreSQL: validates connectivity, initializes schema deltas, and fails fast if unavailable.
     For SQLite: Initializes schema on first run.
     """
     config = app.config["DB_CONFIG"]
@@ -590,9 +660,9 @@ def init_app_data(app):
             )
         
         try:
-            psycopg2_conn = psycopg2.connect(config["url"])
-            conn = PostgreSQLConnectionWrapper(psycopg2_conn)
-            print("[DB] Connected to PostgreSQL successfully")
+            pool = _get_postgres_pool_for_app(app)
+            conn = _checkout_postgres_connection(pool)
+            app.logger.info("[DB] Connected to PostgreSQL successfully")
             
             try:
                 with app.app_context():
@@ -600,13 +670,15 @@ def init_app_data(app):
                     ensure_tasks_tags_column(conn)
                     ensure_auth_columns(conn)
                 conn.commit()
-                print("[DB] PostgreSQL initialization complete")
+                app.logger.info("[DB] PostgreSQL initialization complete")
+            except Exception:
+                conn.rollback()
+                raise
             finally:
                 conn.close()
         except psycopg2.OperationalError as e:
-            # Database not ready - normal on fresh Render deployment
-            print(f"[DB] PostgreSQL not ready: {e}")
-            print("[DB] Run: python migrate_to_postgres.py")
+            app.logger.exception("[DB] PostgreSQL startup connection failed")
+            raise RuntimeError("PostgreSQL startup connection failed") from e
         except Exception as e:
             print(f"[DB] PostgreSQL error during init: {e}")
             import traceback
@@ -629,6 +701,10 @@ def init_app_data(app):
                 ensure_auth_columns(conn)
                 if should_migrate_json(conn):
                     migrate_json_to_sqlite(conn)
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
         finally:
             conn.close()
     except Exception as e:
