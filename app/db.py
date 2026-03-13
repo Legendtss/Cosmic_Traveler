@@ -39,13 +39,22 @@ except Exception as e:
 
 class PostgreSQLConnectionWrapper:
     """Wraps psycopg2 connection to provide sqlite3-compatible interface."""
-    
+
+    # Tables whose primary key is a SERIAL sequence (auto-increment integer).
+    # For these, execute() appends RETURNING id so .lastrowid is populated.
+    # Sessions and login_attempts use TEXT PKs — they are intentionally absent.
+    _SERIAL_TABLES = frozenset({
+        'users', 'projects', 'tasks', 'project_subtasks', 'workouts',
+        'nutrition_entries', 'stats_snapshots', 'user_progress',
+        'focus_sessions', 'notes',
+    })
+
     def __init__(self, psycopg2_conn):
         self._conn = psycopg2_conn
         self._cursor = psycopg2_conn.cursor(cursor_factory=RealDictCursor)
         self.lastrowid = None
         self.rowcount = 0
-    
+
     def _convert_sql_placeholders(self, sql):
         """Convert SQLite-specific SQL to PostgreSQL-compatible SQL.
 
@@ -53,8 +62,6 @@ class PostgreSQLConnectionWrapper:
         - ? → %s placeholder conversion (preserves ? inside string literals)
         - INSERT OR IGNORE → INSERT ... ON CONFLICT DO NOTHING
         """
-        import re
-
         # Handle INSERT OR IGNORE (SQLite) → INSERT ... ON CONFLICT DO NOTHING (PostgreSQL)
         if re.search(r'\bINSERT\s+OR\s+IGNORE\b', sql, re.IGNORECASE):
             sql = re.sub(r'\bINSERT\s+OR\s+IGNORE\s+INTO\b', 'INSERT INTO', sql, flags=re.IGNORECASE)
@@ -66,76 +73,68 @@ class PostgreSQLConnectionWrapper:
         for i in range(0, len(parts), 2):  # Even indices = outside quotes
             parts[i] = parts[i].replace('?', '%s')
         return ''.join(parts)
-    
+
     def execute(self, sql, params=None):
-        """Execute SQL and return cursor (supports method chaining).
-        
-        Automatically converts SQLite placeholders (?) to PostgreSQL (%s).
+        """Execute SQL and return self (the wrapper).
+
+        Returning self (not the raw cursor) means callers can access
+        .lastrowid and .rowcount correctly, while .fetchone()/.fetchall()
+        still delegate through to the underlying psycopg2 cursor.
+
+        For INSERT on SERIAL tables, appends RETURNING id automatically so
+        that .lastrowid is populated without any SAVEPOINT/lastval hacks.
         """
-        # Convert SQLite ? placeholders to PostgreSQL %s
         sql_converted = self._convert_sql_placeholders(sql)
-        
-        try:
-            if params:
-                self._cursor.execute(sql_converted, params)
-            else:
-                self._cursor.execute(sql_converted)
-        except psycopg2.Error as e:
-            # Log converted SQL for debugging
-            raise e
-        
-        # Capture rowcount from cursor
+
+        # Append RETURNING id for INSERTs on SERIAL tables (no-op if already present)
+        added_returning = False
+        if re.search(r'\bINSERT\b', sql_converted, re.IGNORECASE) and 'RETURNING' not in sql_converted.upper():
+            tbl_match = re.search(r'\bINTO\s+(\w+)\b', sql_converted, re.IGNORECASE)
+            if tbl_match and tbl_match.group(1).lower() in self._SERIAL_TABLES:
+                sql_converted = sql_converted.rstrip().rstrip(';') + ' RETURNING id'
+                added_returning = True
+
+        if params:
+            self._cursor.execute(sql_converted, params)
+        else:
+            self._cursor.execute(sql_converted)
+
         self.rowcount = self._cursor.rowcount
 
-        # If INSERT, try to capture lastrowid
-        if 'INSERT' in sql.upper() and self.rowcount > 0:
-            try:
-                if 'RETURNING' in sql.upper():
-                    result = self._cursor.fetchone()
-                    if result:
-                        keys = list(result.keys())
-                        self.lastrowid = result.get('id') or (result[keys[0]] if keys else None)
-                else:
-                    # Use lastval() wrapped in a SAVEPOINT. If no sequence was used
-                    # (e.g. sessions table uses TEXT PK), lastval() raises an error.
-                    # The SAVEPOINT prevents that error from aborting the outer transaction.
-                    self._cursor.execute('SAVEPOINT _get_lastrowid')
-                    try:
-                        self._cursor.execute('SELECT lastval() AS id')
-                        result = self._cursor.fetchone()
-                        if result and result.get('id'):
-                            self.lastrowid = result['id']
-                        self._cursor.execute('RELEASE SAVEPOINT _get_lastrowid')
-                    except psycopg2.Error:
-                        self._cursor.execute('ROLLBACK TO SAVEPOINT _get_lastrowid')
-            except Exception:
-                pass  # lastrowid remains None — caller must handle
-        
-        return self._cursor
-    
+        if added_returning and self.rowcount > 0:
+            result = self._cursor.fetchone()
+            if result:
+                self.lastrowid = result.get('id')
+
+        return self  # ← return the wrapper so .lastrowid/.rowcount are accessible
+
     def fetchone(self):
         """Fetch one result."""
         return self._cursor.fetchone()
-    
+
     def fetchall(self):
         """Fetch all results."""
         return self._cursor.fetchall()
-    
+
+    def __iter__(self):
+        """Allow direct iteration over query results."""
+        return iter(self._cursor)
+
     def commit(self):
         """Commit transaction."""
         self._conn.commit()
-    
+
     def rollback(self):
         """Rollback transaction."""
         self._conn.rollback()
-    
+
     def close(self):
         """Close cursor and connection."""
         self._cursor.close()
         self._conn.close()
-    
+
     def cursor(self, **kwargs):
-        """Get a new cursor."""
+        """Get a new raw psycopg2 cursor (used by init_schema)."""
         return self._conn.cursor(cursor_factory=RealDictCursor, **kwargs)
 
 

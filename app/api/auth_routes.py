@@ -179,10 +179,15 @@ def signup():
 
     db = get_db()
 
-    # Check uniqueness
-    existing = db.execute("SELECT id FROM users WHERE email = ?", (email,)).fetchone()
+    # Check uniqueness — also handle "orphan" records: emails that were committed
+    # during a broken deploy where the session was never created (password_hash='').
+    existing = db.execute("SELECT id, password_hash FROM users WHERE email = ?", (email,)).fetchone()
     if existing:
-        return jsonify({"ok": False, "errors": ["Email already registered."]}), 409
+        if existing["password_hash"]:
+            return jsonify({"ok": False, "errors": ["Email already registered."]}), 409
+        # Orphan record: email committed but signup never completed — reclaim it
+        db.execute("DELETE FROM users WHERE email = ?", (email,))
+        db.commit()
 
     # Insert user
     now = now_iso()
@@ -193,10 +198,11 @@ def signup():
         """,
         (email, hash_password(password), display_name, now, now),
     )
-    db.commit()
     user_id = cur.lastrowid
     if user_id is None:
+        db.rollback()
         return jsonify({"ok": False, "errors": ["Account creation failed."]}), 500
+    db.commit()
 
     # Ensure user_progress row exists
     db.execute(
