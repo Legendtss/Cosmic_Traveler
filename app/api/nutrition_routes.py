@@ -28,6 +28,12 @@ from ..utils import safe_float, safe_int, today_str
 from .helpers import default_user_id
 
 nutrition_bp = Blueprint("nutrition", __name__)
+VALID_MEAL_TYPES = frozenset({"breakfast", "lunch", "dinner", "snack", "other"})
+
+
+def _normalize_meal_type(value):
+    meal_type = str(value or "other").strip().lower()
+    return meal_type if meal_type in VALID_MEAL_TYPES else "other"
 
 
 @nutrition_bp.route("/api/meals", methods=["GET"])
@@ -41,18 +47,16 @@ def get_meals():
 @rate_limit(max_requests=20, window_seconds=60)
 def create_meal():
     req_data = request.get_json(silent=True) or {}
+    uid = default_user_id()
 
     name = (req_data.get("name") or "").strip()
     if not name:
         return jsonify({"error": "Meal name is required"}), 400
 
-    meal_type = req_data.get("meal_type", "other")
-    valid_meal_types = ("breakfast", "lunch", "dinner", "snack", "other")
-    if meal_type not in valid_meal_types:
-        return jsonify({"error": f"Meal type must be one of: {', '.join(valid_meal_types)}"}), 400
+    meal_type = _normalize_meal_type(req_data.get("meal_type", "other"))
 
     meal_id = NutritionRepository.create(
-        default_user_id(),
+        uid,
         name=name,
         meal_type=meal_type,
         calories=max(0, safe_int(req_data.get("calories"), 0)),
@@ -64,7 +68,7 @@ def create_meal():
         time=req_data.get("time", datetime.now().strftime("%H:%M")),
     )
 
-    row = NutritionRepository.get_by_id(meal_id)
+    row = NutritionRepository.get_by_id(meal_id, uid)
     return jsonify(map_meal(row)), 201
 
 
@@ -76,11 +80,7 @@ def update_meal(meal_id):
         return jsonify({"error": "Meal not found"}), 404
 
     req_data = request.get_json(silent=True) or {}
-
-    meal_type = req_data.get("meal_type", row["meal_type"])
-    valid_meal_types = ("breakfast", "lunch", "dinner", "snack", "other")
-    if meal_type not in valid_meal_types:
-        return jsonify({"error": f"Meal type must be one of: {', '.join(valid_meal_types)}"}), 400
+    meal_type = _normalize_meal_type(req_data.get("meal_type", row["meal_type"]))
 
     NutritionRepository.update(
         meal_id, uid,
@@ -95,7 +95,7 @@ def update_meal(meal_id):
         time=req_data.get("time", row["time"]),
     )
 
-    updated = NutritionRepository.get_by_id(meal_id)
+    updated = NutritionRepository.get_by_id(meal_id, uid)
     return jsonify(map_meal(updated))
 
 
@@ -120,7 +120,7 @@ def ai_detect_foods():
     if not user_input:
         return jsonify({"error": "user_input is required"}), 400
 
-    meal_type = req_data.get("meal_type", "other")
+    meal_type = _normalize_meal_type(req_data.get("meal_type", "other"))
     result = detect_foods(user_input, meal_type)
 
     if result.get("status") == "error":
@@ -137,10 +137,10 @@ def ai_log_meal():
     if not confirmed_foods:
         return jsonify({"error": "No confirmed foods to log"}), 400
 
-    meal_type = req_data.get("meal_type", "other")
+    meal_type = _normalize_meal_type(req_data.get("meal_type", "other"))
     result = process_confirmed_foods(confirmed_foods, meal_type)
 
-    meal_type_normalized = (result.get("meal_type") or "other").lower()
+    meal_type_normalized = _normalize_meal_type(result.get("meal_type") or meal_type)
     log_date = req_data.get("date", today_str())
     log_time = req_data.get("time", datetime.now().strftime("%H:%M"))
 

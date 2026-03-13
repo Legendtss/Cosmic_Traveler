@@ -84,15 +84,30 @@ window.AuthModule = (() => {
 
   function _clearBrowserState() {
     try {
-      const keysToRemove = [];
+      const localKeysToRemove = [];
       for (let index = 0; index < localStorage.length; index += 1) {
         const key = localStorage.key(index);
-        if (key && key.startsWith('focus_timer_state')) {
-          keysToRemove.push(key);
+        if (
+          key
+          && (
+            key.startsWith('focus_timer_state')
+            || key.startsWith('fittrack_theme_v1')
+            || key.startsWith('fittrack_dash_quick_actions_v1')
+          )
+        ) {
+          localKeysToRemove.push(key);
         }
       }
-      keysToRemove.forEach(key => localStorage.removeItem(key));
-      sessionStorage.removeItem('fittrack_ai_session_id_v1');
+      localKeysToRemove.forEach(key => localStorage.removeItem(key));
+
+      const sessionKeysToRemove = [];
+      for (let index = 0; index < sessionStorage.length; index += 1) {
+        const key = sessionStorage.key(index);
+        if (key && key.startsWith('fittrack_ai_session_id_v1')) {
+          sessionKeysToRemove.push(key);
+        }
+      }
+      sessionKeysToRemove.forEach(key => sessionStorage.removeItem(key));
     } catch (_e) {
       // Ignore storage cleanup failures and continue logout.
     }

@@ -47,15 +47,11 @@ class TaskRepository:
         ).fetchall()
 
     @staticmethod
-    def get_by_id(task_id, user_id=None):
+    def get_by_id(task_id, user_id):
         db = get_db()
-        if user_id:
-            return db.execute(
-                "SELECT * FROM tasks WHERE id = ? AND user_id = ?",
-                (task_id, user_id),
-            ).fetchone()
         return db.execute(
-            "SELECT * FROM tasks WHERE id = ?", (task_id,)
+            "SELECT * FROM tasks WHERE id = ? AND user_id = ?",
+            (task_id, user_id),
         ).fetchone()
 
     @staticmethod

@@ -73,18 +73,21 @@ class ProjectRepository:
         project_row = db.execute(
             "SELECT * FROM projects WHERE id = ? AND user_id = ?", (project_id, user_id)
         ).fetchone()
-        subtask_rows = db.execute(
-            "SELECT * FROM project_subtasks WHERE project_id = ? ORDER BY sort_order",
-            (project_id,),
-        ).fetchall()
+        subtask_rows = ProjectRepository.get_subtasks(project_id, user_id)
         return project_row, subtask_rows
 
     @staticmethod
-    def get_subtasks(project_id):
+    def get_subtasks(project_id, user_id):
         db = get_db()
         return db.execute(
-            "SELECT * FROM project_subtasks WHERE project_id = ? ORDER BY sort_order",
-            (project_id,),
+            """
+            SELECT ps.*
+            FROM project_subtasks ps
+            JOIN projects p ON p.id = ps.project_id
+            WHERE ps.project_id = ? AND p.user_id = ?
+            ORDER BY ps.sort_order
+            """,
+            (project_id, user_id),
         ).fetchall()
 
     @staticmethod

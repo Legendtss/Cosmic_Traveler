@@ -22,11 +22,13 @@ from flask import Blueprint, jsonify, request
 
 from ..middleware import rate_limit
 from ..mappers import map_task
+from ..repositories.project_repo import ProjectRepository
 from ..utils import safe_int, today_str
 from ..repositories.task_repo import TaskRepository, NoteLinker
 from .helpers import default_user_id, normalize_tags
 
 tasks_bp = Blueprint("tasks", __name__)
+VALID_TASK_CATEGORIES = frozenset({"general", "work", "personal", "health", "study", "finance"})
 
 
 @tasks_bp.route("/api/tasks", methods=["GET"])
@@ -41,17 +43,30 @@ def get_tasks():
 @rate_limit(max_requests=20, window_seconds=60)
 def create_task():
     req_data = request.get_json(silent=True) or {}
+    uid = default_user_id()
 
     title = (req_data.get("title") or "").strip()
     if not title:
         return jsonify({"error": "Title is required"}), 400
 
-    # Validate priority
     priority = req_data.get("priority", "medium")
-    valid_priorities = ("low", "medium", "high")
-    if priority not in valid_priorities:
-        return jsonify({"error": f"Priority must be one of: {', '.join(valid_priorities)}"}), 400
-    
+    if priority not in ("low", "medium", "high"):
+        priority = "medium"
+    category = str(req_data.get("category", "general") or "general").strip().lower()
+    if category not in VALID_TASK_CATEGORIES:
+        category = "general"
+
+    project_id = req_data.get("project_id")
+    if project_id in (None, "", "null"):
+        project_id = None
+    else:
+        try:
+            project_id = int(project_id)
+        except (TypeError, ValueError):
+            return jsonify({"error": "project_id must be a valid project id"}), 400
+        if not ProjectRepository.get_by_id(project_id, uid):
+            return jsonify({"error": "Project not found"}), 404
+
     due_date = req_data.get("date") or today_str()
 
     tags = normalize_tags(req_data.get("tags"))
@@ -59,14 +74,14 @@ def create_task():
     save_note = bool(req_data.get("save_to_notes"))
 
     task_id, created_at = TaskRepository.create(
-        default_user_id(),
+        uid,
         title=title,
         description=req_data.get("description", ""),
         tags_json=json.dumps(tags),
-        category=req_data.get("category", "general"),
+        category=category,
         priority=priority,
         date=due_date,
-        project_id=req_data.get("project_id"),
+        project_id=project_id,
         note_content=note_content,
         note_saved_to_notes=save_note,
     )
@@ -74,11 +89,11 @@ def create_task():
     # Auto-create linked note if requested
     if save_note and note_content:
         NoteLinker.create_linked_note(
-            default_user_id(), task_id, title, note_content,
+            uid, task_id, title, note_content,
             json.dumps(tags), created_at,
         )
 
-    row = TaskRepository.get_by_id(task_id)
+    row = TaskRepository.get_by_id(task_id, uid)
     return jsonify(map_task(row)), 201
 
 
@@ -94,6 +109,8 @@ def update_task(task_id):
     title = req_data.get("title", row["title"])
     description = req_data.get("description", row["description"])
     category = req_data.get("category", row["category"])
+    if category not in VALID_TASK_CATEGORIES:
+        category = row["category"]
     priority = req_data.get("priority", row["priority"])
     completed = req_data.get("completed", bool(row["completed"]))
     time_spent = req_data.get("time_spent", row["time_spent"])
@@ -114,10 +131,8 @@ def update_task(task_id):
     save_note = req_data.get("save_to_notes", old_note_saved)
     due_date = req_data.get("date", row["date"])
 
-    # Validate priority
-    valid_priorities = ("low", "medium", "high")
-    if priority not in valid_priorities:
-        return jsonify({"error": f"Priority must be one of: {', '.join(valid_priorities)}"}), 400
+    if priority not in ("low", "medium", "high"):
+        priority = row["priority"]
 
     note_content_val = (note_content or "").strip()
     note_saved_val = bool(save_note and note_content_val)
@@ -142,7 +157,7 @@ def update_task(task_id):
     else:
         NoteLinker.delete_linked_note(uid, task_id)
 
-    updated = TaskRepository.get_by_id(task_id)
+    updated = TaskRepository.get_by_id(task_id, uid)
     return jsonify(map_task(updated))
 
 

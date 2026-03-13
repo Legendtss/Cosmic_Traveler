@@ -34,7 +34,7 @@ def get_projects():
     projects = []
     for r in rows:
         # Get subtasks for each project
-        subtasks = ProjectRepository.get_subtasks(r["id"])
+        subtasks = ProjectRepository.get_subtasks(r["id"], user_id)
         projects.append({
             "id": r["id"],
             "name": r["name"],
@@ -106,7 +106,7 @@ def get_project(project_id):
     if not project_row:
         return jsonify({"error": "Project not found"}), 404
     
-    subtasks = ProjectRepository.get_subtasks(project_id)
+    subtasks = ProjectRepository.get_subtasks(project_id, user_id)
     return jsonify({
         "id": project_row["id"],
         "name": project_row["name"],
@@ -150,7 +150,7 @@ def get_project_subtasks(project_id):
     if not project_row:
         return jsonify({"error": "Project not found"}), 404
     
-    subtasks = ProjectRepository.get_subtasks(project_id)
+    subtasks = ProjectRepository.get_subtasks(project_id, user_id)
     return jsonify([
         {
             "id": s["id"],

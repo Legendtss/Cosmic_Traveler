@@ -3784,7 +3784,10 @@ const dashboardState = {
   selectedQuickActions: ['start_timer', 'log_workout', 'log_meal']
 };
 
-const DASH_QUICK_ACTIONS_KEY = 'fittrack_dash_quick_actions_v1';
+const DASH_QUICK_ACTIONS_KEY_BASE = 'fittrack_dash_quick_actions_v1';
+function dashboardQuickActionsStorageKey() {
+  return _userKeyPrefix(DASH_QUICK_ACTIONS_KEY_BASE);
+}
 const DASH_QUICK_ACTION_OPTIONS = [
   { id: 'start_timer', label: 'Start Timer', icon: 'fa-stopwatch', colorClass: 'blue' },
   { id: 'log_workout', label: 'Log Workout', icon: 'fa-dumbbell', colorClass: 'green' },
@@ -3835,7 +3838,13 @@ function sanitizeDashboardQuickActions() {
 
 function loadDashboardQuickActions() {
   try {
-    const raw = localStorage.getItem(DASH_QUICK_ACTIONS_KEY);
+    const scopedKey = dashboardQuickActionsStorageKey();
+    const legacyRaw = localStorage.getItem(DASH_QUICK_ACTIONS_KEY_BASE);
+    const raw = localStorage.getItem(scopedKey) || legacyRaw;
+    if (legacyRaw && !localStorage.getItem(scopedKey)) {
+      localStorage.setItem(scopedKey, legacyRaw);
+      localStorage.removeItem(DASH_QUICK_ACTIONS_KEY_BASE);
+    }
     if (raw) {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed)) {
@@ -3850,7 +3859,7 @@ function loadDashboardQuickActions() {
 }
 
 function persistDashboardQuickActions() {
-  localStorage.setItem(DASH_QUICK_ACTIONS_KEY, JSON.stringify(dashboardState.selectedQuickActions));
+  localStorage.setItem(dashboardQuickActionsStorageKey(), JSON.stringify(dashboardState.selectedQuickActions));
 }
 
 function actionOptionById(actionId) {
@@ -4383,7 +4392,7 @@ function streakFullEvalDemo() {
   const rawWorkouts = (workoutState.workouts || []);
   const workouts = rawWorkouts.map(w => ({
     ...w,
-    completed: w.completed !== undefined ? !!w.completed : !!workoutMeta(w.id).completed,
+    completed: !!w.completed,
   }));
   const proteinGoal = nutritionState.baseGoals.protein || 140;
 
@@ -5577,7 +5586,6 @@ function normalizeWorkoutMeta(rawMeta) {
   Object.keys(rawMeta).forEach((key) => {
     const item = rawMeta[key] || {};
     result[String(key)] = {
-      completed: !!item.completed,
       muscleGroup: String(item.muscleGroup || ''),
       estimatedDuration: Number(item.estimatedDuration) || 60
     };
@@ -5609,7 +5617,7 @@ function persistWorkoutStorage() {
 function workoutMeta(workoutId) {
   const key = String(workoutId);
   if (!workoutState.meta[key]) {
-    workoutState.meta[key] = { completed: false, muscleGroup: '', estimatedDuration: 60 };
+    workoutState.meta[key] = { muscleGroup: '', estimatedDuration: 60 };
   }
   return workoutState.meta[key];
 }
@@ -5643,7 +5651,7 @@ async function loadWorkoutsForPage() {
         id: Number(w?.id) || (Date.now() + index),
         name: String(w?.name || 'Workout'),
         date: String(w?.date || dateStr()),
-        completed: !!meta.completed,
+        completed: !!w?.completed,
         muscleGroup: meta.muscleGroup || '',
         estimatedDuration: meta.estimatedDuration || (Number(w?.duration) || 60),
         exercises: Array.isArray(w.exercises) ? w.exercises : []
@@ -5719,24 +5727,29 @@ function thisWeekRoutine() {
 }
 
 async function updateWorkoutApi(id, payload) {
-1
-
   const res = await fetch(`/api/workouts/${id}`, { credentials: 'same-origin', method: 'PUT',
     headers: { 'Content-Type': 'application/json'},
     body: JSON.stringify(payload)
   });
   return res.ok;
 }
+
+async function toggleWorkoutCompletedApi(id) {
+  const res = await fetch(`/api/workouts/${id}/toggle`, {
+    credentials: 'same-origin',
+    method: 'PATCH',
+  });
+  return res.ok;
+}
+
 async function completeWorkout(workoutId) {
   const w = workoutState.workouts.find(x => x.id === workoutId);
-  if (!w) return;
-  const ok = await updateWorkoutApi(workoutId, { duration: w.estimatedDuration || 60 });
+  if (!w || w.completed) return;
+  const ok = await toggleWorkoutCompletedApi(workoutId);
   if (!ok) {
     alert('Could not complete workout.');
     return;
   }
-  workoutMeta(workoutId).completed = true;
-  persistWorkoutStorage();
   await loadWorkoutsForPage();
   refreshStreaksAfterChange();
 }
@@ -5753,8 +5766,6 @@ async function skipWorkout(workoutId) {
 }
 
 async function createWorkout(payload) {
-1
-
   const res = await fetch('/api/workouts', { credentials: 'same-origin', method: 'POST',
     headers: { 'Content-Type': 'application/json'},
     body: JSON.stringify(payload)
@@ -6030,7 +6041,6 @@ function setupWorkout() {
       const meta = workoutMeta(created.id);
       meta.muscleGroup = (musclesEl?.value || '').trim();
       meta.estimatedDuration = Number(durationEl?.value) || 60;
-      meta.completed = false;
       persistWorkoutStorage();
       workoutState.showNewPanel = false;
       renderWorkoutPanels();
@@ -6092,9 +6102,6 @@ function setupWorkout() {
           alert('Could not create workout from template.');
           return;
         }
-        const meta = workoutMeta(created.id);
-        meta.completed = false;
-        persistWorkoutStorage();
         await loadWorkoutsForPage();
         return;
       }
@@ -6212,7 +6219,7 @@ function getEnabledStatisticsModules() {
   return {
     workout: !!prefs.showWorkout,
     nutrition: !!prefs.showNutrition,
-    tasks: !!prefs.showProjects
+    tasks: true
   };
 }
 
@@ -6220,7 +6227,7 @@ function updateStatisticsForActiveUser() {
   const tasks = Array.isArray(taskUiState.tasks) ? taskUiState.tasks : [];
   const meals = Array.isArray(nutritionState.entries) ? nutritionState.entries : [];
   const workoutRows = Array.isArray(workoutState.workouts) ? workoutState.workouts : [];
-  const workouts = workoutRows.map(w => ({ ...w, completed: !!workoutMeta(w.id).completed }));
+  const workouts = workoutRows.map(w => ({ ...w, completed: !!w.completed }));
 
   const weekDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
   const now = new Date();
@@ -6864,7 +6871,10 @@ function _profileStoreKey() {
   const u = AuthModule.currentUser;
   return u ? `${_PROFILE_STORAGE_BASE}_${u.id}` : _PROFILE_STORAGE_BASE;
 }
-const THEME_STORAGE_KEY = 'fittrack_theme_v1';
+const THEME_STORAGE_KEY_BASE = 'fittrack_theme_v1';
+function themeStorageKey() {
+  return _userKeyPrefix(THEME_STORAGE_KEY_BASE);
+}
 const defaultProfile = {
   fullName: 'Alex Johnson',
   email: 'alex.johnson@email.com',
@@ -7040,13 +7050,19 @@ function persistProfileState() {
 function applyTheme(themeValue) {
   const isDark = themeValue === 'dark';
   document.body.classList.toggle('theme-dark', isDark);
-  localStorage.setItem(THEME_STORAGE_KEY, isDark ? 'dark' : 'light');
+  localStorage.setItem(themeStorageKey(), isDark ? 'dark' : 'light');
   const themeToggle = document.getElementById('theme-toggle-input');
   if (themeToggle) themeToggle.checked = isDark;
 }
 
 function loadThemePreference() {
-  const stored = localStorage.getItem(THEME_STORAGE_KEY);
+  const scopedKey = themeStorageKey();
+  const legacy = localStorage.getItem(THEME_STORAGE_KEY_BASE);
+  const stored = localStorage.getItem(scopedKey) || legacy;
+  if (legacy && !localStorage.getItem(scopedKey)) {
+    localStorage.setItem(scopedKey, legacy);
+    localStorage.removeItem(THEME_STORAGE_KEY_BASE);
+  }
   if (stored === 'dark' || stored === 'light') {
     profileState.theme = stored;
   }
@@ -7575,7 +7591,14 @@ function setupTaskModal() {
 
 function runInitStep(name, fn) {
   try {
-    return fn();
+    const result = fn();
+    if (result && typeof result.then === 'function') {
+      return result.catch((err) => {
+        console.error(`Init step failed: ${name}`, err);
+        return null;
+      });
+    }
+    return result;
   } catch (err) {
     console.error(`Init step failed: ${name}`, err);
     return null;
@@ -7609,7 +7632,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     runInitStep(name, () => step());
   });
 
-  const hasSession = !!runInitStep('bootstrapSession', () => bootstrapSession());
+  const hasSession = !!(await runInitStep('bootstrapSession', () => bootstrapSession()));
 
   if (hasSession) {
     runInitStep('showDashboardPage', () => showPage('dashboard'));
@@ -7662,7 +7685,12 @@ const _AI_COOLDOWN_MS = 2500; // Minimum ms between sends
 
 // --- Mode-based state ---
 let chatbotMode = 'general'; // "nutrition" | "workout" | "task" | "general"
-const AI_SESSION_STORAGE_KEY = 'fittrack_ai_session_id_v1';
+const AI_SESSION_STORAGE_KEY_BASE = 'fittrack_ai_session_id_v1';
+
+function _aiSessionStorageKey() {
+  const u = AuthModule.currentUser;
+  return u ? `${AI_SESSION_STORAGE_KEY_BASE}_${u.id}` : AI_SESSION_STORAGE_KEY_BASE;
+}
 
 const _AI_MODE_META = {
   general:   { label: 'General Query',  emoji: '💬', placeholder: 'Ask me anything...' },
@@ -7674,10 +7702,11 @@ const _AI_MODE_META = {
 function _aiSessionId() {
   let sessionId = null;
   try {
-    sessionId = sessionStorage.getItem(AI_SESSION_STORAGE_KEY);
+    const sessionKey = _aiSessionStorageKey();
+    sessionId = sessionStorage.getItem(sessionKey);
     if (!sessionId) {
       sessionId = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
-      sessionStorage.setItem(AI_SESSION_STORAGE_KEY, sessionId);
+      sessionStorage.setItem(sessionKey, sessionId);
     }
   } catch (_err) {
     sessionId = 'no-session-storage';

@@ -84,7 +84,11 @@ def create_note():
         )
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
-    return jsonify(NoteRepository.map_note(row)), 201
+
+    created = NoteRepository.get_by_id(row["id"], uid)
+    if not created:
+        return jsonify({"error": "Failed to load created note"}), 500
+    return jsonify(created), 201
 
 
 @notes_bp.route("/api/notes/<int:note_id>", methods=["GET"])
@@ -110,7 +114,10 @@ def update_note(note_id):
     updated_row = NoteRepository.update(
         note_id, uid, title=title, content=content, tags=tags
     )
-    return jsonify(NoteRepository.map_note(updated_row))
+    updated = NoteRepository.get_by_id(updated_row["id"], uid)
+    if not updated:
+        return jsonify({"error": "Failed to load updated note"}), 500
+    return jsonify(updated)
 
 
 @notes_bp.route("/api/notes/<int:note_id>", methods=["DELETE"])

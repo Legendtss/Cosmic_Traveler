@@ -134,7 +134,7 @@ class NoteRepository:
         )
         db.commit()
         return db.execute(
-            "SELECT * FROM notes WHERE id = ?", (cursor.lastrowid,)
+            "SELECT * FROM notes WHERE id = ? AND user_id = ?", (cursor.lastrowid, user_id)
         ).fetchone()
 
     @staticmethod
@@ -147,7 +147,7 @@ class NoteRepository:
         )
         db.commit()
         return db.execute(
-            "SELECT * FROM notes WHERE id = ?", (note_id,)
+            "SELECT * FROM notes WHERE id = ? AND user_id = ?", (note_id, user_id)
         ).fetchone()
 
     @staticmethod

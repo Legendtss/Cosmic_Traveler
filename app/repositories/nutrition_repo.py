@@ -36,15 +36,11 @@ class NutritionRepository:
         ).fetchall()
 
     @staticmethod
-    def get_by_id(meal_id, user_id=None):
+    def get_by_id(meal_id, user_id):
         db = get_db()
-        if user_id:
-            return db.execute(
-                "SELECT * FROM nutrition_entries WHERE id = ? AND user_id = ?",
-                (meal_id, user_id),
-            ).fetchone()
         return db.execute(
-            "SELECT * FROM nutrition_entries WHERE id = ?", (meal_id,)
+            "SELECT * FROM nutrition_entries WHERE id = ? AND user_id = ?",
+            (meal_id, user_id),
         ).fetchone()
 
     @staticmethod
