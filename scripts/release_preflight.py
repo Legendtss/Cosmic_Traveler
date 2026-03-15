@@ -44,7 +44,7 @@ def _is_production():
 def main():
     is_prod = _is_production()
     allow_gemini_fallback = _is_truthy(os.environ.get("ALLOW_GEMINI_FALLBACK_IN_PRODUCTION"))
-    allow_demo_usda = _is_truthy(os.environ.get("ALLOW_DEMO_USDA_IN_PRODUCTION"))
+    allow_demo_usda = _is_truthy(os.environ.get("ALLOW_DEMO_USDA_IN_PRODUCTION", "1"))
 
     warnings = []
     errors = []

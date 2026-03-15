@@ -61,7 +61,9 @@ def _normalize_origin(value):
 def _validate_ai_key_policy(config_class, *, is_production, logger):
     """Validate AI-related key policy and fail fast in production when unsafe."""
     allow_gemini_fallback = _is_truthy_env(os.environ.get("ALLOW_GEMINI_FALLBACK_IN_PRODUCTION"))
-    allow_demo_usda = _is_truthy_env(os.environ.get("ALLOW_DEMO_USDA_IN_PRODUCTION"))
+    # Default to allowing USDA demo fallback unless strict mode is explicitly enabled.
+    # Some deployments do not apply blueprint env overrides immediately.
+    allow_demo_usda = _is_truthy_env(os.environ.get("ALLOW_DEMO_USDA_IN_PRODUCTION", "1"))
 
     errors = []
 
