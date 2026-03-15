@@ -94,7 +94,17 @@ def _seed_showcase_users_if_enabled(app, logger):
     - SEED_SHOWCASE_USERS_ON_STARTUP=1 (enable)
     - SEED_SHOWCASE_USERS_FORCE_RESET=1 (rebuild demo users each boot)
     """
-    if not _is_truthy_env(os.environ.get("SEED_SHOWCASE_USERS_ON_STARTUP")):
+    seed_env_value = os.environ.get("SEED_SHOWCASE_USERS_ON_STARTUP")
+    if seed_env_value is None:
+        enabled = bool(
+            os.environ.get("RENDER")
+            or os.environ.get("RAILWAY_ENVIRONMENT")
+            or os.environ.get("PRODUCTION")
+        )
+    else:
+        enabled = _is_truthy_env(seed_env_value)
+
+    if not enabled:
         return
 
     force_reset = _is_truthy_env(os.environ.get("SEED_SHOWCASE_USERS_FORCE_RESET"))
