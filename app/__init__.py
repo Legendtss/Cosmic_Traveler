@@ -17,6 +17,7 @@ Depends on:
 
 import logging
 import os
+from urllib.parse import urlparse
 
 from flask import Flask, jsonify, request
 from flask_cors import CORS
@@ -39,6 +40,22 @@ from .middleware import setup_middleware
 
 def _is_truthy_env(value):
     return str(value or "").strip().lower() in ("1", "true", "yes", "on")
+
+
+def _normalize_origin(value):
+    raw = str(value or "").strip()
+    if not raw:
+        return ""
+
+    # Render commonly exposes hostname-only values; normalize to HTTPS origin.
+    if "://" not in raw:
+        raw = f"https://{raw.lstrip('/')}"
+
+    parsed = urlparse(raw)
+    if parsed.scheme not in ("http", "https") or not parsed.netloc:
+        return ""
+
+    return f"{parsed.scheme}://{parsed.netloc}"
 
 
 def _validate_ai_key_policy(config_class, *, is_production, logger):
@@ -81,13 +98,28 @@ def _get_cors_config():
     custom_origins = os.environ.get("CORS_ORIGINS", "").strip()
     
     if custom_origins:
-        origins = [o.strip() for o in custom_origins.split(",") if o.strip()]
+        origins = []
+        for raw_origin in custom_origins.split(","):
+            normalized = _normalize_origin(raw_origin)
+            if normalized and normalized not in origins:
+                origins.append(normalized)
+        if not origins:
+            origins = False
     elif is_production:
-        # In production: same-origin requests don't need CORS
-        # But we need to allow the app origin explicitly for credentials to work
-        # Get the origin from request (will be cosmic-traveler.onrender.com)
-        # For now, allow any HTTPS origin - credentials only work for actual origin anyway
-        origins = ["https://cosmic-traveler.onrender.com"]
+        # In production, default to same-origin only. If an explicit origin is available
+        # from platform vars, allow it; otherwise skip CORS middleware entirely.
+        origins = []
+        for candidate in (
+            os.environ.get("APP_ORIGIN"),
+            os.environ.get("RENDER_EXTERNAL_URL"),
+            os.environ.get("RENDER_EXTERNAL_HOSTNAME"),
+        ):
+            normalized = _normalize_origin(candidate)
+            if normalized and normalized not in origins:
+                origins.append(normalized)
+
+        if not origins:
+            origins = False
     else:
         # Development: allow localhost variants
         origins = [

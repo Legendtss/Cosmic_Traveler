@@ -14,6 +14,6 @@ services:
       - key: ALLOW_GEMINI_FALLBACK_IN_PRODUCTION
         value: "0"
       - key: ALLOW_DEMO_USDA_IN_PRODUCTION
-        value: "0"
+        value: "1"
       - key: PYTHON_VERSION
         value: 3.12.0
