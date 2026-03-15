@@ -613,6 +613,35 @@ body {
   display: flex;
   flex-direction: column;
   gap: 0;
+  min-width: 0;
+}
+
+.main-content-topbar {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  padding: 10px 6px 14px;
+  margin-bottom: 2px;
+  position: relative;
+  z-index: 36;
+}
+
+.main-content-topbar .profile-menu-wrap {
+  margin-left: auto;
+  position: relative;
+  z-index: 48;
+}
+
+.main-content-topbar .profile-menu-btn {
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
+}
+
+.main-content-topbar .profile-menu-panel {
+  right: 0;
+  top: calc(100% + 10px);
 }
 
 .global-topbar {
@@ -7497,6 +7526,17 @@ body.theme-dark .sidebar-user-area .profile-menu-btn:hover {
   box-shadow: none;
 }
 
+body.theme-dark .profile-menu-btn {
+  background: #1a1512;
+  border-color: #3f2f25;
+}
+
+body.theme-dark .profile-menu-btn:hover,
+body.theme-dark .profile-menu-btn[aria-expanded="true"] {
+  border-color: #ff6b4a;
+  box-shadow: 0 12px 24px -18px rgba(255, 69, 0, 0.85);
+}
+
 body.theme-dark .pwa-install-btn {
   border-color: rgba(110, 231, 183, 0.3);
   color: #6ee7b7;
@@ -9777,6 +9817,22 @@ body.theme-dark .mobile-hamburger span { background: #f1e8e0; }
     gap: 12px;
     width: 100%;
     min-width: 0;
+  }
+
+  .main-content-topbar {
+    padding: 2px 2px 10px;
+    margin-bottom: 0;
+  }
+
+  .main-content-topbar .profile-menu-btn {
+    width: 40px;
+    height: 40px;
+    min-width: 40px;
+    min-height: 40px;
+  }
+
+  .main-content-topbar .profile-menu-panel {
+    width: min(270px, calc(100vw - 28px));
   }
 
   /* ── global topbar (hidden) ── */
