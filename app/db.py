@@ -340,9 +340,35 @@ def init_schema(conn):
         conn.executescript(schema_sql)
 
 
+def table_exists(conn, table_name):
+    """Return True when the target table already exists."""
+    config = _db_config()
+
+    if config["type"] == "postgresql":
+        row = conn.execute(
+            """
+            SELECT 1
+            FROM information_schema.tables
+            WHERE table_schema = 'public' AND table_name = ?
+            LIMIT 1
+            """,
+            (table_name,),
+        ).fetchone()
+        return bool(row)
+
+    row = conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ? LIMIT 1",
+        (table_name,),
+    ).fetchone()
+    return bool(row)
+
+
 def ensure_tasks_tags_column(conn):
     """Add missing columns to tasks table if needed."""
     config = _db_config()
+
+    if not table_exists(conn, "tasks"):
+        return
     
     if config["type"] == "postgresql":
         # PostgreSQL: check information_schema
@@ -374,6 +400,9 @@ def ensure_tasks_tags_column(conn):
 def ensure_tasks_recurrence_columns(conn):
     """Add recurrence columns/indexes for tasks if needed."""
     config = _db_config()
+
+    if not table_exists(conn, "tasks"):
+        return
 
     if config["type"] == "postgresql":
         cols = conn.execute("""
@@ -866,6 +895,12 @@ def init_app_data(app):
             
             try:
                 with app.app_context():
+                    # Existing PostgreSQL databases may already have a tasks table
+                    # but not the latest recurrence columns. Apply those deltas
+                    # before schema bootstrap so CREATE INDEX IF NOT EXISTS in the
+                    # schema file doesn't target missing columns.
+                    ensure_tasks_tags_column(conn)
+                    ensure_tasks_recurrence_columns(conn)
                     init_schema(conn)
                     ensure_tasks_tags_column(conn)
                     ensure_tasks_recurrence_columns(conn)
