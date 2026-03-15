@@ -163,7 +163,7 @@ def get_current_user_id():
         abort(401, description="Authentication required: invalid session")
 
     g.current_user_id = session_row["user_id"]
-    print(f"[AUTH] ✓ Session valid for user_id={session_row['user_id']}")
+    print(f"[AUTH] Session validated for user_id={session_row['user_id']}")
     return g.current_user_id
 
 
