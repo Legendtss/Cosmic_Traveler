@@ -222,6 +222,8 @@ try:
             };
         }
         """)
+        layer_active = "is-active" in str(focus_debug.get("layerClasses") or "")
+        video_has_src = bool(str(focus_debug.get("videoSrc") or "").strip())
         results["focus_visual_layer_active"] = layer_active
         results["focus_visual_src"] = focus_debug.get("videoSrc", "")
         results["focus_visual_paused"] = focus_debug.get("videoPaused")

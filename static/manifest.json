@@ -1,0 +1,42 @@
+{
+  "name": "FitTrack Pro",
+  "short_name": "FitTrack",
+  "description": "Track fitness goals, workouts, nutrition, and habits — all in one place.",
+  "id": "/?source=pwa",
+  "start_url": "/?source=pwa",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": ["standalone", "minimal-ui", "browser"],
+  "background_color": "#f5f9ff",
+  "theme_color": "#2563eb",
+  "orientation": "portrait-primary",
+  "categories": ["health", "fitness", "lifestyle"],
+  "icons": [
+    {
+      "src": "/app-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/app-icon-maskable.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Start Focus Session",
+      "short_name": "Focus",
+      "url": "/#focus",
+      "description": "Open the Focus timer quickly"
+    },
+    {
+      "name": "Log Nutrition",
+      "short_name": "Nutrition",
+      "url": "/#nutrition",
+      "description": "Jump directly to meal logging"
+    }
+  ]
+}

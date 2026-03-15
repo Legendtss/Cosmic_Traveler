@@ -58,6 +58,45 @@ const NAV_ICON_ANIMATION_CLASSES = [
   'icon-anim-workout'
 ];
 
+const _ftDebugEnabled = (() => {
+  try {
+    if (typeof window.__FT_DEBUG__ === 'boolean') return window.__FT_DEBUG__;
+
+    const params = new URLSearchParams(window.location.search || '');
+    if (params.has('debug')) {
+      const enabled = ['1', 'true', 'yes', 'on'].includes(String(params.get('debug') || '').trim().toLowerCase());
+      window.__FT_DEBUG__ = enabled;
+      return enabled;
+    }
+  } catch (_err) {
+    // fall through
+  }
+
+  try {
+    const stored = localStorage.getItem('ft_debug');
+    if (stored !== null) {
+      const enabled = ['1', 'true', 'yes', 'on'].includes(String(stored).trim().toLowerCase());
+      window.__FT_DEBUG__ = enabled;
+      return enabled;
+    }
+  } catch (_err) {
+    // fall through
+  }
+
+  const host = (window.location && window.location.hostname) || '';
+  const enabled = host === 'localhost' || host === '127.0.0.1';
+  window.__FT_DEBUG__ = enabled;
+  return enabled;
+})();
+
+function ftDebugLog(...args) {
+  if (_ftDebugEnabled) console.log(...args);
+}
+
+function ftDebugWarn(...args) {
+  if (_ftDebugEnabled) console.warn(...args);
+}
+
 function navIconAnimationClass(pageName) {
   if (pageName === 'tasks') return 'icon-anim-task';
   if (pageName === 'projects') return 'icon-anim-project';
@@ -100,7 +139,7 @@ function showPage(pageName) {
       : activeFeaturePrefs;
     const featureKey = `show${feature.charAt(0).toUpperCase() + feature.slice(1)}`;
     if (currentPrefs && Object.prototype.hasOwnProperty.call(currentPrefs, featureKey) && !currentPrefs[featureKey]) {
-      console.warn(`Feature '${feature}' is disabled`)
+      ftDebugWarn(`Feature '${feature}' is disabled`);
       return; // Don't navigate to disabled features
     }
   }
@@ -1252,12 +1291,12 @@ async function addTask(title, priority, dueDate, repeat, tags = [], noteContent 
  */
 
 async function updateUserProgressAfterTaskCompletion(taskId, occDate) {
-  console.log(`[Progress Engine] Starting update for taskId=${taskId}, occDate=${occDate}`);
+  ftDebugLog(`[Progress Engine] Starting update for taskId=${taskId}, occDate=${occDate}`);
   
   try {
     // STEP 1: Update task status
     const { todayKey, wasCompleted, isNowCompleted } = await _updateTaskStatus(taskId, occDate);
-    console.log(`[Progress Engine] Task status updated: wasCompleted=${wasCompleted}, isNowCompleted=${isNowCompleted}`);
+    ftDebugLog(`[Progress Engine] Task status updated: wasCompleted=${wasCompleted}, isNowCompleted=${isNowCompleted}`);
     
     // STEP 2: Reload tasks from store to get latest data
     await loadTasks();
@@ -1277,16 +1316,16 @@ async function updateUserProgressAfterTaskCompletion(taskId, occDate) {
         streakResult = await resp.json();
         // Normalize server snake_case keys â†’ camelCase for renderStreaksUI
         if (streakResult && streakResult.day) streakResult.day = _normalizeDayEval(streakResult.day);
-        console.log(`[Progress Engine] Server eval result:`, streakResult);
+        ftDebugLog('[Progress Engine] Server eval result:', streakResult);
     } catch (apiErr) {
-        console.warn('[Progress Engine] Server eval failed, falling back to local:', apiErr);
+        ftDebugWarn('[Progress Engine] Server eval failed, falling back to local:', apiErr);
         const proteinGoal = nutritionState.baseGoals.protein || 140;
         streakEvaluateDay(todayKey, tasks, meals, workouts, proteinGoal);
         streakResult = streakFullEvalDemo();
     }
     
     // STEP 6: Refresh dashboard/UI
-    console.log('[Progress Engine] Refreshing UI...');
+      ftDebugLog('[Progress Engine] Refreshing UI...');
     renderStreaksUI(streakResult);
     renderTasks(taskUiState.tasks);
 
@@ -1298,7 +1337,7 @@ async function updateUserProgressAfterTaskCompletion(taskId, occDate) {
       });
     }
     
-    console.log('[Progress Engine] âœ“ Complete - all systems updated');
+    ftDebugLog('[Progress Engine] Complete - all systems updated');
     
   } catch (err) {
     console.error('[Progress Engine] ERROR:', err);
@@ -1346,7 +1385,7 @@ async function _updateTaskStatus(taskId, occDate) {
 
 function _persistUserStats(userId, stats) {
   // Auth mode: stats are managed server-side via /api/streaks/evaluate
-  console.log('[Progress Engine] Stats update (server-managed):', stats);
+  ftDebugLog('[Progress Engine] Stats update (server-managed):', stats);
 }
 
 function _getUserStats() {
@@ -2465,7 +2504,7 @@ function setupCalendar() {
 // Â§7  NUTRITION EXPERIENCE
 // ========================================================================
 // Manual meal logging, food database browser, builder mode, saved presets.
-// AI-powered meal detection via USDA FoodData Central (2-step confirm flow).
+// AI-powered meal detection via Gemini (2-step confirm flow).
 // âš ï¸ Global mutable: nutritionState, nutritionBuilderState,
 //    aiMealPanelOpen, aiDetectedData, mealsLoadRequestId
 // âš ï¸ nutritionFoodDatabase is a large inline object (~600 lines).
@@ -3278,7 +3317,7 @@ async function deleteMealEntry(mealId) {
 }
 
 // ---------------------------------------------------------------------------
-// AI Meal Logger " 2-Step Confirmation Flow (USDA-powered)
+// AI Meal Logger — 2-Step Confirmation Flow (Gemini-powered)
 // ---------------------------------------------------------------------------
 
 let aiMealPanelOpen = false;
@@ -3312,7 +3351,7 @@ function _aiResetPanel() {
   aiDetectedData = null;
 }
 
-// ---- STEP 1: Detect Foods ----
+// ---- STEP 1: Detect Foods via Gemini ----
 
 async function submitAIDetect() {
   const input = document.getElementById('ai-food-input');
@@ -3328,39 +3367,80 @@ async function submitAIDetect() {
     return;
   }
 
-  // Show loading
   statusEl.className = 'nutrition-ai-status loading';
   statusEl.classList.remove('nutrition-collapsed');
-  statusEl.innerHTML = '<span class="ai-spinner"></span> Detecting foods via USDA database...';
+  statusEl.innerHTML = '<span class="ai-spinner"></span> Asking Gemini to identify foods...';
   if (detectBtn) detectBtn.disabled = true;
 
   try {
-    let data;
-    const response = await fetch('/api/nutrition/ai-detect', { credentials: 'same-origin', method: 'POST',
-      headers: { 'Content-Type': 'application/json'},
-      body: JSON.stringify({ user_input: userInput, meal_type: mealType })
+    const response = await fetch('/api/ai/chat', {
+      credentials: 'same-origin', method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: userInput, context: { meal_type: mealType, page: 'nutrition' }, mode: 'nutrition' })
     });
-    data = await response.json();
+    const data = await response.json();
     if (!response.ok) throw new Error(data.error || `API error: ${response.status}`);
 
-    const itemCount = (data.items || []).length;
-    if (itemCount === 0 && data.status !== 'confirm') {
+    if (data.status === 'clarification_needed') {
       statusEl.className = 'nutrition-ai-status error';
-      const reason = data.clarifications?.[0]?.reason || data.error || 'No foods found. Try being more specific.';
-      statusEl.innerHTML = `<i class="fas fa-exclamation-circle"></i> ${escapeHtml(reason)}`;
+      statusEl.innerHTML = `<i class="fas fa-question-circle"></i> ${escapeHtml(data.message || 'Could not identify foods. Try being more specific.')}`;
       return;
     }
 
-    // Save detection data and show confirmation table
-    aiDetectedData = data;
+    if (data.status !== 'confirmation_required' || data.action_type !== 'log_nutrition') {
+      statusEl.className = 'nutrition-ai-status error';
+      statusEl.innerHTML = `<i class="fas fa-exclamation-circle"></i> Unexpected response. Please try again.`;
+      return;
+    }
+
+    const details = data.details || {};
+    const rawItems = details.items || [];
+    if (rawItems.length === 0) {
+      statusEl.className = 'nutrition-ai-status error';
+      statusEl.innerHTML = `<i class="fas fa-exclamation-circle"></i> No foods found. Try being more specific.`;
+      return;
+    }
+
+    // Normalise items and pre-compute per-unit macros for quantity scaling
+    const items = rawItems.map(item => {
+      const qty = parseFloat(item.quantity) || 1;
+      return {
+        name: item.name,
+        quantity: qty,
+        unit: item.unit || 'serving',
+        calories: parseFloat(item.calories) || 0,
+        protein: parseFloat(item.protein) || 0,
+        carbs: parseFloat(item.carbs) || 0,
+        fats: parseFloat(item.fats) || 0,
+        is_estimate: item.is_estimate !== false,
+        note: item.note || '',
+        components: Array.isArray(item.components) ? item.components : [],
+        per_unit: {
+          calories: (parseFloat(item.calories) || 0) / qty,
+          protein:  (parseFloat(item.protein)  || 0) / qty,
+          carbs:    (parseFloat(item.carbs)    || 0) / qty,
+          fats:     (parseFloat(item.fats)     || 0) / qty,
+        }
+      };
+    });
+
+    aiDetectedData = {
+      source: 'gemini',
+      meal_type: details.meal_type || mealType,
+      items,
+      confidence: data.confidence || data.intent_confidence || 'medium',
+      summary: data.summary || '',
+      message: data.message || ''
+    };
+
     statusEl.classList.add('nutrition-collapsed');
     statusEl.innerHTML = '';
-    renderAIConfirmation(data);
+    renderAIConfirmation(aiDetectedData);
 
   } catch (err) {
     console.error('AI detect error:', err);
     statusEl.className = 'nutrition-ai-status error';
-    statusEl.innerHTML = `<i class="fas fa-exclamation-circle"></i> ${err.message || 'Could not detect foods. Please try again.'}`;
+    statusEl.innerHTML = `<i class="fas fa-exclamation-circle"></i> ${err.message || 'Could not identify foods. Please try again.'}`;
   } finally {
     if (detectBtn) detectBtn.disabled = false;
   }
@@ -3383,10 +3463,8 @@ function renderAIConfirmation(data) {
   let html = `<table class="nutrition-ai-result-table ai-confirm-table">
     <thead>
       <tr>
-        <th>Your Input</th>
-        <th>USDA Match</th>
-        <th>Confidence</th>
-        <th>Qty (g)</th>
+        <th>Food</th>
+        <th>Qty</th>
         <th>Calories</th>
         <th>Protein</th>
         <th>Carbs</th>
@@ -3397,18 +3475,18 @@ function renderAIConfirmation(data) {
     <tbody>`;
 
   items.forEach((item, idx) => {
-    const confClass = item.confidence === 'high' ? 'ai-conf-high' : item.confidence === 'medium' ? 'ai-conf-med' : 'ai-conf-low';
-    const confIcon = item.confidence === 'high' ? 'check-circle' : item.confidence === 'medium' ? 'info-circle' : 'exclamation-triangle';
+    const componentsHtml = item.components && item.components.length > 0
+      ? `<br><small class="ai-food-note">${item.components.map(c => escapeHtml(`${c.item}${c.qty ? ' · ' + c.qty : ''}`)).join(', ')}</small>`
+      : '';
+    const noteHtml = item.note ? `<br><small class="ai-food-note">${escapeHtml(item.note)}</small>` : '';
     html += `
       <tr id="ai-item-row-${idx}" data-idx="${idx}">
-        <td class="ai-cell-input">${escapeHtml(item.original_input)}</td>
-        <td class="ai-cell-match">${escapeHtml(item.matched_name)}${item.note ? `<br><small class="ai-food-note">${escapeHtml(item.note)}</small>` : ''}</td>
-        <td><span class="ai-conf-badge ${confClass}"><i class="fas fa-${confIcon}"></i> ${item.confidence}</span></td>
-        <td><input type="number" class="ai-qty-input" value="${item.quantity_g}" min="1" step="1" onchange="updateAIItemMacros(${idx}, this.value)" data-per100='${JSON.stringify(item.per_100g || {})}'/></td>
-        <td class="ai-cal">${item.calories}</td>
-        <td class="ai-prot">${item.protein}g</td>
-        <td class="ai-carb">${item.carbs}g</td>
-        <td class="ai-fat">${item.fats}g</td>
+        <td class="ai-cell-input">${escapeHtml(item.name)}${componentsHtml}${noteHtml}</td>
+        <td><input type="number" class="ai-qty-input" value="${item.quantity}" min="0.1" step="0.5" onchange="updateAIItemMacros(${idx}, this.value)"/> <small>${escapeHtml(item.unit || 'serving')}</small></td>
+        <td class="ai-cal">${Math.round(item.calories)}</td>
+        <td class="ai-prot">${Math.round(item.protein * 10) / 10}g</td>
+        <td class="ai-carb">${Math.round(item.carbs * 10) / 10}g</td>
+        <td class="ai-fat">${Math.round(item.fats * 10) / 10}g</td>
         <td><button class="ai-remove-btn" onclick="removeAIItem(${idx})" title="Remove"><i class="fas fa-times"></i></button></td>
       </tr>`;
   });
@@ -3416,43 +3494,39 @@ function renderAIConfirmation(data) {
   html += '</tbody></table>';
   if (tableWrap) tableWrap.innerHTML = html;
 
-  // Show clarifications if any
-  if (data.clarifications && data.clarifications.length > 0 && clarifyEl) {
-    let clarifyHTML = '<div class="ai-clarify-list">';
-    for (const c of data.clarifications) {
-      clarifyHTML += `<p class="ai-clarify-item"><i class="fas fa-question-circle"></i> <strong>${escapeHtml(c.original_input)}</strong>: ${escapeHtml(c.reason)}</p>`;
-    }
-    clarifyHTML += '</div>';
-    clarifyEl.innerHTML = clarifyHTML;
+  // Show AI summary + confidence + guidance
+  if (clarifyEl) {
+    const confidence = String(data.confidence || 'medium').toLowerCase();
+    const confClass = confidence === 'high' ? 'ai-conf-high' : (confidence === 'low' ? 'ai-conf-low' : 'ai-conf-med');
+    const summaryHtml = data.summary ? `<strong>${escapeHtml(data.summary)}</strong><br>` : '';
+    const messageHtml = data.message ? `${escapeHtml(data.message)}<br>` : '';
+    clarifyEl.innerHTML = `<div class="ai-clarify-list"><p class="ai-clarify-item"><i class="fas fa-magic"></i> ${summaryHtml}${messageHtml}<span class="ai-conf-badge ${confClass}">Confidence: ${escapeHtml(confidence)}</span></p></div>`;
     clarifyEl.classList.remove('nutrition-collapsed');
-  } else if (clarifyEl) {
-    clarifyEl.classList.add('nutrition-collapsed');
-    clarifyEl.innerHTML = '';
   }
 
   updateAITotals();
 }
 
-function updateAIItemMacros(idx, newQtyG) {
+function updateAIItemMacros(idx, newQty) {
   if (!aiDetectedData || !aiDetectedData.items[idx]) return;
   const item = aiDetectedData.items[idx];
-  const qty = parseFloat(newQtyG) || 0;
-  const per100 = item.per_100g || {};
-  const factor = qty / 100;
+  const qty = Math.max(0.1, parseFloat(newQty) || 0.1);
+  const pu = item.per_unit || {};
 
-  item.quantity_g = Math.round(qty * 10) / 10;
-  item.calories = Math.round((per100.calories || 0) * factor * 10) / 10;
-  item.protein = Math.round((per100.protein || 0) * factor * 10) / 10;
-  item.carbs = Math.round((per100.carbs || 0) * factor * 10) / 10;
-  item.fats = Math.round((per100.fats || 0) * factor * 10) / 10;
+  item.quantity = qty;
+  item.calories = Math.round((pu.calories || 0) * qty * 10) / 10;
+  item.protein  = Math.round((pu.protein  || 0) * qty * 10) / 10;
+  item.carbs    = Math.round((pu.carbs    || 0) * qty * 10) / 10;
+  item.fats     = Math.round((pu.fats     || 0) * qty * 10) / 10;
 
-  // Update row cells
   const row = document.getElementById(`ai-item-row-${idx}`);
   if (row) {
-    row.querySelector('.ai-cal').textContent = item.calories;
-    row.querySelector('.ai-prot').textContent = item.protein + 'g';
-    row.querySelector('.ai-carb').textContent = item.carbs + 'g';
-    row.querySelector('.ai-fat').textContent = item.fats + 'g';
+    const qtyInput = row.querySelector('.ai-qty-input');
+    if (qtyInput) qtyInput.value = String(qty);
+    row.querySelector('.ai-cal').textContent  = Math.round(item.calories);
+    row.querySelector('.ai-prot').textContent = Math.round(item.protein * 10) / 10 + 'g';
+    row.querySelector('.ai-carb').textContent = Math.round(item.carbs   * 10) / 10 + 'g';
+    row.querySelector('.ai-fat').textContent  = Math.round(item.fats    * 10) / 10 + 'g';
   }
   updateAITotals();
 }
@@ -3482,7 +3556,7 @@ function updateAITotals() {
         <div class="ai-total-item"><span>Carbs</span><strong>${Math.round(totals.carbs * 10) / 10}g</strong></div>
         <div class="ai-total-item"><span>Fats</span><strong>${Math.round(totals.fats * 10) / 10}g</strong></div>
       </div>
-      <p class="ai-result-note"><i class="fas fa-database"></i> Data sourced from USDA FoodData Central</p>`;
+      <p class="ai-result-note"><i class="fas fa-magic"></i> AI-estimated values — edit quantities if needed</p>`;
   }
 }
 
@@ -3501,60 +3575,63 @@ async function confirmAIMealLog() {
   if (confirmBtn) confirmBtn.disabled = true;
 
   try {
-    const confirmedFoods = aiDetectedData.items.map(item => ({
-      name: item.matched_name,
-      fdc_id: item.fdc_id,
-      quantity_g: item.quantity_g,
+    const items = aiDetectedData.items.map(item => ({
+      name: item.name,
+      quantity: item.quantity,
+      unit: item.unit,
       calories: item.calories,
       protein: item.protein,
       carbs: item.carbs,
       fats: item.fats,
-      original_input: item.original_input,
-      data_type: item.data_type || ''
+      note: item.note || 'AI estimated'
     }));
+    const origItems = aiDetectedData.items; // capture before null-ing
 
-    let savedCount = 0;
-
-    const response = await fetch('/api/nutrition/ai-log', { credentials: 'same-origin', method: 'POST',
-      headers: { 'Content-Type': 'application/json'},
+    const response = await fetch('/api/ai/execute', {
+      credentials: 'same-origin', method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        meal_type: mealType,
-        foods: confirmedFoods,
-        date: todayDateKey(),
-        time: new Date().toTimeString().slice(0, 5)
+        action_type: 'log_nutrition',
+        payload: {
+          meal_type: mealType,
+          items,
+          date: todayDateKey(),
+          time: new Date().toTimeString().slice(0, 5)
+        },
+        confirmed: true
       })
     });
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || `API error: ${response.status}`);
-    savedCount = (data.foods || []).length;
+    const savedCount = data.count || items.length;
 
     // Show success
-    const totalCals = Math.round(confirmedFoods.reduce((s, f) => s + (f.calories || 0), 0));
+    const totalCals = Math.round(items.reduce((s, f) => s + (f.calories || 0), 0));
     const confirmStep = document.getElementById('ai-step-confirm');
     const resultEl = document.getElementById('ai-meal-result');
 
     if (confirmStep) confirmStep.classList.add('nutrition-collapsed');
-
     statusEl.className = 'nutrition-ai-status success';
-    statusEl.innerHTML = `<i class="fas fa-check-circle"></i> Successfully logged ${savedCount} food item${savedCount > 1 ? 's' : ''} " ${totalCals} kcal total`;
+    statusEl.innerHTML = `<i class="fas fa-check-circle"></i> Logged ${savedCount} food item${savedCount > 1 ? 's' : ''} — ${totalCals} kcal total`;
 
     // Show summary table in result
     let tableHTML = `<table class="nutrition-ai-result-table"><thead><tr>
-      <th>Food</th><th>Qty (g)</th><th>Calories</th><th>Protein</th><th>Carbs</th><th>Fats</th>
+      <th>Food</th><th>Qty</th><th>Calories</th><th>Protein</th><th>Carbs</th><th>Fats</th>
     </tr></thead><tbody>`;
-    for (const f of confirmedFoods) {
-      tableHTML += `<tr><td>${escapeHtml(f.name)}</td><td>${f.quantity_g}</td><td>${Math.round(f.calories)}</td><td>${Math.round(f.protein * 10) / 10}g</td><td>${Math.round(f.carbs * 10) / 10}g</td><td>${Math.round(f.fats * 10) / 10}g</td></tr>`;
+    for (let i = 0; i < items.length; i++) {
+      const f = items[i];
+      const orig = origItems[i];
+      tableHTML += `<tr><td>${escapeHtml(f.name)}</td><td>${orig.quantity} ${escapeHtml(orig.unit)}</td><td>${Math.round(f.calories)}</td><td>${Math.round(f.protein * 10) / 10}g</td><td>${Math.round(f.carbs * 10) / 10}g</td><td>${Math.round(f.fats * 10) / 10}g</td></tr>`;
     }
     tableHTML += `</tbody><tfoot><tr><td colspan="2"><strong>Total</strong></td>
       <td><strong>${totalCals}</strong></td>
-      <td><strong>${Math.round(confirmedFoods.reduce((s,f)=>s+f.protein,0)*10)/10}g</strong></td>
-      <td><strong>${Math.round(confirmedFoods.reduce((s,f)=>s+f.carbs,0)*10)/10}g</strong></td>
-      <td><strong>${Math.round(confirmedFoods.reduce((s,f)=>s+f.fats,0)*10)/10}g</strong></td>
+      <td><strong>${Math.round(items.reduce((s,f)=>s+f.protein,0)*10)/10}g</strong></td>
+      <td><strong>${Math.round(items.reduce((s,f)=>s+f.carbs,0)*10)/10}g</strong></td>
+      <td><strong>${Math.round(items.reduce((s,f)=>s+f.fats,0)*10)/10}g</strong></td>
     </tr></tfoot></table>`;
 
     if (resultEl) { resultEl.innerHTML = tableHTML; resultEl.classList.remove('nutrition-collapsed'); }
 
-    // Clear input and refresh
     const input = document.getElementById('ai-food-input');
     if (input) input.value = '';
     aiDetectedData = null;
@@ -4553,7 +4630,7 @@ function streakEvaluateDay(dateKey, tasks, meals, workouts, proteinGoal) {
   taskPoints = Math.min(taskPoints, STREAK_DAILY_TASK_CAP);
   
   if (completedTasksDebug.length > 0) {
-    console.log(`[Task Points] ${dateKey}: ${completedTasksDebug.length} completed tasks = ${originalTaskPoints} pts (capped to ${taskPoints})`, completedTasksDebug);
+    ftDebugLog(`[Task Points] ${dateKey}: ${completedTasksDebug.length} completed tasks = ${originalTaskPoints} pts (capped to ${taskPoints})`, completedTasksDebug);
   }
 
   // Protein
@@ -4617,9 +4694,9 @@ function streakFullEvalDemo() {
     const dayEval = streakEvaluateDay(dateKey, tasks, meals, workouts, proteinGoal);
     dailyResults[dateKey] = dayEval;
     totalPoints += dayEval.totalPoints;
-    console.log(`[Streak Eval] ${dateKey}: tasks=${dayEval.tasksCompleted}/${dayEval.totalTasks}, taskPoints=${dayEval.taskPoints}, protein=${Math.round(dayEval.totalProtein)}/${dayEval.proteinGoal}, workouts=${dayEval.completedWorkoutCount}/${dayEval.totalWorkouts}, dayTotal=${dayEval.totalPoints}, cumulative=${totalPoints}`);
+    ftDebugLog(`[Streak Eval] ${dateKey}: tasks=${dayEval.tasksCompleted}/${dayEval.totalTasks}, taskPoints=${dayEval.taskPoints}, protein=${Math.round(dayEval.totalProtein)}/${dayEval.proteinGoal}, workouts=${dayEval.completedWorkoutCount}/${dayEval.totalWorkouts}, dayTotal=${dayEval.totalPoints}, cumulative=${totalPoints}`);
   }
-  console.log(`[Streak Eval] âœ“ Total points across all dates: ${totalPoints}`);
+  ftDebugLog(`[Streak Eval] Total points across all dates: ${totalPoints}`);
 
   // Compute current streak (walk back from today)
   let currentStreak = 0;
@@ -4658,7 +4735,7 @@ function streakFullEvalDemo() {
   }
 
   const { level, xpInto, xpNeeded, pct } = streakLevelProgress(totalPoints);
-  console.log(`[Streak Eval] Streaks: current=${currentStreak}, longest=${longestStreak}, level=${level}, xpInto=${xpInto}/${xpNeeded}`);
+  ftDebugLog(`[Streak Eval] Streaks: current=${currentStreak}, longest=${longestStreak}, level=${level}, xpInto=${xpInto}/${xpNeeded}`);
 
   // Activity feed from real data
   const activities = [];
@@ -8325,7 +8402,7 @@ function runInitStep(name, fn) {
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
-  console.log('FitTrack Pro initializing...');
+  ftDebugLog('FitTrack Pro initializing...');
 
   runInitStep('loadProfileState', () => loadProfileState());
   runInitStep('loadThemePreference', () => loadThemePreference());
@@ -8381,7 +8458,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Hydrate the central AppState from all module-level state objects
   if (typeof hydrateAppState === 'function') hydrateAppState();
 
-  console.log('Initialization complete');
+  ftDebugLog('Initialization complete');
 });
 
 
@@ -8554,7 +8631,7 @@ async function sendAIMessage() {
   // --- Guard 2: cooldown ---
   const now = Date.now();
   if (now - _aiLastSendTs < _AI_COOLDOWN_MS) {
-    console.log('[AI] Cooldown active, skipping duplicate send');
+    ftDebugLog('[AI] Cooldown active, skipping duplicate send');
     return;
   }
 
@@ -8587,7 +8664,7 @@ async function sendAIMessage() {
       }
     };
 
-    console.log('[AI] Sending to Gemini proxy:', payload);
+    ftDebugLog('[AI] Sending to Gemini proxy:', payload);
 
     const response = await fetch('/api/ai/chat', { credentials: 'same-origin', method: 'POST',
       headers: { 'Content-Type': 'application/json'},
@@ -8601,7 +8678,7 @@ async function sendAIMessage() {
       data = {};
     }
 
-    console.log('[AI] Gemini response:', data);
+    ftDebugLog('[AI] Gemini response:', data);
 
     if (!response.ok) {
       throw new Error(data.error || `AI request failed (${response.status})`);
@@ -9623,8 +9700,8 @@ const _focusAudioUrls = {
 };
 
 const _focusVisualUrls = {
-  calm: '/static/media/focus/focus-calm-loop-01.mp4',
-  nature: '/static/media/focus/focus-nature-loop-01.mp4',
+  calm: '/media/focus/focus-calm-loop-01.mp4',
+  nature: '/media/focus/focus-nature-loop-01.mp4',
 };
 
 const _focusVisualModes = new Set(['off', 'calm', 'nature', 'custom']);
@@ -9666,8 +9743,9 @@ function _focusNormalizeVisualMode(mode) {
 function _focusSanitizeCustomVisualUrl(rawValue) {
   let value = String(rawValue || '').trim();
   if (!value) return '';
-  if (value.startsWith('static/')) value = `/${value}`;
-  if (value.startsWith('/static/')) return value;
+  if (value.startsWith('static/')) value = `/${value.slice('static/'.length)}`;
+  if (value.startsWith('/static/')) value = value.slice('/static'.length);
+  if (value.startsWith('/')) return value;
   if (value.startsWith('https://') || value.startsWith('http://')) return value;
   return '';
 }
@@ -9683,12 +9761,12 @@ function _focusPrefersReducedMotion() {
 function _focusVisualAllowedOnDevice() {
   try {
     if (window.matchMedia) {
-      return !window.matchMedia('(max-width: 768px)').matches;
+      return !window.matchMedia('(max-width: 600px)').matches;
     }
   } catch (_err) {
     // fall through
   }
-  return window.innerWidth > 768;
+  return window.innerWidth > 600;
 }
 
 function _focusResolveVisualSource() {
@@ -10680,9 +10758,9 @@ function _focusLoadState() {
   ];
   var _missing = _expected.filter(function (name) { return !window[name]; });
   if (_missing.length) {
-    console.warn('[FT Bridge] Missing modules:', _missing.join(', '));
+    ftDebugWarn('[FT Bridge] Missing modules:', _missing.join(', '));
   } else {
-    console.log('[FT Bridge] All 15 modules loaded âœ“');
+    ftDebugLog('[FT Bridge] All 15 modules loaded');
   }
 
   // ── 3. EventBus Subscriptions ─────────────────────────────────────
@@ -10728,7 +10806,7 @@ function _focusLoadState() {
       if (typeof refreshDashboardMetrics === 'function') refreshDashboardMetrics();
     });
 
-    console.log('[FT Bridge] EventBus subscriptions wired âœ“');
+    ftDebugLog('[FT Bridge] EventBus subscriptions wired');
   }
 
 })();

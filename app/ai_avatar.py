@@ -221,6 +221,7 @@ The user selects a mode BEFORE sending a message:
 When mode is NOT general, you MUST return status="confirmation_required" with the right action_type.
 Always set intent_confidence to "high" when the mode matches.
 Estimate realistic macros — users prefer approximate values over "I don't know".
+For nutrition mode, avoid all-zero macros. If unsure, provide a realistic estimate for a typical serving.
 Never claim data was saved. Never invent IDs.
 
 JSON schemas:
@@ -417,6 +418,49 @@ def _compute_nutrition_total(items):
     }
 
 
+def _safe_float(value, default=0.0):
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _find_local_food_estimate(name):
+    food_name = str(name or "").strip().lower()
+    if not food_name:
+        return None, None
+
+    for key in sorted(INDIAN_FOOD_ESTIMATES.keys(), key=len, reverse=True):
+        if key in food_name or food_name in key:
+            return key, INDIAN_FOOD_ESTIMATES[key]
+    return None, None
+
+
+def _hydrate_missing_macros(name, quantity, calories, protein, carbs, fats):
+    has_any_macro = any(v > 0 for v in (calories, protein, carbs, fats))
+    if has_any_macro:
+        return calories, protein, carbs, fats, ""
+
+    key, estimate = _find_local_food_estimate(name)
+    if not estimate:
+        return calories, protein, carbs, fats, ""
+
+    qty = max(0.25, _safe_float(quantity, 1.0))
+    hydrated = {
+        "calories": max(0, int(round(estimate["calories"] * qty))),
+        "protein": round(max(0.0, estimate["protein"] * qty), 1),
+        "carbs": round(max(0.0, estimate["carbs"] * qty), 1),
+        "fats": round(max(0.0, estimate["fats"] * qty), 1),
+    }
+    return (
+        hydrated["calories"],
+        hydrated["protein"],
+        hydrated["carbs"],
+        hydrated["fats"],
+        f"Backfilled from local estimate ({key})",
+    )
+
+
 def _normalize_nutrition_details(details):
     if not isinstance(details, dict):
         details = {}
@@ -443,6 +487,8 @@ def _normalize_nutrition_details(details):
         if use_food_shape:
             name = str(entry.get("name") or "Food").strip() or "Food"
             macros = entry.get("estimated_macros", {}) if isinstance(entry.get("estimated_macros"), dict) else {}
+            quantity = max(0.25, _safe_float(entry.get("quantity", 1), 1.0))
+            unit = str(entry.get("unit") or "serving").strip() or "serving"
             components = entry.get("components", [])
             if not isinstance(components, list):
                 components = []
@@ -454,35 +500,60 @@ def _normalize_nutrition_details(details):
                 qty = str(comp.get("qty") or "").strip()
                 if item_name:
                     normalized_components.append({"item": item_name, "qty": qty or "1 serving"})
+
+            calories = max(0, int(round(_safe_float(macros.get("calories", 0), 0))))
+            protein = round(max(0.0, _safe_float(macros.get("protein", 0), 0.0)), 1)
+            carbs = round(max(0.0, _safe_float(macros.get("carbs", 0), 0.0)), 1)
+            fats = round(max(0.0, _safe_float(macros.get("fats", 0), 0.0)), 1)
+            calories, protein, carbs, fats, fallback_note = _hydrate_missing_macros(
+                name, quantity, calories, protein, carbs, fats
+            )
+            note = "Gemini estimated"
+            if fallback_note:
+                note = f"{note}; {fallback_note}"
+
             items.append(
                 {
                     "name": name,
-                    "quantity": 1,
-                    "unit": "serving",
+                    "quantity": quantity,
+                    "unit": unit,
                     "components": normalized_components,
-                    "calories": max(0, int(round(float(macros.get("calories", 0) or 0)))),
-                    "protein": round(max(0.0, float(macros.get("protein", 0) or 0)), 1),
-                    "carbs": round(max(0.0, float(macros.get("carbs", 0) or 0)), 1),
-                    "fats": round(max(0.0, float(macros.get("fats", 0) or 0)), 1),
+                    "calories": calories,
+                    "protein": protein,
+                    "carbs": carbs,
+                    "fats": fats,
                     "is_estimate": True,
-                    "note": "Gemini estimated",
+                    "note": note,
                 }
             )
             continue
 
         name = str(entry.get("name") or "Food").strip() or "Food"
+        quantity = max(0.25, _safe_float(entry.get("quantity", 1), 1.0))
+        calories = max(0, int(round(_safe_float(entry.get("calories", 0), 0))))
+        protein = round(max(0.0, _safe_float(entry.get("protein", 0), 0.0)), 1)
+        carbs = round(max(0.0, _safe_float(entry.get("carbs", 0), 0.0)), 1)
+        fats = round(max(0.0, _safe_float(entry.get("fats", 0), 0.0)), 1)
+        calories, protein, carbs, fats, fallback_note = _hydrate_missing_macros(
+            name, quantity, calories, protein, carbs, fats
+        )
+
+        note = str(entry.get("note") or "")
+        if fallback_note:
+            note = f"{note}; {fallback_note}" if note else fallback_note
+
         items.append(
             {
                 "name": name,
-                "quantity": float(entry.get("quantity", 1) or 1),
+                "quantity": quantity,
                 "unit": str(entry.get("unit") or "serving"),
                 "components": entry.get("components", []) if isinstance(entry.get("components"), list) else [],
-                "calories": max(0, int(round(float(entry.get("calories", 0) or 0)))),
-                "protein": round(max(0.0, float(entry.get("protein", 0) or 0)), 1),
-                "carbs": round(max(0.0, float(entry.get("carbs", 0) or 0)), 1),
-                "fats": round(max(0.0, float(entry.get("fats", 0) or 0)), 1),
+                "calories": calories,
+                "protein": protein,
+                "carbs": carbs,
+                "fats": fats,
                 "is_estimate": bool(entry.get("is_estimate", True)),
-                "note": str(entry.get("note") or ""),
+                "note": note,
             }
         )
 

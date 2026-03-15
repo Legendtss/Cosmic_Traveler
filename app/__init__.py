@@ -37,6 +37,37 @@ from .db import init_app_data, register_db
 from .middleware import setup_middleware
 
 
+def _is_truthy_env(value):
+    return str(value or "").strip().lower() in ("1", "true", "yes", "on")
+
+
+def _validate_ai_key_policy(config_class, *, is_production, logger):
+    """Validate AI-related key policy and fail fast in production when unsafe."""
+    allow_gemini_fallback = _is_truthy_env(os.environ.get("ALLOW_GEMINI_FALLBACK_IN_PRODUCTION"))
+    allow_demo_usda = _is_truthy_env(os.environ.get("ALLOW_DEMO_USDA_IN_PRODUCTION"))
+
+    errors = []
+
+    if not config_class.GEMINI_API_KEY:
+        if is_production and not allow_gemini_fallback:
+            errors.append(
+                "GEMINI_API_KEY is required in production. "
+                "Set GEMINI_API_KEY or explicitly set ALLOW_GEMINI_FALLBACK_IN_PRODUCTION=1."
+            )
+        logger.warning("GEMINI_API_KEY not set — AI chat will use local fallback only.")
+
+    if config_class.USDA_API_KEY == "DEMO_KEY":
+        if is_production and not allow_demo_usda:
+            errors.append(
+                "USDA_API_KEY must not be DEMO_KEY in production. "
+                "Set USDA_API_KEY or explicitly set ALLOW_DEMO_USDA_IN_PRODUCTION=1."
+            )
+        logger.warning("USDA_API_KEY is DEMO_KEY — nutrition search may be rate-limited.")
+
+    if errors:
+        raise RuntimeError("Production configuration invalid:\n- " + "\n- ".join(errors))
+
+
 def _get_cors_config():
     """Build CORS configuration based on environment."""
     # Check if running in production (Render, Railway, etc.)
@@ -95,6 +126,9 @@ def create_app(config_class=Config):
     if is_production and app.config.get("SECRET_KEY") == "dev-secret-change-in-production":
         raise RuntimeError("SECRET_KEY must be set in production.")
 
+    _log = logging.getLogger(__name__)
+    _validate_ai_key_policy(config_class, is_production=is_production, logger=_log)
+
     # Restricted CORS configuration
     cors_config = _get_cors_config()
     if cors_config["origins"] is not False:
@@ -126,13 +160,6 @@ def create_app(config_class=Config):
     app.register_blueprint(focus_bp)
     app.register_blueprint(notes_bp)
     app.register_blueprint(projects_bp)
-
-    # Warn about missing optional API keys at startup
-    _log = logging.getLogger(__name__)
-    if not config_class.GEMINI_API_KEY:
-        _log.warning("GEMINI_API_KEY not set — AI chat will use local fallback only.")
-    if config_class.USDA_API_KEY == "DEMO_KEY":
-        _log.warning("USDA_API_KEY is DEMO_KEY — nutrition search may be rate-limited.")
 
     return app
 

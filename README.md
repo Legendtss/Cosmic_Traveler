@@ -127,6 +127,22 @@ python app.py
 
 Navigate to `http://localhost:5000`
 
+## ✅ Deployment Preflight (Production Safety)
+
+Before deploying, run:
+
+```bash
+python scripts/release_preflight.py
+```
+
+Production deployments require:
+
+- `SECRET_KEY` (non-default)
+- `GEMINI_API_KEY` (or explicit override: `ALLOW_GEMINI_FALLBACK_IN_PRODUCTION=1`)
+- `USDA_API_KEY` not equal to `DEMO_KEY` (or explicit override: `ALLOW_DEMO_USDA_IN_PRODUCTION=1`)
+
+On Render, these are declared in `render.yaml` so missing values are surfaced early.
+
 ## 📖 Usage Guide
 
 ### Navigation

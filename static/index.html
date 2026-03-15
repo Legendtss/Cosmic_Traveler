@@ -32,6 +32,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#2563eb">
+  <link rel="icon" type="image/svg+xml" href="/app-icon.svg">
+  <link rel="manifest" href="/manifest.json">
   <title>FitTrack Pro - Dashboard</title>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Sora:wght@600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
@@ -735,21 +738,13 @@
       <div style="margin-top: 28px; padding: 16px 14px; background: rgba(255, 255, 255, 0.1); border-radius: 16px; text-align: center; color: white; font-size: 0.85rem; font-weight: 600; cursor: pointer;">
         <i class="fas fa-star" style="margin-right: 6px;"></i> Upgrade to Pro
       </div>
-    </div>
 
-    <!-- Mobile hamburger -->
-    <button id="mobile-hamburger" class="mobile-hamburger" type="button" aria-label="Open menu" aria-expanded="false">
-      <span></span><span></span><span></span>
-    </button>
-    <div id="sidebar-overlay" class="sidebar-overlay"></div>
-
-    <!-- MAIN CONTENT -->
-    <div class="main-content">
-      <div class="global-topbar">
-        <div class="global-topbar-title">
-          <h2>FitTrack Workspace</h2>
-          <p>Track goals, workouts, and progress from one place.</p>
-        </div>
+      <!-- User Profile (bottom of sidebar) -->
+      <div class="sidebar-user-area">
+        <button id="pwa-install-btn" class="pwa-install-btn" type="button" aria-hidden="true" title="Install FitTrack app for faster access">
+          <i class="fas fa-download"></i>
+          <span>Install App</span>
+        </button>
         <div class="profile-menu-wrap" id="profile-menu-wrap">
           <button id="profile-menu-btn" class="profile-menu-btn" type="button" aria-haspopup="menu" aria-expanded="false" title="User Profile">
             <span class="profile-menu-avatar"><i class="fas fa-user"></i></span>
@@ -792,6 +787,16 @@
           </div>
         </div>
       </div>
+    </div>
+
+    <!-- Mobile hamburger -->
+    <button id="mobile-hamburger" class="mobile-hamburger" type="button" aria-label="Open menu" aria-expanded="false">
+      <span></span><span></span><span></span>
+    </button>
+    <div id="sidebar-overlay" class="sidebar-overlay"></div>
+
+    <!-- MAIN CONTENT -->
+    <div class="main-content">
 
       <!-- Dashboard Page -->
       <div id="dashboard" class="page-section active">
@@ -1886,7 +1891,7 @@
                     type="url"
                     id="focus-visual-custom-url"
                     class="focus-input"
-                    placeholder="https://example.com/loop.mp4 or /static/media/focus/focus-calm-loop-01.mp4"
+                    placeholder="https://example.com/loop.mp4 or /media/focus/focus-calm-loop-01.mp4"
                   >
                   <button type="button" class="focus-btn focus-btn-secondary focus-btn-sm" onclick="applyFocusCustomVisualUrl()">
                     Apply
@@ -2392,6 +2397,100 @@
       }, 1500);
     }
 
+  </script>
+
+  <!-- ── Offline support ───────────────────────────────────── -->
+  <!-- offlineQueue MUST load after script.js so showToast and
+       loadActiveUserDataViews are available at flush time. -->
+  <script src="state/offlineQueue.js"></script>
+  <script>
+    let deferredInstallPrompt = null;
+
+    function isStandalonePwa() {
+      try {
+        return !!(
+          (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) ||
+          window.navigator.standalone === true
+        );
+      } catch (_err) {
+        return false;
+      }
+    }
+
+    function refreshPwaInstallButton() {
+      const installBtn = document.getElementById('pwa-install-btn');
+      if (!installBtn) return;
+
+      const visible = !!deferredInstallPrompt && !isStandalonePwa();
+      installBtn.classList.toggle('is-visible', visible);
+      installBtn.setAttribute('aria-hidden', visible ? 'false' : 'true');
+    }
+
+    function initPwaInstallPrompt() {
+      const installBtn = document.getElementById('pwa-install-btn');
+      if (!installBtn) return;
+
+      installBtn.addEventListener('click', async function () {
+        if (!deferredInstallPrompt) return;
+
+        try {
+          deferredInstallPrompt.prompt();
+          const choice = await deferredInstallPrompt.userChoice;
+          if (choice && choice.outcome === 'accepted' && window.showToast) {
+            window.showToast('Install started. FitTrack will be available from your app launcher.', 'success');
+          }
+        } catch (_err) {
+          if (window.showToast) {
+            window.showToast('Unable to open install prompt right now. Please retry.', 'warning');
+          }
+        } finally {
+          deferredInstallPrompt = null;
+          refreshPwaInstallButton();
+        }
+      });
+
+      window.addEventListener('beforeinstallprompt', function (event) {
+        event.preventDefault();
+        deferredInstallPrompt = event;
+        refreshPwaInstallButton();
+      });
+
+      window.addEventListener('appinstalled', function () {
+        deferredInstallPrompt = null;
+        refreshPwaInstallButton();
+        if (window.showToast) {
+          window.showToast('FitTrack installed successfully.', 'success');
+        }
+      });
+
+      refreshPwaInstallButton();
+    }
+
+    // Initialise the offline queue once the DOM + all scripts are ready.
+    // This registers the fetch patch and online/offline listeners.
+    document.addEventListener('DOMContentLoaded', function () {
+      if (window.OfflineQueue) OfflineQueue.init();
+      initPwaInstallPrompt();
+    });
+
+    // Register the service worker.  Using 'load' event avoids competing
+    // with critical page resources during the initial render.
+    if ('serviceWorker' in navigator) {
+      const swDebug = typeof window.__FT_DEBUG__ === 'boolean'
+        ? window.__FT_DEBUG__
+        : (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+
+      window.addEventListener('load', function () {
+        navigator.serviceWorker
+          .register('/sw.js', { scope: '/' })
+          .then(function (reg) {
+            if (swDebug) console.log('[SW] Registered, scope:', reg.scope);
+          })
+          .catch(function (err) {
+            console.warn('[SW] Registration failed:', err);
+          });
+      });
+    }
   </script>
 </body>
 </html>

@@ -148,6 +148,15 @@ def ai_avatar_execute():
 
         entries = []
         for item in items:
+            qty = safe_float(item.get("quantity"), 1.0)
+            if qty <= 0:
+                qty = 1.0
+            unit = str(item.get("unit") or "serving").strip() or "serving"
+            note_bits = ["AI Avatar"]
+            item_note = str(item.get("note") or "").strip()
+            if item_note:
+                note_bits.append(item_note)
+            note_bits.append(f"qty={round(qty, 2)} {unit}")
             entries.append({
                 "name": item.get("name", "Unknown"),
                 "meal_type": meal_type,
@@ -155,7 +164,7 @@ def ai_avatar_execute():
                 "protein": max(0.0, safe_float(item.get("protein"), 0.0)),
                 "carbs": max(0.0, safe_float(item.get("carbs"), 0.0)),
                 "fats": max(0.0, safe_float(item.get("fats"), 0.0)),
-                "notes": f"AI Avatar | {item.get('note', '')}",
+                "notes": " | ".join(note_bits),
                 "date": date,
                 "time": time_val,
             })
