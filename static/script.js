@@ -9702,9 +9702,10 @@ const _focusAudioUrls = {
 const _focusVisualUrls = {
   calm: '/media/focus/focus-calm-loop-01.mp4',
   nature: '/media/focus/focus-nature-loop-01.mp4',
+  wind: '/media/focus/focus-wind-leaves-loop-03.mp4',
 };
 
-const _focusVisualModes = new Set(['off', 'calm', 'nature', 'custom']);
+const _focusVisualModes = new Set(['off', 'calm', 'nature', 'wind', 'custom']);
 
 // ─── SVG Gradient (inject once) ──────────────────────
 function _focusInjectGradient() {
