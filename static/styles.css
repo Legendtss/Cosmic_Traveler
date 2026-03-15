@@ -10383,6 +10383,11 @@ body.theme-dark .mentor-body strong {
   box-shadow: 0 1px 3px rgba(0,0,0,0.08);
 }
 .focus-mode-tab:hover:not(.active) { color: #374151; }
+.focus-mode-tab:disabled,
+.focus-mode-tab.is-locked {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
 
 /* Timer Display */
 .focus-timer-display {
@@ -10482,6 +10487,13 @@ body.theme-dark .mentor-body strong {
   border-color: #c7d2fe;
   color: #4f46e5;
 }
+.focus-preset:disabled,
+.focus-preset.is-locked {
+  opacity: 0.55;
+  cursor: not-allowed;
+  border-color: #e5e7eb;
+  color: #9ca3af;
+}
 .focus-input {
   padding: 8px 14px;
   border: 2px solid #e5e7eb;
@@ -10496,6 +10508,22 @@ body.theme-dark .mentor-body strong {
 .focus-input:focus {
   border-color: #6366f1;
   outline: none;
+}
+.focus-input:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  background: #f3f4f6;
+}
+
+.focus-settings-lock-note {
+  margin: 10px 0 14px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid #f3e8ff;
+  background: #faf5ff;
+  color: #7c3aed;
+  font-size: 0.79rem;
+  font-weight: 600;
 }
 
 /* Timer Controls */
@@ -10919,6 +10947,8 @@ body.theme-dark .focus-ring-bg { stroke: #2e2e40; }
 body.theme-dark .focus-mode-tabs { background: #1a1a2e; }
 body.theme-dark .focus-mode-tab { color: #9ca3af; }
 body.theme-dark .focus-mode-tab.active { background: #2e2e40; color: #a78bfa; }
+body.theme-dark .focus-mode-tab:disabled,
+body.theme-dark .focus-mode-tab.is-locked { opacity: 0.5; }
 body.theme-dark .focus-preset {
   background: #1e1e2e;
   border-color: #2e2e40;
@@ -10929,10 +10959,24 @@ body.theme-dark .focus-preset.active {
   border-color: #6366f1;
   color: #a78bfa;
 }
+body.theme-dark .focus-preset:disabled,
+body.theme-dark .focus-preset.is-locked {
+  border-color: #2e2e40;
+  color: #6b7280;
+}
 body.theme-dark .focus-input {
   background: #1e1e2e;
   border-color: #2e2e40;
   color: #e5e7eb;
+}
+body.theme-dark .focus-input:disabled {
+  background: #171726;
+  color: #94a3b8;
+}
+body.theme-dark .focus-settings-lock-note {
+  border-color: #3b2e63;
+  background: #231942;
+  color: #c4b5fd;
 }
 body.theme-dark .focus-btn-secondary {
   background: #2e2e40;

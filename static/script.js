@@ -9726,6 +9726,7 @@ function initFocusModule() {
   _focusInitVisualControls();
   _focusRenderCycleDots();
   _focusUpdateDisplay();
+  _focusUpdateControls();
   _focusLoadSessions();
   _focusUpdateSummary();
   _focusSyncVisualUI();
@@ -9987,12 +9988,14 @@ function switchFocusMode(mode) {
   _focus.isBreak = false;
   _focusRenderCycleDots();
   _focusUpdateDisplay();
+  _focusSyncSettingsLock();
   _focusSaveState();
   _focusSyncVisualPlayback();
 }
 
 // ─── Pomodoro Presets ───────────────────────────────
 function setPomodoroDuration(min) {
+  if (_focus.state !== 'idle') return;
   _focus.pomodoroFocus = min;
   _focus.totalDurationMs = min * 60 * 1000;
   document.querySelectorAll('#focus-pomodoro-settings .focus-setting-row:first-child .focus-preset')
@@ -10001,12 +10004,14 @@ function setPomodoroDuration(min) {
   _focusSaveState();
 }
 function setPomodoroBreak(min) {
+  if (_focus.state !== 'idle') return;
   _focus.pomodoroBreak = min;
   document.querySelectorAll('#focus-pomodoro-settings .focus-setting-row:nth-child(2) .focus-preset')
     .forEach(b => b.classList.toggle('active', +b.dataset.minutes === min));
   _focusSaveState();
 }
 function setPomodoroSessions(n) {
+  if (_focus.state !== 'idle') return;
   _focus.pomodoroSessions = n;
   document.querySelectorAll('#focus-pomodoro-settings .focus-setting-row:nth-child(3) .focus-preset')
     .forEach(b => b.classList.toggle('active', +b.dataset.sessions === n));
@@ -10277,6 +10282,30 @@ function _focusUpdateControls() {
   resumeBtn.style.display = s === 'paused' ? '' : 'none';
   stopBtn.style.display = (s === 'running' || s === 'paused') ? '' : 'none';
   resetBtn.style.display = s !== 'idle' ? '' : 'none';
+
+  _focusSyncSettingsLock();
+}
+
+function _focusSyncSettingsLock() {
+  const locked = _focus.state !== 'idle';
+
+  document.querySelectorAll('.focus-mode-tab').forEach((tab) => {
+    tab.disabled = locked;
+    tab.classList.toggle('is-locked', locked);
+  });
+
+  document.querySelectorAll('#focus-pomodoro-settings .focus-preset').forEach((btn) => {
+    btn.disabled = locked;
+    btn.classList.toggle('is-locked', locked);
+  });
+
+  const customMinutesInput = document.getElementById('focus-custom-minutes');
+  const customLabelInput = document.getElementById('focus-custom-label');
+  if (customMinutesInput) customMinutesInput.disabled = locked;
+  if (customLabelInput) customLabelInput.disabled = locked;
+
+  const lockNote = document.getElementById('focus-settings-lock-note');
+  if (lockNote) lockNote.style.display = locked ? '' : 'none';
 }
 
 // ─── Cycle Dots ─────────────────────────────────────
