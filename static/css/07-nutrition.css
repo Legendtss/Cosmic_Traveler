@@ -966,6 +966,12 @@
   margin-bottom: 4px;
 }
 
+.nutrition-history-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .nutrition-history-time {
   color: #64748b;
   font-weight: 600;
@@ -980,14 +986,26 @@
   font-size: 0.95rem;
 }
 
+.nutrition-history-save,
 .nutrition-history-delete {
   border: none;
   background: transparent;
-  color: #ef4444;
   cursor: pointer;
   padding: 2px;
   line-height: 1;
   font-size: 0.85rem;
+}
+
+.nutrition-history-save {
+  color: #2563eb;
+}
+
+.nutrition-history-save:hover {
+  color: #1d4ed8;
+}
+
+.nutrition-history-delete {
+  color: #ef4444;
 }
 
 .nutrition-history-macros {
@@ -995,7 +1013,6 @@
   flex-wrap: wrap;
   gap: 8px;
 }
-
 .nutrition-history-macros span {
   font-size: 0.84rem;
   color: #334155;

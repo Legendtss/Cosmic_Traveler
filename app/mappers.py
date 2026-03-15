@@ -42,6 +42,14 @@ def map_task(row):
         note_saved = bool(row["note_saved_to_notes"])
     except (IndexError, KeyError):
         note_saved = False
+    try:
+        recurrence = row["recurrence"] or "none"
+    except (IndexError, KeyError):
+        recurrence = "none"
+    try:
+        recurrence_parent_id = row["recurrence_parent_id"]
+    except (IndexError, KeyError):
+        recurrence_parent_id = None
 
     return {
         "id": row["id"],
@@ -57,6 +65,8 @@ def map_task(row):
         "time_spent": row["time_spent"],
         "note_content": note_content,
         "note_saved_to_notes": note_saved,
+        "recurrence": recurrence,
+        "recurrence_parent_id": recurrence_parent_id,
         "created_at": row["created_at"],
         "updated_at": row["updated_at"],
     }
@@ -104,4 +114,25 @@ def map_workout(row):
         "date": row["date"],
         "time": row["time"],
         "created_at": row["created_at"],
+    }
+
+
+def map_workout_template(row):
+    exercises = []
+    try:
+        exercises = json.loads(row["exercises_json"] or "[]")
+    except (TypeError, ValueError):
+        exercises = []
+
+    return {
+        "id": row["id"],
+        "name": row["name"],
+        "type": row["type"],
+        "duration": row["duration"],
+        "calories_burned": row["calories_burned"],
+        "exercises": exercises,
+        "notes": row["notes"],
+        "intensity": row["intensity"],
+        "created_at": row["created_at"],
+        "updated_at": row["updated_at"],
     }

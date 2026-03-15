@@ -1728,6 +1728,17 @@
 
           <!-- Timer Section -->
           <div class="focus-timer-card card">
+            <div id="focus-visual-layer" class="focus-visual-layer" aria-hidden="true">
+              <video
+                id="focus-visual-video"
+                class="focus-visual-video"
+                muted
+                loop
+                playsinline
+                preload="metadata"
+              ></video>
+            </div>
+
             <!-- Mode Tabs -->
             <div class="focus-mode-tabs">
               <button class="focus-mode-tab active" data-mode="pomodoro" onclick="switchFocusMode('pomodoro')">
@@ -1852,6 +1863,38 @@
               <i class="fas fa-volume-down"></i>
               <input type="range" id="focus-volume-slider" min="0" max="100" value="50" oninput="setFocusVolume(this.value)">
               <i class="fas fa-volume-up"></i>
+            </div>
+          </div>
+
+          <div class="focus-visual-card card">
+            <div class="focus-visual-header">
+              <h3><i class="fas fa-film"></i> Focus Visual Background</h3>
+            </div>
+            <div class="focus-visual-controls">
+              <label class="focus-visual-label" for="focus-visual-mode">Visual mode</label>
+              <select id="focus-visual-mode" class="focus-input" onchange="setFocusVisualMode(this.value)">
+                <option value="off">Off</option>
+                <option value="calm">Calm visual</option>
+                <option value="nature">Nature visual</option>
+                <option value="custom">Custom</option>
+              </select>
+
+              <div id="focus-visual-custom-wrap" class="focus-visual-custom-wrap" style="display:none;">
+                <label class="focus-visual-label" for="focus-visual-custom-url">Custom video URL</label>
+                <div class="focus-visual-custom-row">
+                  <input
+                    type="url"
+                    id="focus-visual-custom-url"
+                    class="focus-input"
+                    placeholder="https://example.com/loop.mp4 or /static/media/focus/focus-calm-loop-01.mp4"
+                  >
+                  <button type="button" class="focus-btn focus-btn-secondary focus-btn-sm" onclick="applyFocusCustomVisualUrl()">
+                    Apply
+                  </button>
+                </div>
+              </div>
+
+              <p id="focus-visual-note" class="focus-visual-note">Visuals are off by default and only play while the timer is running.</p>
             </div>
           </div>
 
@@ -2083,6 +2126,34 @@
                 <i class="fas fa-save"></i> Save Profile
               </button>
             </div>
+          </section>
+
+          <section class="profile-card profile-motivation-card">
+            <h3>Motivation Coach</h3>
+            <p class="profile-motivation-subtext">Context-aware nudges with cooldown and quiet hours.</p>
+            <div class="profile-motivation-grid">
+              <label class="profile-motivation-toggle" for="profile-motivation-enabled">
+                <span>Smart nudges</span>
+                <input id="profile-motivation-enabled" type="checkbox">
+              </label>
+              <label>
+                <span>Intensity</span>
+                <select id="profile-motivation-intensity">
+                  <option value="low">Low</option>
+                  <option value="medium">Medium</option>
+                  <option value="high">High</option>
+                </select>
+              </label>
+              <label>
+                <span>Quiet hours start</span>
+                <input id="profile-motivation-quiet-start" type="time" step="60">
+              </label>
+              <label>
+                <span>Quiet hours end</span>
+                <input id="profile-motivation-quiet-end" type="time" step="60">
+              </label>
+            </div>
+            <small id="profile-motivation-hint" class="profile-motivation-hint"></small>
           </section>
         </div>
       </div>

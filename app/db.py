@@ -313,7 +313,7 @@ def init_schema(conn):
                 # Drop in reverse-dependency order; CASCADE handles any strays.
                 for tbl in [
                     'focus_sessions', 'notes', 'stats_snapshots', 'user_progress',
-                    'nutrition_entries', 'project_subtasks', 'tasks', 'workouts',
+                    'nutrition_entries', 'project_subtasks', 'tasks', 'workout_templates', 'workouts',
                     'projects', 'login_attempts', 'sessions', 'users',
                 ]:
                     cur.execute(f'DROP TABLE IF EXISTS {tbl} CASCADE')
@@ -369,6 +369,121 @@ def ensure_tasks_tags_column(conn):
             conn.execute("ALTER TABLE tasks ADD COLUMN note_content TEXT NOT NULL DEFAULT ''")
         if "note_saved_to_notes" not in names:
             conn.execute("ALTER TABLE tasks ADD COLUMN note_saved_to_notes INTEGER NOT NULL DEFAULT 0")
+
+
+def ensure_tasks_recurrence_columns(conn):
+    """Add recurrence columns/indexes for tasks if needed."""
+    config = _db_config()
+
+    if config["type"] == "postgresql":
+        cols = conn.execute("""
+            SELECT column_name FROM information_schema.columns
+            WHERE table_name='tasks'
+        """).fetchall()
+        names = {row["column_name"] for row in cols}
+
+        if "recurrence" not in names:
+            conn.execute("ALTER TABLE tasks ADD COLUMN recurrence TEXT NOT NULL DEFAULT 'none'")
+        if "recurrence_parent_id" not in names:
+            conn.execute("ALTER TABLE tasks ADD COLUMN recurrence_parent_id INTEGER")
+
+        conn.execute(
+            "UPDATE tasks SET recurrence = 'none' WHERE recurrence IS NULL OR recurrence NOT IN ('none','daily','weekly','weekdays')"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_tasks_recurrence ON tasks(user_id, recurrence, date)"
+        )
+        conn.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_tasks_recurrence_instance ON tasks(user_id, recurrence_parent_id, date)"
+        )
+
+        conn.execute("""
+            DO $$
+            BEGIN
+                IF NOT EXISTS (
+                    SELECT 1 FROM pg_constraint WHERE conname = 'tasks_recurrence_check'
+                ) THEN
+                    ALTER TABLE tasks
+                    ADD CONSTRAINT tasks_recurrence_check
+                    CHECK (recurrence IN ('none','daily','weekly','weekdays'));
+                END IF;
+            END $$;
+        """)
+        conn.execute("""
+            DO $$
+            BEGIN
+                IF NOT EXISTS (
+                    SELECT 1 FROM pg_constraint WHERE conname = 'tasks_recurrence_parent_fk'
+                ) THEN
+                    ALTER TABLE tasks
+                    ADD CONSTRAINT tasks_recurrence_parent_fk
+                    FOREIGN KEY (recurrence_parent_id)
+                    REFERENCES tasks(id)
+                    ON DELETE CASCADE;
+                END IF;
+            END $$;
+        """)
+    else:
+        cols = conn.execute("PRAGMA table_info(tasks)").fetchall()
+        names = {row["name"] for row in cols}
+
+        if "recurrence" not in names:
+            conn.execute("ALTER TABLE tasks ADD COLUMN recurrence TEXT NOT NULL DEFAULT 'none'")
+        if "recurrence_parent_id" not in names:
+            conn.execute("ALTER TABLE tasks ADD COLUMN recurrence_parent_id INTEGER")
+
+        conn.execute(
+            "UPDATE tasks SET recurrence = 'none' WHERE recurrence IS NULL OR recurrence NOT IN ('none','daily','weekly','weekdays')"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_tasks_recurrence ON tasks(user_id, recurrence, date)"
+        )
+        conn.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_tasks_recurrence_instance ON tasks(user_id, recurrence_parent_id, date)"
+        )
+
+
+def ensure_workout_templates_table(conn):
+    """Create workout_templates table and index if missing."""
+    config = _db_config()
+
+    if config["type"] == "postgresql":
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS workout_templates (
+              id SERIAL PRIMARY KEY,
+              user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+              name TEXT NOT NULL,
+              type TEXT NOT NULL DEFAULT 'other',
+              duration INTEGER NOT NULL DEFAULT 0 CHECK (duration >= 0),
+              calories_burned INTEGER NOT NULL DEFAULT 0 CHECK (calories_burned >= 0),
+              intensity TEXT NOT NULL DEFAULT 'medium' CHECK (intensity IN ('low','medium','high')),
+              exercises_json TEXT NOT NULL DEFAULT '[]',
+              notes TEXT NOT NULL DEFAULT '',
+              created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+              updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+    else:
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS workout_templates (
+              id INTEGER PRIMARY KEY,
+              user_id INTEGER NOT NULL,
+              name TEXT NOT NULL,
+              type TEXT NOT NULL DEFAULT 'other',
+              duration INTEGER NOT NULL DEFAULT 0 CHECK (duration >= 0),
+              calories_burned INTEGER NOT NULL DEFAULT 0 CHECK (calories_burned >= 0),
+              intensity TEXT NOT NULL DEFAULT 'medium' CHECK (intensity IN ('low','medium','high')),
+              exercises_json TEXT NOT NULL DEFAULT '[]',
+              notes TEXT NOT NULL DEFAULT '',
+              created_at TEXT NOT NULL DEFAULT (CURRENT_TIMESTAMP),
+              updated_at TEXT NOT NULL DEFAULT (CURRENT_TIMESTAMP),
+              FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+            )
+        """)
+
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_workout_templates_user ON workout_templates(user_id)"
+    )
 
 
 def ensure_auth_columns(conn):
@@ -753,6 +868,8 @@ def init_app_data(app):
                 with app.app_context():
                     init_schema(conn)
                     ensure_tasks_tags_column(conn)
+                    ensure_tasks_recurrence_columns(conn)
+                    ensure_workout_templates_table(conn)
                     ensure_auth_columns(conn)
                     ensure_focus_sessions_columns(conn)
                     ensure_notes_task_link_triggers(conn)
@@ -785,6 +902,8 @@ def init_app_data(app):
             with app.app_context():
                 init_schema(conn)
                 ensure_tasks_tags_column(conn)
+                ensure_tasks_recurrence_columns(conn)
+                ensure_workout_templates_table(conn)
                 ensure_auth_columns(conn)
                 ensure_focus_sessions_columns(conn)
                 if should_migrate_json(conn):

@@ -174,6 +174,93 @@ body {
   gap: 32px;
 }
 
+.app-toast-container {
+  position: fixed;
+  top: 18px;
+  right: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: min(360px, calc(100vw - 28px));
+  z-index: 9998;
+  pointer-events: none;
+}
+
+.app-toast {
+  pointer-events: auto;
+  display: grid;
+  grid-template-columns: 20px 1fr auto;
+  align-items: start;
+  gap: 10px;
+  padding: 12px 12px 12px 10px;
+  border-radius: 12px;
+  border: 1px solid #dbe5f3;
+  border-left-width: 4px;
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 16px 30px -22px rgba(17, 24, 39, 0.55);
+  opacity: 0;
+  transform: translateY(-8px);
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+
+.app-toast.show {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.app-toast-icon {
+  width: 20px;
+  height: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 1px;
+}
+
+.app-toast-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.app-toast-title {
+  font-size: 0.73rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #64748b;
+}
+
+.app-toast-message {
+  color: #0f172a;
+  font-size: 0.9rem;
+  line-height: 1.35;
+}
+
+.app-toast-close {
+  border: 0;
+  background: transparent;
+  color: #64748b;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.app-toast-close:hover {
+  background: rgba(100, 116, 139, 0.12);
+}
+
+.app-toast-success { border-left-color: #16a34a; }
+.app-toast-info { border-left-color: #2563eb; }
+.app-toast-warning { border-left-color: #ea580c; }
+.app-toast-error { border-left-color: #dc2626; }
+
+.app-toast-success .app-toast-icon { color: #16a34a; }
+.app-toast-info .app-toast-icon { color: #2563eb; }
+.app-toast-warning .app-toast-icon { color: #ea580c; }
+.app-toast-error .app-toast-icon { color: #dc2626; }
+
 /* ========================================================================
    §2  SIDEBAR (NAVIGATION + TASKS OVERVIEW)
    ======================================================================== */
@@ -3230,6 +3317,67 @@ body {
   margin-top: 14px;
   display: flex;
   justify-content: flex-end;
+}
+
+.profile-motivation-card {
+  margin-top: 2px;
+}
+
+.profile-motivation-subtext {
+  color: #475569;
+  margin-bottom: 10px;
+  font-size: 0.9rem;
+}
+
+.profile-motivation-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.profile-motivation-grid label {
+  display: grid;
+  gap: 6px;
+}
+
+.profile-motivation-grid label span {
+  color: #334155;
+  font-size: 0.86rem;
+  font-weight: 700;
+}
+
+.profile-motivation-grid input,
+.profile-motivation-grid select {
+  width: 100%;
+  border: 1px solid #dbe6ef;
+  border-radius: 12px;
+  padding: 11px 12px;
+  font-size: 0.95rem;
+  color: #0f172a;
+  font-family: inherit;
+}
+
+.profile-motivation-toggle {
+  display: flex !important;
+  align-items: center;
+  justify-content: space-between;
+  border: 1px solid #dbe6ef;
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: #f8fbff;
+}
+
+.profile-motivation-toggle input {
+  width: 18px;
+  height: 18px;
+  accent-color: #2563eb;
+}
+
+.profile-motivation-hint {
+  display: block;
+  margin-top: 10px;
+  color: #475569;
+  font-weight: 600;
 }
 
 @media (max-width: 1100px) {
@@ -7246,6 +7394,35 @@ body.theme-dark .dash-action-option i:first-child {
   color: var(--icon-color-dark);
 }
 
+body.theme-dark .app-toast {
+  background: rgba(26, 19, 17, 0.98);
+  border-color: #3f2f25;
+  box-shadow: 0 16px 30px -22px rgba(0, 0, 0, 0.75);
+}
+
+body.theme-dark .app-toast-message {
+  color: #f4dfd4;
+}
+
+body.theme-dark .app-toast-title,
+body.theme-dark .app-toast-close {
+  color: #c7a99c;
+}
+
+body.theme-dark .profile-motivation-subtext,
+body.theme-dark .profile-motivation-hint {
+  color: #d2b9ad;
+}
+
+body.theme-dark .profile-motivation-toggle {
+  background: #1b1410;
+  border-color: #4b3128;
+}
+
+body.theme-dark .profile-motivation-toggle input {
+  accent-color: #ff6b4a;
+}
+
 body.theme-dark .dash-action-option .name {
   color: #e8dcd8;
 }
@@ -9718,6 +9895,7 @@ body.theme-dark .mobile-hamburger span { background: #f1e8e0; }
   .profile-main-grid { grid-template-columns: 1fr; gap: 14px; }
   .profile-form-grid { grid-template-columns: 1fr; gap: 10px; }
   .profile-form-grid.three { grid-template-columns: 1fr; }
+  .profile-motivation-grid { grid-template-columns: 1fr; }
   .profile-hero { order: -1; }
   .profile-head h2 { font-size: 1.3rem; }
 

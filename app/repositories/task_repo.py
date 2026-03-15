@@ -17,13 +17,111 @@ Depends on:
 """
 
 import json
+from datetime import datetime
 
 from ..db import get_db
 from ..utils import now_iso, safe_int
 
+VALID_RECURRENCE = frozenset({"none", "daily", "weekly", "weekdays"})
+
+
+def _parse_ymd(value):
+    try:
+        return datetime.strptime(value, "%Y-%m-%d").date()
+    except (TypeError, ValueError):
+        return None
+
+
+def _should_materialize(recurrence, anchor_date, target_date):
+    if target_date <= anchor_date:
+        return False
+    if recurrence == "daily":
+        return True
+    if recurrence == "weekdays":
+        return target_date.weekday() < 5
+    if recurrence == "weekly":
+        return target_date.weekday() == anchor_date.weekday()
+    return False
+
 
 class TaskRepository:
     """Data-access object for the tasks table."""
+
+    @staticmethod
+    def materialize_recurring_for_date(user_id, target_date):
+        """Create missing recurring task instances for a target date."""
+        parsed_target = _parse_ymd(target_date)
+        if not parsed_target:
+            return 0
+
+        db = get_db()
+        templates = db.execute(
+            """
+            SELECT * FROM tasks
+            WHERE user_id = ?
+              AND recurrence IN ('daily', 'weekly', 'weekdays')
+              AND recurrence_parent_id IS NULL
+              AND date <= ?
+            ORDER BY id ASC
+            """,
+            (user_id, target_date),
+        ).fetchall()
+
+        created = 0
+        now = now_iso()
+        for template in templates:
+            anchor = _parse_ymd(template["date"])
+            if not anchor:
+                continue
+            if not _should_materialize(template["recurrence"], anchor, parsed_target):
+                continue
+
+            exists = db.execute(
+                """
+                SELECT 1 FROM tasks
+                WHERE user_id = ?
+                  AND date = ?
+                  AND (id = ? OR recurrence_parent_id = ?)
+                LIMIT 1
+                """,
+                (user_id, target_date, template["id"], template["id"]),
+            ).fetchone()
+            if exists:
+                continue
+
+            db.execute(
+                """
+                INSERT INTO tasks
+                (user_id, project_id, title, description, tags_json, category,
+                 priority, completed, date, time_spent,
+                 note_content, note_saved_to_notes, recurrence, recurrence_parent_id,
+                 created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    user_id,
+                    template["project_id"],
+                    template["title"],
+                    template["description"],
+                    template["tags_json"],
+                    template["category"],
+                    template["priority"],
+                    0,
+                    target_date,
+                    0,
+                    template["note_content"] or "",
+                    0,
+                    "none",
+                    template["id"],
+                    now,
+                    now,
+                ),
+            )
+            created += 1
+
+        if created:
+            db.commit()
+        return created
 
     @staticmethod
     def get_all(user_id, date_filter=None):
@@ -57,21 +155,26 @@ class TaskRepository:
     @staticmethod
     def create(user_id, *, title, description="", tags_json="[]", category="general",
                priority="medium", date=None, project_id=None,
-               note_content="", note_saved_to_notes=False):
+               note_content="", note_saved_to_notes=False,
+               recurrence="none", recurrence_parent_id=None):
         db = get_db()
         created_at = now_iso()
+        recurrence_value = recurrence if recurrence in VALID_RECURRENCE else "none"
         cursor = db.execute(
             """
             INSERT INTO tasks
             (user_id, project_id, title, description, tags_json, category,
              priority, completed, date, time_spent,
-             note_content, note_saved_to_notes, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             note_content, note_saved_to_notes, recurrence, recurrence_parent_id,
+             created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 user_id, project_id, title, description, tags_json,
                 category, priority, 0, date, 0,
                 note_content, 1 if note_saved_to_notes and note_content else 0,
+                recurrence_value,
+                recurrence_parent_id,
                 created_at, created_at,
             ),
         )
@@ -81,22 +184,25 @@ class TaskRepository:
     @staticmethod
     def update(task_id, user_id, *, title, description, tags_json, category,
                priority, completed, date, time_spent,
-               note_content, note_saved_to_notes):
+               note_content, note_saved_to_notes, recurrence,
+               recurrence_parent_id):
         db = get_db()
         now = now_iso()
+        recurrence_value = recurrence if recurrence in VALID_RECURRENCE else "none"
         db.execute(
             """
             UPDATE tasks
             SET title = ?, description = ?, tags_json = ?, category = ?,
                 priority = ?, completed = ?, date = ?, time_spent = ?,
-                note_content = ?, note_saved_to_notes = ?, updated_at = ?
+                note_content = ?, note_saved_to_notes = ?, recurrence = ?, recurrence_parent_id = ?, updated_at = ?
             WHERE id = ? AND user_id = ?
             """,
             (
                 title, description, tags_json, category,
                 priority, 1 if completed else 0, date,
                 max(0, safe_int(time_spent, 0)),
-                note_content, 1 if note_saved_to_notes else 0, now,
+                note_content, 1 if note_saved_to_notes else 0,
+                recurrence_value, recurrence_parent_id, now,
                 task_id, user_id,
             ),
         )

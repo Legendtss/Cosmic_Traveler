@@ -70,10 +70,13 @@ CREATE TABLE IF NOT EXISTS tasks (
   time_spent INTEGER NOT NULL DEFAULT 0 CHECK (time_spent >= 0),
   note_content TEXT NOT NULL DEFAULT '',
   note_saved_to_notes INTEGER NOT NULL DEFAULT 0,
+  recurrence TEXT NOT NULL DEFAULT 'none' CHECK (recurrence IN ('none','daily','weekly','weekdays')),
+  recurrence_parent_id INTEGER,
   created_at TEXT NOT NULL DEFAULT (CURRENT_TIMESTAMP),
   updated_at TEXT NOT NULL DEFAULT (CURRENT_TIMESTAMP),
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-  FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE SET NULL
+  FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE SET NULL,
+  FOREIGN KEY (recurrence_parent_id) REFERENCES tasks(id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS project_subtasks (
@@ -100,6 +103,21 @@ CREATE TABLE IF NOT EXISTS workouts (
   completed INTEGER NOT NULL DEFAULT 0 CHECK (completed IN (0,1)),
   date TEXT NOT NULL,
   time TEXT,
+  created_at TEXT NOT NULL DEFAULT (CURRENT_TIMESTAMP),
+  updated_at TEXT NOT NULL DEFAULT (CURRENT_TIMESTAMP),
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS workout_templates (
+  id INTEGER PRIMARY KEY,
+  user_id INTEGER NOT NULL,
+  name TEXT NOT NULL,
+  type TEXT NOT NULL DEFAULT 'other',
+  duration INTEGER NOT NULL DEFAULT 0 CHECK (duration >= 0),
+  calories_burned INTEGER NOT NULL DEFAULT 0 CHECK (calories_burned >= 0),
+  intensity TEXT NOT NULL DEFAULT 'medium' CHECK (intensity IN ('low','medium','high')),
+  exercises_json TEXT NOT NULL DEFAULT '[]',
+  notes TEXT NOT NULL DEFAULT '',
   created_at TEXT NOT NULL DEFAULT (CURRENT_TIMESTAMP),
   updated_at TEXT NOT NULL DEFAULT (CURRENT_TIMESTAMP),
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
@@ -180,7 +198,10 @@ CREATE TABLE IF NOT EXISTS notes (
 CREATE INDEX IF NOT EXISTS idx_tasks_user_date ON tasks(user_id, date);
 CREATE INDEX IF NOT EXISTS idx_tasks_user_completed_date ON tasks(user_id, completed, date);
 CREATE INDEX IF NOT EXISTS idx_tasks_project ON tasks(project_id);
+CREATE INDEX IF NOT EXISTS idx_tasks_recurrence ON tasks(user_id, recurrence, date);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_tasks_recurrence_instance ON tasks(user_id, recurrence_parent_id, date);
 CREATE INDEX IF NOT EXISTS idx_workouts_user_date ON workouts(user_id, date);
+CREATE INDEX IF NOT EXISTS idx_workout_templates_user ON workout_templates(user_id);
 CREATE INDEX IF NOT EXISTS idx_nutrition_user_date ON nutrition_entries(user_id, date);
 CREATE INDEX IF NOT EXISTS idx_subtasks_project ON project_subtasks(project_id, completed);
 CREATE INDEX IF NOT EXISTS idx_stats_user_date ON stats_snapshots(user_id, snapshot_date);

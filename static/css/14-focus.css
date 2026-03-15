@@ -151,6 +151,45 @@
   padding: 28px 24px;
   border-radius: 16px;
   margin-bottom: 20px;
+  position: relative;
+  overflow: hidden;
+}
+
+.focus-timer-card > :not(.focus-visual-layer) {
+  position: relative;
+  z-index: 1;
+}
+
+.focus-visual-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.28s ease;
+  border-radius: 16px;
+}
+
+.focus-visual-layer.is-active {
+  opacity: 1;
+}
+
+.focus-visual-layer::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(8, 15, 28, 0.2), rgba(8, 15, 28, 0.42));
+}
+
+.focus-visual-video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  filter: blur(1px) saturate(0.94) brightness(0.78);
+}
+
+.focus-timer-card.focus-visual-active {
+  border-color: rgba(99, 102, 241, 0.45);
 }
 
 /* Mode Tabs */
@@ -414,6 +453,66 @@
   cursor: pointer;
 }
 
+/* — Visual Background Controls — */
+.focus-visual-card {
+  padding: 20px 24px;
+  border-radius: 16px;
+  margin-bottom: 20px;
+}
+
+.focus-visual-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.focus-visual-header h3 {
+  margin: 0;
+  font-size: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.focus-visual-controls {
+  display: grid;
+  gap: 10px;
+}
+
+.focus-visual-label {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #4b5563;
+}
+
+.focus-visual-controls .focus-input {
+  max-width: 100%;
+}
+
+.focus-visual-custom-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.focus-visual-custom-row .focus-input {
+  flex: 1;
+  min-width: 240px;
+}
+
+.focus-visual-note {
+  margin: 0;
+  font-size: 0.8rem;
+  color: #64748b;
+  font-weight: 500;
+}
+
+.focus-visual-note.warn {
+  color: #b45309;
+}
+
 /* — Whitelist Card — */
 .focus-whitelist-card {
   padding: 20px 24px;
@@ -643,6 +742,10 @@ body.focus-mode-active .focus-btn[onclick="toggleFocusMode()"] i::before {
     align-items: flex-start;
     gap: 8px;
   }
+
+  .focus-visual-layer {
+    display: none !important;
+  }
 }
 
 /* ═══ Dark Theme ═══ */
@@ -690,6 +793,15 @@ body.theme-dark .focus-audio-track.active {
   background: #2e2456;
   border-color: #6366f1;
   color: #a78bfa;
+}
+body.theme-dark .focus-visual-label {
+  color: #cbd5e1;
+}
+body.theme-dark .focus-visual-note {
+  color: #94a3b8;
+}
+body.theme-dark .focus-visual-note.warn {
+  color: #f59e0b;
 }
 body.theme-dark .focus-audio-volume { color: #6b7280; }
 body.theme-dark .focus-audio-volume input[type="range"] { background: #2e2e40; }

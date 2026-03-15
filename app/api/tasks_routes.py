@@ -29,13 +29,21 @@ from .helpers import default_user_id, normalize_tags
 
 tasks_bp = Blueprint("tasks", __name__)
 VALID_TASK_CATEGORIES = frozenset({"general", "work", "personal", "health", "study", "finance"})
+VALID_TASK_RECURRENCE = frozenset({"none", "daily", "weekly", "weekdays"})
+
+
+def _normalize_recurrence(value):
+    recurrence = str(value or "none").strip().lower()
+    return recurrence if recurrence in VALID_TASK_RECURRENCE else "none"
 
 
 @tasks_bp.route("/api/tasks", methods=["GET"])
 @rate_limit(max_requests=50, window_seconds=60)
 def get_tasks():
+    uid = default_user_id()
     date_filter = request.args.get("date")
-    rows = TaskRepository.get_all(default_user_id(), date_filter)
+    TaskRepository.materialize_recurring_for_date(uid, date_filter or today_str())
+    rows = TaskRepository.get_all(uid, date_filter)
     return jsonify([map_task(r) for r in rows])
 
 
@@ -68,6 +76,7 @@ def create_task():
             return jsonify({"error": "Project not found"}), 404
 
     due_date = req_data.get("date") or today_str()
+    recurrence = _normalize_recurrence(req_data.get("recurrence", "none"))
 
     tags = normalize_tags(req_data.get("tags"))
     note_content = (req_data.get("note_content") or "").strip()
@@ -84,6 +93,7 @@ def create_task():
         project_id=project_id,
         note_content=note_content,
         note_saved_to_notes=save_note,
+        recurrence=recurrence,
     )
 
     # Auto-create linked note if requested
@@ -130,6 +140,12 @@ def update_task(task_id):
     note_content = req_data.get("note_content", old_note_content)
     save_note = req_data.get("save_to_notes", old_note_saved)
     due_date = req_data.get("date", row["date"])
+    existing_recurrence = row["recurrence"] if "recurrence" in row.keys() else "none"
+    recurrence = _normalize_recurrence(req_data.get("recurrence", existing_recurrence))
+    recurrence_parent_id = row["recurrence_parent_id"] if "recurrence_parent_id" in row.keys() else None
+    if recurrence != "none":
+        # Promoting to recurring template detaches this task from parent series.
+        recurrence_parent_id = None
 
     if priority not in ("low", "medium", "high"):
         priority = row["priority"]
@@ -149,6 +165,8 @@ def update_task(task_id):
         time_spent=safe_int(time_spent, row["time_spent"]),
         note_content=note_content_val,
         note_saved_to_notes=note_saved_val,
+        recurrence=recurrence,
+        recurrence_parent_id=recurrence_parent_id,
     )
 
     # Sync linked note: create if newly checked, update if already exists

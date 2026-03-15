@@ -175,6 +175,9 @@ def ai_avatar_execute():
         priority = payload.get("priority", "medium")
         if priority not in ("low", "medium", "high"):
             priority = "medium"
+        recurrence = str(payload.get("recurrence", "none") or "none").strip().lower()
+        if recurrence not in ("none", "daily", "weekly", "weekdays"):
+            recurrence = "none"
 
         task_id, _ = TaskRepository.create(
             user_id,
@@ -184,6 +187,7 @@ def ai_avatar_execute():
             category=payload.get("category", "general"),
             priority=priority,
             date=payload.get("date", today_str()),
+            recurrence=recurrence,
         )
         row = TaskRepository.get_by_id(task_id, user_id)
         return jsonify({"status": "executed", "action_type": "add_task", "task": map_task(row)}), 201

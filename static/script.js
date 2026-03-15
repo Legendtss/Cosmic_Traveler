@@ -390,6 +390,7 @@ function applyAuthUserContext(user) {
   if (typeof persistProfileState === 'function') persistProfileState();
   syncNutritionGoalWithProfile();
   renderProfileUI();
+  if (typeof motivationReinitForUser === 'function') motivationReinitForUser();
 }
 window.applyAuthUserContext = applyAuthUserContext;
 
@@ -534,6 +535,74 @@ function _escapeHtml(value) {
     .replaceAll("'", '&#39;');
 }
 const escapeHtml = _escapeHtml;
+
+function _toastContainer() {
+  let container = document.getElementById('app-toast-container');
+  if (container) return container;
+  container = document.createElement('div');
+  container.id = 'app-toast-container';
+  container.className = 'app-toast-container';
+  document.body.appendChild(container);
+  return container;
+}
+
+function _dismissToast(toastEl) {
+  if (!toastEl) return;
+  toastEl.classList.remove('show');
+  setTimeout(() => toastEl.remove(), 180);
+}
+
+function showToast(message, type = 'info', options = {}) {
+  const container = _toastContainer();
+  const toastEl = document.createElement('div');
+  const safeType = ['success', 'info', 'warning', 'error'].includes(type) ? type : 'info';
+  const title = String(options.title || '').trim();
+  const duration = Math.max(1200, Number(options.duration) || 4200);
+  const iconByType = {
+    success: 'fa-circle-check',
+    info: 'fa-circle-info',
+    warning: 'fa-triangle-exclamation',
+    error: 'fa-circle-xmark'
+  };
+
+  toastEl.className = `app-toast app-toast-${safeType}`;
+  toastEl.innerHTML = `
+    <span class="app-toast-icon"><i class="fas ${iconByType[safeType]}"></i></span>
+    <div class="app-toast-meta">
+      ${title ? `<span class="app-toast-title">${escapeHtml(title)}</span>` : ''}
+      <span class="app-toast-message"></span>
+    </div>
+    <button class="app-toast-close" type="button" aria-label="Dismiss notification">&times;</button>
+  `;
+
+  const msgEl = toastEl.querySelector('.app-toast-message');
+  if (msgEl) msgEl.textContent = String(message || '');
+
+  const closeBtn = toastEl.querySelector('.app-toast-close');
+  if (closeBtn) closeBtn.addEventListener('click', () => _dismissToast(toastEl));
+
+  container.appendChild(toastEl);
+  requestAnimationFrame(() => toastEl.classList.add('show'));
+
+  let remaining = duration;
+  let startedAt = Date.now();
+  let timerId = setTimeout(() => _dismissToast(toastEl), remaining);
+
+  toastEl.addEventListener('mouseenter', () => {
+    clearTimeout(timerId);
+    remaining -= Date.now() - startedAt;
+  });
+
+  toastEl.addEventListener('mouseleave', () => {
+    if (remaining <= 0) {
+      _dismissToast(toastEl);
+      return;
+    }
+    startedAt = Date.now();
+    timerId = setTimeout(() => _dismissToast(toastEl), remaining);
+  });
+}
+window.showToast = showToast;
 
 function loadTaskEnhancements() {
   try {
@@ -1218,6 +1287,14 @@ async function updateUserProgressAfterTaskCompletion(taskId, occDate) {
     console.log('[Progress Engine] Refreshing UI...');
     renderStreaksUI(streakResult);
     renderTasks(taskUiState.tasks);
+
+    if (!wasCompleted && isNowCompleted && typeof motivationHandleEvent === 'function') {
+      const completedTask = (taskUiState.tasks || []).find((task) => Number(task.id) === Number(taskId));
+      motivationHandleEvent('task_completed', {
+        taskTitle: completedTask?.title || 'task',
+        dateKey: todayKey
+      });
+    }
     
     console.log('[Progress Engine] âœ“ Complete - all systems updated');
     
@@ -1985,10 +2062,12 @@ function calendarOverdueTasks() {
 
 function calendarWeekTaskCardHtml(task) {
   const isCompleted = !!task.completed;
-  const isDraggable = !isCompleted;
+  const repeatMode = getTaskRepeat(task);
+  const isRecurring = repeatMode !== 'none';
+  const isDraggable = !isCompleted && !isRecurring;
   return `
     <article
-      class="calendar-week-task-card ${isCompleted ? 'is-completed' : 'is-draggable'}"
+      class="calendar-week-task-card ${isCompleted ? 'is-completed' : ''} ${isDraggable ? 'is-draggable' : ''} ${isRecurring ? 'is-recurring' : ''}"
       data-task-id="${task.id}"
       data-occ-date="${task.__occurrenceDate || taskCalendarDateKey(task)}"
     >
@@ -2023,6 +2102,18 @@ async function calendarRescheduleTask(taskId, targetDateKey) {
   if (idx < 0) return false;
   const originalTask = taskUiState.tasks[idx];
   const originalDate = originalTask.date || null;
+  const repeatMode = getTaskRepeat(originalTask);
+
+  // Recurring tasks currently use occurrence logic in taskEnhancements.
+  // Moving one card by mutating base date causes cross-view inconsistencies.
+  // Restrict DnD to one-time tasks until per-occurrence overrides are added.
+  if (repeatMode !== 'none') {
+    alert('Drag-and-drop is currently available for one-time tasks only. Edit recurring tasks from Task Settings.');
+    renderCalendar();
+    return false;
+  }
+
+  if (originalDate === targetDateKey) return true;
 
   taskUiState.tasks[idx] = {
     ...originalTask,
@@ -2048,6 +2139,9 @@ async function calendarRescheduleTask(taskId, targetDateKey) {
     alert('Could not reschedule task right now. Reverted to the previous date.');
     return false;
   }
+
+  // Refresh from source-of-truth API to keep month/week/tasks views consistent.
+  await loadTasks();
 
   return true;
 }
@@ -3136,9 +3230,14 @@ function renderNutritionHistory() {
     <div class="nutrition-history-item">
       <div class="nutrition-history-head">
         <span class="nutrition-pill">${normalizeMealType(entry.meal_type)}</span>
-        <button class="nutrition-history-delete" data-history-delete-id="${entry.id}" title="Delete meal" aria-label="Delete meal">
-          <i class="fas fa-trash-alt"></i>
-        </button>
+        <div class="nutrition-history-actions">
+          <button class="nutrition-history-save" data-history-save-id="${entry.id}" title="Save meal preset" aria-label="Save meal preset">
+            <i class="fas fa-bookmark"></i>
+          </button>
+          <button class="nutrition-history-delete" data-history-delete-id="${entry.id}" title="Delete meal" aria-label="Delete meal">
+            <i class="fas fa-trash-alt"></i>
+          </button>
+        </div>
       </div>
       <div class="nutrition-history-food">${escapeHtml(entry.name)}</div>
       <div class="nutrition-history-time">${escapeHtml(entry.time || '--:--')} - ${escapeHtml(entry.date || '')}</div>
@@ -3577,6 +3676,14 @@ async function submitNutritionForm(e) {
 
     if (!response.ok) throw new Error(`API error: ${response.status}`);
     await loadMeals();
+    if (typeof motivationHandleEvent === 'function') {
+      motivationHandleEvent('nutrition_logged', {
+        mealType,
+        food,
+        calories: mealData.calories,
+        protein: mealData.protein
+      });
+    }
     resetNutritionForm();
     nutritionState.showForm = false;
     renderNutritionFormVisibility();
@@ -3585,6 +3692,59 @@ async function submitNutritionForm(e) {
     alert('Could not add meal right now.');
   }
 }
+
+function nutritionPresetFingerprint(meal) {
+  const name = String(meal?.name || '').trim().toLowerCase().replace(/\s+/g, ' ');
+  const mealType = String(meal?.meal_type || meal?.meal || 'other').toLowerCase();
+  const calories = nutritionRound(parseMacro(meal?.calories));
+  const protein = nutritionRound(parseMacro(meal?.protein));
+  const carbs = nutritionRound(parseMacro(meal?.carbs));
+  const fats = nutritionRound(parseMacro(meal?.fats));
+  return `${mealType}|${name}|${calories}|${protein}|${carbs}|${fats}`;
+}
+
+function saveLoggedMealPreset(mealId) {
+  if (!updateNutritionAccessState()) return;
+
+  const idNum = Number(mealId);
+  if (!Number.isFinite(idNum) || idNum <= 0) return;
+
+  const entry = nutritionState.entries.find((item) => Number(item.id) === idNum);
+  if (!entry) {
+    alert('Could not find that meal to save. Please reload and try again.');
+    return;
+  }
+
+  const meal = {
+    id: Date.now(),
+    name: String(entry.name || '').trim() || 'Saved meal',
+    meal_type: String(entry.meal_type || entry.meal || 'other').toLowerCase(),
+    calories: Math.max(0, Number(entry.calories) || 0),
+    protein: Math.max(0, Number(entry.protein) || 0),
+    carbs: Math.max(0, Number(entry.carbs) || 0),
+    fats: Math.max(0, Number(entry.fats) || 0)
+  };
+
+  const fingerprint = nutritionPresetFingerprint(meal);
+  const existingIndex = nutritionState.savedMeals.findIndex(
+    (saved) => nutritionPresetFingerprint(saved) === fingerprint
+  );
+
+  if (existingIndex >= 0) {
+    const [existingMeal] = nutritionState.savedMeals.splice(existingIndex, 1);
+    nutritionState.savedMeals.unshift(existingMeal);
+  } else {
+    nutritionState.savedMeals.unshift(meal);
+  }
+
+  if (['breakfast', 'lunch', 'dinner', 'snack'].includes(meal.meal_type)) {
+    nutritionState.activeMealType = meal.meal_type;
+  }
+  nutritionState.showSavedMeals = true;
+  persistSavedMeals();
+  renderSavedMeals();
+}
+
 function saveCurrentMealPreset() {
   if (!updateNutritionAccessState()) return;
   const mealType = document.getElementById('nutrition-form-meal')?.value || 'other';
@@ -3763,9 +3923,13 @@ function setupNutrition() {
   if (historyList) {
     historyList.addEventListener('click', (e) => {
       const target = e.target;
+      const saveBtn = target.closest?.('[data-history-save-id]');
       const deleteBtn = target.closest?.('[data-history-delete-id]');
-      if (!deleteBtn) return;
-      deleteMealEntry(deleteBtn.getAttribute('data-history-delete-id'));
+      if (saveBtn) {
+        saveLoggedMealPreset(saveBtn.getAttribute('data-history-save-id'));
+      } else if (deleteBtn) {
+        deleteMealEntry(deleteBtn.getAttribute('data-history-delete-id'));
+      }
     });
   }
 
@@ -5763,6 +5927,11 @@ async function completeWorkout(workoutId) {
   }
   await loadWorkoutsForPage();
   refreshStreaksAfterChange();
+  if (typeof motivationHandleEvent === 'function') {
+    motivationHandleEvent('workout_completed', {
+      workoutName: w?.name || 'Workout'
+    });
+  }
 }
 
 async function skipWorkout(workoutId) {
@@ -6905,6 +7074,30 @@ function applyResolvedProfileIdentity(userOverride = null) {
   return identity;
 }
 
+const DEFAULT_MOTIVATION_SETTINGS = Object.freeze({
+  enabled: true,
+  intensity: 'medium',
+  quietStart: '22:00',
+  quietEnd: '07:00'
+});
+
+function normalizeMotivationTime(value, fallback) {
+  const normalized = String(value || '').trim();
+  if (/^([01]\d|2[0-3]):[0-5]\d$/.test(normalized)) return normalized;
+  return fallback;
+}
+
+function normalizeMotivationSettings(raw) {
+  const source = (raw && typeof raw === 'object') ? raw : {};
+  const intensity = String(source.intensity || '').toLowerCase();
+  return {
+    enabled: source.enabled !== false,
+    intensity: ['low', 'medium', 'high'].includes(intensity) ? intensity : 'medium',
+    quietStart: normalizeMotivationTime(source.quietStart, DEFAULT_MOTIVATION_SETTINGS.quietStart),
+    quietEnd: normalizeMotivationTime(source.quietEnd, DEFAULT_MOTIVATION_SETTINGS.quietEnd)
+  };
+}
+
 const defaultProfile = {
   fullName: 'User',
   email: 'you@example.com',
@@ -6925,7 +7118,8 @@ const defaultProfile = {
   targetCarbs: 250,
   targetFats: 60,
   memberSince: 'Jan 2024',
-  theme: 'light'
+  theme: 'light',
+  motivationSettings: { ...DEFAULT_MOTIVATION_SETTINGS }
 };
 
 let profileState = { ...defaultProfile };
@@ -7035,6 +7229,7 @@ function loadProfileState() {
           ? 'gain'
           : 'maintain';
     }
+    profileState.motivationSettings = normalizeMotivationSettings(profileState.motivationSettings);
     // Sanitize core numeric fields to avoid invalid profile state locking nutrition.
     if (!Number.isFinite(Number(profileState.age)) || Number(profileState.age) <= 0) {
       profileState.age = defaultProfile.age;
@@ -7071,6 +7266,7 @@ function loadProfileState() {
     persistProfileState();
   } catch (_err) {
     profileState = { ...defaultProfile };
+    profileState.motivationSettings = normalizeMotivationSettings(profileState.motivationSettings);
     applyResolvedProfileIdentity();
   }
 }
@@ -7383,8 +7579,42 @@ function syncNutritionGoalWithProfile() {
   if (Number.isFinite(targetFats) && targetFats >= 0) nutritionState.baseGoals.fats = Math.round(targetFats);
 }
 
+function profileMotivationHintText(settings = normalizeMotivationSettings(profileState.motivationSettings)) {
+  const intensityConfig = {
+    low: { maxPerDay: 2, cooldown: 60 },
+    medium: { maxPerDay: 3, cooldown: 50 },
+    high: { maxPerDay: 3, cooldown: 45 }
+  };
+  const selected = intensityConfig[settings.intensity] || intensityConfig.medium;
+  if (!settings.enabled) {
+    return 'Motivation nudges are off.';
+  }
+  return `Smart nudges: up to ${selected.maxPerDay} per day, at least ${selected.cooldown} minutes apart. Quiet hours ${settings.quietStart} to ${settings.quietEnd}.`;
+}
+
+function readMotivationSettingsFromProfileForm() {
+  const enabledEl = document.getElementById('profile-motivation-enabled');
+  const intensityEl = document.getElementById('profile-motivation-intensity');
+  const quietStartEl = document.getElementById('profile-motivation-quiet-start');
+  const quietEndEl = document.getElementById('profile-motivation-quiet-end');
+
+  return normalizeMotivationSettings({
+    enabled: enabledEl ? !!enabledEl.checked : true,
+    intensity: intensityEl ? intensityEl.value : 'medium',
+    quietStart: quietStartEl ? quietStartEl.value : DEFAULT_MOTIVATION_SETTINGS.quietStart,
+    quietEnd: quietEndEl ? quietEndEl.value : DEFAULT_MOTIVATION_SETTINGS.quietEnd
+  });
+}
+
+function renderProfileMotivationHint(settings = normalizeMotivationSettings(profileState.motivationSettings)) {
+  const hintEl = document.getElementById('profile-motivation-hint');
+  if (hintEl) hintEl.textContent = profileMotivationHintText(settings);
+}
+
 function renderProfileUI() {
   applyResolvedProfileIdentity();
+  const motivationSettings = normalizeMotivationSettings(profileState.motivationSettings);
+  profileState.motivationSettings = motivationSettings;
   const mapValues = [
     ['profile-full-name', profileState.fullName],
     ['profile-email', profileState.email],
@@ -7397,12 +7627,18 @@ function renderProfileUI() {
     ['profile-level', profileState.level],
     ['profile-goal', profileState.goal],
     ['profile-weight-goal', profileState.weightGoal],
-    ['profile-theme', profileState.theme]
+    ['profile-theme', profileState.theme],
+    ['profile-motivation-intensity', motivationSettings.intensity],
+    ['profile-motivation-quiet-start', motivationSettings.quietStart],
+    ['profile-motivation-quiet-end', motivationSettings.quietEnd]
   ];
   mapValues.forEach(([id, value]) => {
     const el = document.getElementById(id);
     if (el) el.value = value;
   });
+  const motivationEnabledEl = document.getElementById('profile-motivation-enabled');
+  if (motivationEnabledEl) motivationEnabledEl.checked = !!motivationSettings.enabled;
+  renderProfileMotivationHint(motivationSettings);
   applyWeightPlanFieldVisibility();
 
   const heroName = document.getElementById('profile-hero-name');
@@ -7455,6 +7691,10 @@ function setupProfile() {
   const profileHeightEl = document.getElementById('profile-height');
   const profileCurrentWeightEl = document.getElementById('profile-current-weight');
   const profileTargetWeightEl = document.getElementById('profile-target-weight');
+  const profileMotivationEnabledEl = document.getElementById('profile-motivation-enabled');
+  const profileMotivationIntensityEl = document.getElementById('profile-motivation-intensity');
+  const profileMotivationQuietStartEl = document.getElementById('profile-motivation-quiet-start');
+  const profileMotivationQuietEndEl = document.getElementById('profile-motivation-quiet-end');
 
   [profileCurrentWeightEl, profileTargetWeightEl].forEach((el) => {
     if (el) el.step = '0.5';
@@ -7485,6 +7725,14 @@ function setupProfile() {
   if (profileGenderEl) profileGenderEl.addEventListener('change', () => refreshCalculatedProfileMetricsFromForm(false));
   if (profileHeightEl) profileHeightEl.addEventListener('input', () => refreshCalculatedProfileMetricsFromForm(false));
   if (profileAgeEl) profileAgeEl.addEventListener('input', () => refreshCalculatedProfileMetricsFromForm(false));
+  const onMotivationInputChange = () => {
+    const settings = readMotivationSettingsFromProfileForm();
+    renderProfileMotivationHint(settings);
+  };
+  if (profileMotivationEnabledEl) profileMotivationEnabledEl.addEventListener('change', onMotivationInputChange);
+  if (profileMotivationIntensityEl) profileMotivationIntensityEl.addEventListener('change', onMotivationInputChange);
+  if (profileMotivationQuietStartEl) profileMotivationQuietStartEl.addEventListener('input', onMotivationInputChange);
+  if (profileMotivationQuietEndEl) profileMotivationQuietEndEl.addEventListener('input', onMotivationInputChange);
   if (profileCurrentWeightEl) {
     profileCurrentWeightEl.addEventListener('input', () => {
       applyWeightPlanFieldVisibility();
@@ -7502,19 +7750,429 @@ function setupProfile() {
       applyWeightPlanFieldVisibility();
       const validation = updateProfileValidationUI();
       if (!validation.valid) return;
+      const motivationSettings = readMotivationSettingsFromProfileForm();
       profileState = {
         ...profileState,
         fullName: profileInputValue('profile-full-name', profileState.fullName).trim() || profileState.fullName,
         email: profileInputValue('profile-email', profileState.email).trim() || profileState.email,
         dob: profileInputValue('profile-dob', profileState.dob) || profileState.dob,
-        theme: profileInputValue('profile-theme', profileState.theme) || 'light'
+        theme: profileInputValue('profile-theme', profileState.theme) || 'light',
+        motivationSettings
       };
       refreshCalculatedProfileMetricsFromForm(true);
       renderProfileUI();
+      if (typeof motivationApplySettings === 'function') motivationApplySettings(motivationSettings);
       alert('Profile updated.');
     });
   }
 }
+
+// ========================================================================
+// §13.5  SMART MOTIVATION NUDGES
+// ========================================================================
+// Context-aware, non-blocking coach nudges with guardrails.
+
+const MOTIVATION_STATE_KEY_BASE = 'fittrack_motivation_state_v1';
+const MOTIVATION_HISTORY_KEEP_DAYS = 35;
+const MOTIVATION_INTENSITY_RULES = {
+  low: { maxPerDay: 2, cooldownMinutes: 60, inactivityMinutes: 180 },
+  medium: { maxPerDay: 3, cooldownMinutes: 50, inactivityMinutes: 120 },
+  high: { maxPerDay: 3, cooldownMinutes: 45, inactivityMinutes: 90 }
+};
+
+const motivationState = {
+  initialized: false,
+  heartbeatId: null,
+  history: [],
+  lastActivityTs: Date.now(),
+  lastMissedGoalsDate: ''
+};
+
+function motivationStateKey() {
+  return _userKeyPrefix(MOTIVATION_STATE_KEY_BASE);
+}
+
+function motivationRules() {
+  const intensity = normalizeMotivationSettings(profileState.motivationSettings).intensity;
+  return MOTIVATION_INTENSITY_RULES[intensity] || MOTIVATION_INTENSITY_RULES.medium;
+}
+
+function motivationTimeToMinutes(value) {
+  const normalized = normalizeMotivationTime(value, '00:00');
+  const parts = normalized.split(':');
+  const hh = Number(parts[0]) || 0;
+  const mm = Number(parts[1]) || 0;
+  return (hh * 60) + mm;
+}
+
+function motivationIsQuietHours(nowTs = Date.now()) {
+  const settings = normalizeMotivationSettings(profileState.motivationSettings);
+  const start = motivationTimeToMinutes(settings.quietStart);
+  const end = motivationTimeToMinutes(settings.quietEnd);
+  if (start === end) return false;
+  const now = new Date(nowTs);
+  const nowMinutes = (now.getHours() * 60) + now.getMinutes();
+  if (start < end) {
+    return nowMinutes >= start && nowMinutes < end;
+  }
+  return nowMinutes >= start || nowMinutes < end;
+}
+
+function motivationPruneHistory(nowTs = Date.now()) {
+  const cutoff = nowTs - (MOTIVATION_HISTORY_KEEP_DAYS * 24 * 60 * 60 * 1000);
+  motivationState.history = (motivationState.history || []).filter((item) => Number(item?.timestamp) >= cutoff);
+}
+
+function motivationPersistState() {
+  motivationPruneHistory();
+  const payload = {
+    history: motivationState.history,
+    lastActivityTs: motivationState.lastActivityTs,
+    lastMissedGoalsDate: motivationState.lastMissedGoalsDate
+  };
+  try {
+    localStorage.setItem(motivationStateKey(), JSON.stringify(payload));
+  } catch (_err) {
+    // Ignore storage quota errors for non-critical UX data.
+  }
+}
+
+function motivationLoadState() {
+  try {
+    const raw = localStorage.getItem(motivationStateKey());
+    if (!raw) {
+      motivationState.history = [];
+      motivationState.lastActivityTs = Date.now();
+      motivationState.lastMissedGoalsDate = '';
+      return;
+    }
+    const parsed = JSON.parse(raw);
+    motivationState.history = Array.isArray(parsed?.history) ? parsed.history : [];
+    motivationState.lastActivityTs = Number(parsed?.lastActivityTs) || Date.now();
+    motivationState.lastMissedGoalsDate = String(parsed?.lastMissedGoalsDate || '');
+    motivationPruneHistory();
+  } catch (_err) {
+    motivationState.history = [];
+    motivationState.lastActivityTs = Date.now();
+    motivationState.lastMissedGoalsDate = '';
+  }
+}
+
+function motivationLastNudgeTs() {
+  if (!motivationState.history.length) return 0;
+  const last = motivationState.history[motivationState.history.length - 1];
+  return Number(last?.timestamp) || 0;
+}
+
+function motivationTodayNudgeCount(nowTs = Date.now()) {
+  const todayKey = toLocalDateKey(new Date(nowTs));
+  return motivationState.history.filter((item) => item?.dateKey === todayKey).length;
+}
+
+function motivationCanNudge(nowTs = Date.now()) {
+  if (!AuthModule?.currentUser) return { ok: false, reason: 'no-user' };
+  const settings = normalizeMotivationSettings(profileState.motivationSettings);
+  if (!settings.enabled) return { ok: false, reason: 'disabled' };
+  if (motivationIsQuietHours(nowTs)) return { ok: false, reason: 'quiet-hours' };
+
+  const rules = motivationRules();
+  if (motivationTodayNudgeCount(nowTs) >= rules.maxPerDay) {
+    return { ok: false, reason: 'daily-limit' };
+  }
+
+  const lastTs = motivationLastNudgeTs();
+  if (lastTs > 0 && (nowTs - lastTs) < (rules.cooldownMinutes * 60 * 1000)) {
+    return { ok: false, reason: 'cooldown' };
+  }
+
+  return { ok: true };
+}
+
+function motivationRecordNudge(eventType, message, nowTs = Date.now()) {
+  motivationState.history.push({
+    timestamp: nowTs,
+    dateKey: toLocalDateKey(new Date(nowTs)),
+    eventType: String(eventType || 'generic'),
+    message: String(message || '')
+  });
+  motivationPersistState();
+}
+
+function motivationMarkActivity(nowTs = Date.now()) {
+  motivationState.lastActivityTs = nowTs;
+  motivationPersistState();
+}
+
+function motivationFirstName() {
+  const raw = String(profileState?.fullName || '').trim();
+  if (!raw) return 'there';
+  return raw.split(/\s+/)[0] || 'there';
+}
+
+function motivationStreakSnapshot() {
+  const cache = loadStreakCache();
+  const progress = cache?.progress || {};
+  return {
+    currentStreak: Number(progress.current_streak || 0),
+    level: Number(progress.level || 1)
+  };
+}
+
+function motivationTaskSnapshot() {
+  const materialized = materializeTasksForRender(taskUiState.tasks || []);
+  const pending = materialized.filter((task) => task.__state !== 'completed').length;
+  const overdue = materialized.filter((task) => task.__state === 'overdue').length;
+  return { pending, overdue };
+}
+
+function motivationNutritionSnapshot() {
+  const todayKey = todayDateKey();
+  const getMealKey = (typeof mealDateKey === 'function')
+    ? mealDateKey
+    : ((entry) => String(entry?.date || ''));
+  const todaysEntries = (nutritionState.entries || []).filter((entry) => getMealKey(entry) === todayKey);
+  const totals = todaysEntries.reduce((acc, entry) => ({
+    calories: acc.calories + parseMacro(entry?.calories),
+    protein: acc.protein + parseMacro(entry?.protein),
+    carbs: acc.carbs + parseMacro(entry?.carbs),
+    fats: acc.fats + parseMacro(entry?.fats)
+  }), { calories: 0, protein: 0, carbs: 0, fats: 0 });
+
+  const proteinGoal = Math.max(0, Number(nutritionState?.baseGoals?.protein) || 140);
+  const caloriesGoal = Math.max(0, Number(getGoalAdjustedCalories()) || 0);
+  return {
+    proteinRemaining: Math.max(0, Math.round(proteinGoal - totals.protein)),
+    calorieProgress: caloriesGoal > 0 ? Math.round((totals.calories / caloriesGoal) * 100) : 0
+  };
+}
+
+function motivationWorkoutSnapshot() {
+  const todayKey = dateStr();
+  const rows = workoutState.workouts || [];
+  const todayRows = rows.filter((w) => isSameDayString(w?.date, todayKey));
+  const todayCompleted = todayRows.filter((w) => !!w?.completed).length;
+
+  const weekStart = new Date(`${todayKey}T00:00:00`);
+  weekStart.setDate(weekStart.getDate() - 6);
+  const weekCompleted = rows.filter((w) => {
+    if (!w?.completed) return false;
+    const parsed = new Date(`${String(w.date || todayKey)}T00:00:00`);
+    return !Number.isNaN(parsed.getTime()) && parsed >= weekStart;
+  }).length;
+
+  return {
+    todayScheduled: todayRows.length,
+    todayCompleted,
+    weekCompleted
+  };
+}
+
+function motivationFocusSnapshot() {
+  const todayKey = todayDateKey();
+  const sessions = (_focus.sessions || []).filter((session) => String(session?.date || '') === todayKey);
+  const todayMinutes = sessions.reduce((sum, session) => sum + (Number(session?.durationActual) || 0), 0);
+  return { todayMinutes: Math.round(todayMinutes) };
+}
+
+function motivationPick(messages) {
+  if (!Array.isArray(messages) || !messages.length) return '';
+  return messages[Math.floor(Math.random() * messages.length)] || '';
+}
+
+function motivationBuildMessage(eventType, payload = {}) {
+  const name = motivationFirstName();
+  const streak = motivationStreakSnapshot();
+  const task = motivationTaskSnapshot();
+  const nutrition = motivationNutritionSnapshot();
+  const workout = motivationWorkoutSnapshot();
+  const focus = motivationFocusSnapshot();
+  const safeTaskTitle = String(payload?.taskTitle || 'that task').trim().slice(0, 52);
+
+  if (eventType === 'task_completed') {
+    return motivationPick([
+      `${name}, good work on ${safeTaskTitle}. ${task.pending} task${task.pending === 1 ? '' : 's'} left today.`,
+      streak.currentStreak >= 3
+        ? `Nice consistency. Your ${streak.currentStreak}-day streak is still alive.`
+        : `Momentum unlocked. Keep stacking small wins today.`,
+      task.pending === 0
+        ? `Task list clear for today. Great execution.`
+        : `You are close. Finish one more task to keep momentum high.`
+    ]);
+  }
+
+  if (eventType === 'nutrition_logged') {
+    if (nutrition.proteinRemaining > 0) {
+      return `${name}, meal logged. You are ${nutrition.proteinRemaining}g away from your protein target.`;
+    }
+    return `${name}, nutrition target is on track today. Keep this consistency.`;
+  }
+
+  if (eventType === 'workout_completed') {
+    const workoutName = String(payload?.workoutName || 'workout').trim().slice(0, 46);
+    return `${name}, ${workoutName} is done. Weekly completed workouts: ${workout.weekCompleted}.`;
+  }
+
+  if (eventType === 'focus_completed') {
+    const sessionMin = Math.max(1, Math.round(Number(payload?.minutes) || 0));
+    return `${name}, focus session complete (${sessionMin} min). Total focused today: ${focus.todayMinutes} min.`;
+  }
+
+  if (eventType === 'inactivity') {
+    const idleMinutes = Math.max(1, Number(payload?.idleMinutes) || 0);
+    if (task.overdue > 0) {
+      return `${name}, you have ${task.overdue} overdue task${task.overdue === 1 ? '' : 's'}. A 10-minute reset sprint can recover the day.`;
+    }
+    if (task.pending > 0) {
+      return `${name}, ${task.pending} task${task.pending === 1 ? '' : 's'} still pending. You have been idle for ${idleMinutes} minutes.`;
+    }
+    return `${name}, quick check-in after ${idleMinutes} idle minutes. A short focus sprint can keep momentum alive.`;
+  }
+
+  if (eventType === 'missed_goals') {
+    const misses = Array.isArray(payload?.misses) ? payload.misses : [];
+    if (!misses.length) {
+      return `${name}, quick evening review: lock in one small win before day end.`;
+    }
+    return `${name}, evening check: ${misses.join(', ')}. Pick one small win before day end.`;
+  }
+
+  return `${name}, stay consistent today. Small actions compound fast.`;
+}
+
+function motivationShouldTrigger(eventType) {
+  if (eventType === 'inactivity' || eventType === 'missed_goals') return true;
+  const baseChance = {
+    task_completed: 0.55,
+    nutrition_logged: 0.45,
+    workout_completed: 0.65,
+    focus_completed: 0.55
+  };
+  const settings = normalizeMotivationSettings(profileState.motivationSettings);
+  const tweak = settings.intensity === 'high'
+    ? 0.1
+    : settings.intensity === 'low'
+      ? -0.15
+      : 0;
+  const chance = Math.max(0.15, Math.min(0.95, (baseChance[eventType] ?? 0.5) + tweak));
+  return Math.random() < chance;
+}
+
+function motivationHandleEvent(eventType, payload = {}, options = {}) {
+  const productiveEvents = new Set(['task_completed', 'nutrition_logged', 'workout_completed', 'focus_completed']);
+  if (productiveEvents.has(eventType)) {
+    motivationMarkActivity();
+  }
+
+  if (!options.force && !motivationShouldTrigger(eventType)) {
+    return false;
+  }
+
+  const gate = motivationCanNudge();
+  if (!gate.ok) {
+    return false;
+  }
+
+  const message = motivationBuildMessage(eventType, payload);
+  if (!message) return false;
+
+  const tone = eventType === 'inactivity' || eventType === 'missed_goals' ? 'warning' : 'info';
+  showToast(message, tone, {
+    title: 'Coach Nudge',
+    duration: 6800
+  });
+  motivationRecordNudge(eventType, message);
+  return true;
+}
+
+function motivationMissedGoalsSnapshot() {
+  const task = motivationTaskSnapshot();
+  const nutrition = motivationNutritionSnapshot();
+  const workout = motivationWorkoutSnapshot();
+  const misses = [];
+
+  if (task.pending > 0) {
+    misses.push(`${task.pending} task${task.pending === 1 ? '' : 's'} pending`);
+  }
+  if (workout.todayScheduled > workout.todayCompleted) {
+    const left = workout.todayScheduled - workout.todayCompleted;
+    misses.push(`${left} workout${left === 1 ? '' : 's'} pending`);
+  }
+  if (nutrition.proteinRemaining >= 20) {
+    misses.push(`${nutrition.proteinRemaining}g protein remaining`);
+  }
+
+  return {
+    hasMissed: misses.length > 0,
+    misses
+  };
+}
+
+function motivationHeartbeat() {
+  if (!motivationState.initialized) return;
+  if (!AuthModule?.currentUser) return;
+  const settings = normalizeMotivationSettings(profileState.motivationSettings);
+  if (!settings.enabled) return;
+
+  const nowTs = Date.now();
+  const rules = motivationRules();
+  const idleMinutes = Math.floor((nowTs - motivationState.lastActivityTs) / 60000);
+
+  if (idleMinutes >= rules.inactivityMinutes) {
+    const sent = motivationHandleEvent('inactivity', { idleMinutes }, { force: true });
+    if (sent) {
+      motivationMarkActivity(nowTs);
+    }
+  }
+
+  const nowDate = new Date(nowTs);
+  const todayKey = toLocalDateKey(nowDate);
+  if (nowDate.getHours() >= 20 && motivationState.lastMissedGoalsDate !== todayKey) {
+    const missed = motivationMissedGoalsSnapshot();
+    if (missed.hasMissed) {
+      const sent = motivationHandleEvent('missed_goals', missed, { force: true });
+      if (sent) {
+        motivationState.lastMissedGoalsDate = todayKey;
+        motivationPersistState();
+      }
+    }
+  }
+}
+
+function motivationApplySettings(nextSettings) {
+  profileState.motivationSettings = normalizeMotivationSettings(nextSettings);
+  renderProfileMotivationHint(profileState.motivationSettings);
+  motivationPersistState();
+}
+
+function motivationReinitForUser() {
+  if (motivationState.heartbeatId) {
+    clearInterval(motivationState.heartbeatId);
+    motivationState.heartbeatId = null;
+  }
+  motivationState.initialized = false;
+  initMotivationEngine();
+}
+
+function initMotivationEngine() {
+  if (!AuthModule?.currentUser) return;
+  motivationLoadState();
+  if ((Date.now() - motivationState.lastActivityTs) > (12 * 60 * 60 * 1000)) {
+    motivationState.lastActivityTs = Date.now();
+  }
+  motivationState.initialized = true;
+  motivationPersistState();
+
+  if (motivationState.heartbeatId) {
+    clearInterval(motivationState.heartbeatId);
+  }
+  motivationState.heartbeatId = setInterval(motivationHeartbeat, 60 * 1000);
+  setTimeout(() => motivationHeartbeat(), 15000);
+}
+
+window.initMotivationEngine = initMotivationEngine;
+window.motivationHandleEvent = motivationHandleEvent;
+window.motivationApplySettings = motivationApplySettings;
+window.motivationReinitForUser = motivationReinitForUser;
 
 // ========================================================================
 // Â§14  MODAL SETUP
@@ -7671,6 +8329,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (hasSession) {
     runInitStep('showDashboardPage', () => showPage('dashboard'));
     await runInitStep('loadActiveUserDataViews', () => loadActiveUserDataViews());
+    runInitStep('initMotivationEngine', () => initMotivationEngine());
   }
 
 
@@ -8911,6 +9570,10 @@ const _focus = {
   audioElement: null,
   audioVolume: 50,
 
+  // Optional visual background
+  visualMode: 'off',         // 'off' | 'calm' | 'nature' | 'custom'
+  customVisualUrl: '',
+
   // Focus mode
   focusModeActive: false,
   whitelist: ['focus'],
@@ -8932,6 +9595,13 @@ const _focusAudioUrls = {
   whitenoise: '/music/white%20noise%20music.mp3',
 };
 
+const _focusVisualUrls = {
+  calm: '/static/media/focus/focus-calm-loop-01.mp4',
+  nature: '/static/media/focus/focus-nature-loop-01.mp4',
+};
+
+const _focusVisualModes = new Set(['off', 'calm', 'nature', 'custom']);
+
 // ─── SVG Gradient (inject once) ──────────────────────
 function _focusInjectGradient() {
   const ring = document.querySelector('.focus-progress-ring');
@@ -8949,13 +9619,223 @@ function _focusInjectGradient() {
 function initFocusModule() {
   _focusInjectGradient();
   _focusLoadState();
+  _focusInitVisualControls();
   _focusRenderCycleDots();
   _focusUpdateDisplay();
   _focusLoadSessions();
   _focusUpdateSummary();
+  _focusSyncVisualUI();
+  _focusSyncVisualPlayback();
 
   // Visibility API " handle tab switches
   document.addEventListener('visibilitychange', _focusOnVisibilityChange);
+}
+
+function _focusNormalizeVisualMode(mode) {
+  const key = String(mode || 'off').trim().toLowerCase();
+  return _focusVisualModes.has(key) ? key : 'off';
+}
+
+function _focusSanitizeCustomVisualUrl(rawValue) {
+  let value = String(rawValue || '').trim();
+  if (!value) return '';
+  if (value.startsWith('static/')) value = `/${value}`;
+  if (value.startsWith('/static/')) return value;
+  if (value.startsWith('https://') || value.startsWith('http://')) return value;
+  return '';
+}
+
+function _focusPrefersReducedMotion() {
+  try {
+    return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  } catch (_err) {
+    return false;
+  }
+}
+
+function _focusVisualAllowedOnDevice() {
+  try {
+    if (window.matchMedia) {
+      return !window.matchMedia('(max-width: 768px)').matches;
+    }
+  } catch (_err) {
+    // fall through
+  }
+  return window.innerWidth > 768;
+}
+
+function _focusResolveVisualSource() {
+  const mode = _focusNormalizeVisualMode(_focus.visualMode);
+  if (mode === 'off') return '';
+  if (mode === 'custom') return _focusSanitizeCustomVisualUrl(_focus.customVisualUrl);
+  return _focusVisualUrls[mode] || '';
+}
+
+function _focusGetVisualElements() {
+  return {
+    card: document.querySelector('.focus-timer-card'),
+    layer: document.getElementById('focus-visual-layer'),
+    video: document.getElementById('focus-visual-video'),
+    note: document.getElementById('focus-visual-note'),
+    modeEl: document.getElementById('focus-visual-mode'),
+    customWrap: document.getElementById('focus-visual-custom-wrap'),
+    customInput: document.getElementById('focus-visual-custom-url'),
+  };
+}
+
+function _focusSetVisualStatus(text, warn = false) {
+  const note = document.getElementById('focus-visual-note');
+  if (!note) return;
+  note.textContent = text;
+  note.classList.toggle('warn', !!warn);
+}
+
+function _focusStopVisualPlayback() {
+  const { card, layer, video } = _focusGetVisualElements();
+  if (card) card.classList.remove('focus-visual-active');
+  if (layer) layer.classList.remove('is-active');
+  if (!video) return;
+
+  try {
+    video.pause();
+    if (video.getAttribute('src')) {
+      video.removeAttribute('src');
+      video.load();
+    }
+  } catch (_err) {
+    // Ignore media cleanup failures.
+  }
+}
+
+function _focusSyncVisualPlayback() {
+  const { card, layer, video } = _focusGetVisualElements();
+  if (!card || !layer || !video) return;
+
+  const visualMode = _focusNormalizeVisualMode(_focus.visualMode);
+  _focus.visualMode = visualMode;
+
+  if (visualMode === 'off') {
+    _focusStopVisualPlayback();
+    _focusSetVisualStatus('Visuals are off. Choose a visual mode to enable background playback.');
+    return;
+  }
+
+  if (_focusPrefersReducedMotion()) {
+    _focusStopVisualPlayback();
+    _focusSetVisualStatus('Visuals are disabled because reduced-motion is enabled on this device.', true);
+    return;
+  }
+
+  if (!_focusVisualAllowedOnDevice()) {
+    _focusStopVisualPlayback();
+    _focusSetVisualStatus('Visuals are disabled on small screens for better performance.', true);
+    return;
+  }
+
+  if (_focus.state !== 'running') {
+    _focusStopVisualPlayback();
+    _focusSetVisualStatus('Visuals are ready and will play automatically when the timer is running.');
+    return;
+  }
+
+  const src = _focusResolveVisualSource();
+  if (!src) {
+    _focusStopVisualPlayback();
+    if (visualMode === 'custom') {
+      _focusSetVisualStatus('Add a valid custom URL (https://... or /static/...) to start visual playback.', true);
+    } else {
+      _focusSetVisualStatus('No video source found for the selected visual mode.', true);
+    }
+    return;
+  }
+
+  try {
+    if (video.getAttribute('src') !== src) {
+      video.setAttribute('src', src);
+      video.load();
+    }
+    video.loop = true;
+    video.muted = true;
+    video.playsInline = true;
+
+    const playPromise = video.play();
+    if (playPromise && typeof playPromise.catch === 'function') {
+      playPromise.catch(() => {
+        _focusSetVisualStatus('Unable to auto-play this visual. Try another video source.', true);
+      });
+    }
+
+    layer.classList.add('is-active');
+    card.classList.add('focus-visual-active');
+    _focusSetVisualStatus('Visual background is active and muted.');
+  } catch (_err) {
+    _focusStopVisualPlayback();
+    _focusSetVisualStatus('Unable to start visual playback for this source.', true);
+  }
+}
+
+function _focusSyncVisualUI() {
+  const { modeEl, customWrap, customInput } = _focusGetVisualElements();
+  const mode = _focusNormalizeVisualMode(_focus.visualMode);
+  _focus.visualMode = mode;
+
+  if (modeEl) modeEl.value = mode;
+  if (customWrap) customWrap.style.display = mode === 'custom' ? '' : 'none';
+  if (customInput) customInput.value = _focus.customVisualUrl || '';
+}
+
+function _focusInitVisualControls() {
+  const { customInput } = _focusGetVisualElements();
+  if (!customInput || customInput.dataset.bound === '1') return;
+
+  customInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      applyFocusCustomVisualUrl();
+    }
+  });
+  customInput.addEventListener('blur', () => {
+    if (!_focus.customVisualUrl && !customInput.value.trim()) return;
+    applyFocusCustomVisualUrl();
+  });
+  customInput.dataset.bound = '1';
+}
+
+function setFocusVisualMode(mode) {
+  _focus.visualMode = _focusNormalizeVisualMode(mode);
+  _focusSyncVisualUI();
+  _focusSaveState();
+  _focusSyncVisualPlayback();
+}
+
+function applyFocusCustomVisualUrl() {
+  const customInput = document.getElementById('focus-visual-custom-url');
+  if (!customInput) return;
+
+  const raw = customInput.value || '';
+  const sanitized = _focusSanitizeCustomVisualUrl(raw);
+
+  if (!raw.trim()) {
+    _focus.customVisualUrl = '';
+    if (_focus.visualMode === 'custom') {
+      _focus.visualMode = 'off';
+    }
+    _focusSyncVisualUI();
+    _focusSaveState();
+    _focusSyncVisualPlayback();
+    return;
+  }
+
+  if (!sanitized) {
+    _focusSetVisualStatus('Custom URL must start with https://, http://, or /static/.', true);
+    return;
+  }
+
+  _focus.customVisualUrl = sanitized;
+  _focus.visualMode = 'custom';
+  _focusSyncVisualUI();
+  _focusSaveState();
+  _focusSyncVisualPlayback();
 }
 
 // ─── Mode Switching ─────────────────────────────────
@@ -8989,6 +9869,7 @@ function switchFocusMode(mode) {
   _focusRenderCycleDots();
   _focusUpdateDisplay();
   _focusSaveState();
+  _focusSyncVisualPlayback();
 }
 
 // ─── Pomodoro Presets ───────────────────────────────
@@ -9035,6 +9916,7 @@ function focusTimerStart() {
   _focusStartInterval();
   _focusUpdateControls();
   _focusSaveState();
+  _focusSyncVisualPlayback();
 
   document.querySelector('.focus-timer-card')?.classList.add('is-running');
 }
@@ -9047,6 +9929,7 @@ function focusTimerPause() {
   _focus.intervalId = null;
   _focusUpdateControls();
   _focusSaveState();
+  _focusSyncVisualPlayback();
   document.querySelector('.focus-timer-card')?.classList.remove('is-running');
 }
 
@@ -9058,6 +9941,7 @@ function focusTimerResume() {
   _focusStartInterval();
   _focusUpdateControls();
   _focusSaveState();
+  _focusSyncVisualPlayback();
   document.querySelector('.focus-timer-card')?.classList.add('is-running');
 }
 
@@ -9093,6 +9977,7 @@ function _focusFullReset() {
   _focusUpdateDisplay();
   _focusUpdateControls();
   _focusSaveState();
+  _focusSyncVisualPlayback();
   document.querySelector('.focus-timer-card')?.classList.remove('is-running');
   document.querySelector('.focus-timer-card')?.classList.remove('focus-breathing');
 }
@@ -9328,6 +10213,12 @@ function _focusLogSession(completed, actualMinutes) {
   _focus.sessions.push(session);
   _focusRenderSessions();
   _focusUpdateSummary();
+  if (completed && typeof motivationHandleEvent === 'function') {
+    motivationHandleEvent('focus_completed', {
+      minutes: actualMinutes,
+      label: session.label
+    });
+  }
   if (typeof syncToAppState === 'function') syncToAppState('focus');
 }
 
@@ -9566,6 +10457,7 @@ function _focusReinitForUser() {
   _focus.pauseTimestamp = null;
   _focus.elapsedPaused = 0;
   _focus.isBreak = false;
+  _focusStopVisualPlayback();
   document.querySelector('.focus-timer-card')?.classList.remove('is-running');
   document.querySelector('.focus-timer-card')?.classList.remove('focus-breathing');
   // Reload from the now-known user-scoped key
@@ -9583,6 +10475,7 @@ function _focusOnVisibilityChange() {
 
   // When tab becomes visible again, force display update
   _focusUpdateDisplay();
+  _focusSyncVisualPlayback();
 }
 
 // ─── Persist timer state in localStorage ────────────
@@ -9610,6 +10503,8 @@ function _focusSaveState() {
     sessionStartIso: _focus.sessionStartIso,
     audioVolume: _focus.audioVolume,
     currentTrack: _focus.currentTrack,
+    visualMode: _focus.visualMode,
+    customVisualUrl: _focus.customVisualUrl,
     whitelist: _focus.whitelist,
   };
   try { localStorage.setItem(_focusStorageKey(), JSON.stringify(state)); } catch(e) {}
@@ -9628,6 +10523,8 @@ function _focusLoadState() {
     _focus.customLabel = saved.customLabel || '';
     _focus.audioVolume = saved.audioVolume ?? 50;
     _focus.currentTrack = saved.currentTrack || 'lofi';
+    _focus.visualMode = _focusNormalizeVisualMode(saved.visualMode || 'off');
+    _focus.customVisualUrl = _focusSanitizeCustomVisualUrl(saved.customVisualUrl || '');
     _focus.whitelist = saved.whitelist || ['focus'];
 
     // Restore active timer
@@ -9672,6 +10569,9 @@ function _focusLoadState() {
     document.querySelectorAll('#focus-whitelist-options input[type="checkbox"]:not(:disabled)').forEach(cb => {
       cb.checked = _focus.whitelist.includes(cb.value);
     });
+
+    _focusSyncVisualUI();
+    _focusSyncVisualPlayback();
   } catch(e) { console.warn('Focus state restore failed:', e); }
 }
 

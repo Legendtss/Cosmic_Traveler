@@ -33,6 +33,7 @@ NUTRITION_BONUS = 50
 WORKOUT_BONUS = 50
 MAX_DAILY_POINTS = 200
 DEFAULT_PROTEIN_GOAL = 140  # grams — used if no user profile is set
+STREAK_GRACE_DAYS = 1
 
 
 # ---------------------------------------------------------------------------
@@ -194,8 +195,10 @@ def save_daily_snapshot(db, user_id, day_eval):
             (user_id, date_str, 1 if day_eval["valid_day"] else 0, payload),
         )
 
-    # Recompute streak
-    current_streak = _compute_current_streak(db, user_id, date_str)
+    # Recompute streak with a one-day grace window.
+    current_streak, grace_days_used = _compute_current_streak(
+        db, user_id, date_str, grace_days=STREAK_GRACE_DAYS
+    )
 
     # Recompute total points from all snapshots.
     # Summing in Python keeps this path dialect-neutral (SQLite + PostgreSQL).
@@ -231,6 +234,8 @@ def save_daily_snapshot(db, user_id, day_eval):
         "current_streak": current_streak,
         "longest_streak": longest_streak,
         "level": level,
+        "grace_days_allowed": STREAK_GRACE_DAYS,
+        "grace_days_used": grace_days_used,
     }
 
 
@@ -259,12 +264,15 @@ def _sum_total_points_from_payloads(rows):
     return total
 
 
-def _compute_current_streak(db, user_id, from_date_str):
+def _compute_current_streak(db, user_id, from_date_str, grace_days=1):
     """
     Walk backwards from `from_date_str` counting consecutive valid days.
+    Allows up to `grace_days` misses (missing/invalid days) without resetting.
     Capped at 1000 to prevent runaway queries on anomalous data.
     """
     streak = 0
+    grace_allowed = max(0, int(grace_days or 0))
+    grace_used = 0
     d = datetime.strptime(from_date_str, "%Y-%m-%d").date()
     max_lookback = 1000
 
@@ -277,10 +285,16 @@ def _compute_current_streak(db, user_id, from_date_str):
         if row and row["streak_days"] == 1:
             streak += 1
             d -= timedelta(days=1)
-        else:
-            break
+            continue
 
-    return streak
+        if grace_used < grace_allowed:
+            grace_used += 1
+            d -= timedelta(days=1)
+            continue
+
+        break
+
+    return streak, grace_used
 
 
 def get_or_create_progress(db, user_id):

@@ -35,7 +35,8 @@ from ..auth import (
     verify_password,
 )
 from ..db import get_db
-from ..utils import now_iso
+from ..repositories.task_repo import TaskRepository
+from ..utils import now_iso, today_str
 
 auth_bp = Blueprint("auth", __name__)
 
@@ -259,6 +260,9 @@ def login():
     _clear_attempts(f"ip:{client_ip}")
     _clear_attempts(f"email:{email}")
 
+    # Materialize today's recurring tasks at login time.
+    TaskRepository.materialize_recurring_for_date(user["id"], today_str())
+
     token = create_session(user["id"])
 
     resp = make_response(jsonify({
@@ -288,6 +292,7 @@ def me():
         return jsonify({"ok": False}), 401
 
     db = get_db()
+    TaskRepository.materialize_recurring_for_date(uid, today_str())
     return jsonify({"ok": True, "user": _user_dict(db, uid)})
 
 
