@@ -650,7 +650,7 @@ def ensure_focus_sessions_columns(conn):
 
         if "updated_at" not in names:
             conn.execute(
-                "ALTER TABLE focus_sessions ADD COLUMN updated_at TEXT NOT NULL DEFAULT (CURRENT_TIMESTAMP)"
+                "ALTER TABLE focus_sessions ADD COLUMN updated_at TEXT NOT NULL DEFAULT ''"
             )
             conn.execute(
                 "UPDATE focus_sessions SET updated_at = created_at WHERE updated_at IS NULL OR updated_at = ''"
@@ -935,6 +935,12 @@ def init_app_data(app):
         
         try:
             with app.app_context():
+                # Existing SQLite databases may already have a tasks table but
+                # not the latest recurrence columns. Apply those deltas before
+                # schema bootstrap so CREATE INDEX IF NOT EXISTS does not target
+                # missing columns on old local databases.
+                ensure_tasks_tags_column(conn)
+                ensure_tasks_recurrence_columns(conn)
                 init_schema(conn)
                 ensure_tasks_tags_column(conn)
                 ensure_tasks_recurrence_columns(conn)

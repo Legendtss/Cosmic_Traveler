@@ -10189,6 +10189,45 @@ body.theme-dark .mentor-body strong {
   padding: 28px 24px;
   border-radius: 16px;
   margin-bottom: 20px;
+  position: relative;
+  overflow: hidden;
+}
+
+.focus-timer-card > :not(.focus-visual-layer) {
+  position: relative;
+  z-index: 1;
+}
+
+.focus-visual-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.28s ease;
+  border-radius: 16px;
+}
+
+.focus-visual-layer.is-active {
+  opacity: 1;
+}
+
+.focus-visual-layer::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(8, 15, 28, 0.2), rgba(8, 15, 28, 0.42));
+}
+
+.focus-visual-video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  filter: blur(1px) saturate(0.94) brightness(0.78);
+}
+
+.focus-timer-card.focus-visual-active {
+  border-color: rgba(99, 102, 241, 0.45);
 }
 
 /* Mode Tabs */
@@ -10450,6 +10489,65 @@ body.theme-dark .mentor-body strong {
   border-radius: 50%;
   background: #6366f1;
   cursor: pointer;
+}
+
+.focus-visual-card {
+  padding: 20px 24px;
+  border-radius: 16px;
+  margin-bottom: 20px;
+}
+
+.focus-visual-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.focus-visual-header h3 {
+  margin: 0;
+  font-size: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.focus-visual-controls {
+  display: grid;
+  gap: 10px;
+}
+
+.focus-visual-label {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #4b5563;
+}
+
+.focus-visual-controls .focus-input {
+  max-width: 100%;
+}
+
+.focus-visual-custom-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.focus-visual-custom-row .focus-input {
+  flex: 1;
+  min-width: 240px;
+}
+
+.focus-visual-note {
+  margin: 0;
+  font-size: 0.8rem;
+  color: #64748b;
+  font-weight: 500;
+}
+
+.focus-visual-note.warn {
+  color: #b45309;
 }
 
 /* — Whitelist Card — */
@@ -10741,6 +10839,8 @@ body.theme-dark .focus-session-title { color: #e5e7eb; }
 body.theme-dark .focus-session-icon.completed { background: #14532d; color: #4ade80; }
 body.theme-dark .focus-session-icon.abandoned { background: #450a0a; color: #f87171; }
 body.theme-dark .focus-empty-state { color: #6b7280; }
+body.theme-dark .focus-visual-note { color: #94a3b8; }
+body.theme-dark .focus-visual-note.warn { color: #fbbf24; }
 body.theme-dark .focus-cycle-dot { background: #2e2e40; }
 body.theme-dark .focus-exit-modal-content {
   background: #1e1e2e;

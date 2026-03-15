@@ -398,6 +398,8 @@ window.applyAuthUserContext = applyAuthUserContext;
 async function loadActiveUserDataViews() {
   loadTaskEnhancements();
   loadSavedMeals();
+  loadCalendarImportantDates();
+  loadCalendarViewMode();
   loadWorkoutStorage();
   loadProjectsState();
   renderProjectsPage();
@@ -2283,8 +2285,6 @@ function renderCalendarViewMode() {
 
 function renderCalendar() {
   if (!document.getElementById('calendar')) return;
-  loadCalendarImportantDates();
-  loadCalendarViewMode();
   if (!calendarState.visibleMonth) {
     const now = new Date();
     calendarState.visibleMonth = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -2306,6 +2306,9 @@ function setupCalendar() {
   const section = document.getElementById('calendar');
   if (!section) return;
 
+  loadCalendarImportantDates();
+  loadCalendarViewMode();
+
   if (!calendarState.visibleMonth) {
     const now = new Date();
     calendarState.visibleMonth = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -2318,7 +2321,6 @@ function setupCalendar() {
   const addTitle = document.getElementById('calendar-add-title');
   const addPriority = document.getElementById('calendar-add-priority');
   const addDate = document.getElementById('calendar-add-date');
-  const addTime = document.getElementById('calendar-add-time');
   const monthBtn = document.getElementById('calendar-view-month-btn');
   const weekBtn = document.getElementById('calendar-view-week-btn');
 
@@ -2374,10 +2376,9 @@ function setupCalendar() {
       const title = (addTitle?.value || '').trim();
       const priority = addPriority?.value || 'medium';
       const date = addDate?.value;
-      const time = addTime?.value || '09:00';
       if (!title || !date) return;
 
-      await addTask(title, priority, 24, 'none', `${date}T${time}`);
+      await addTask(title, priority, date, 'none');
       calendarState.selectedDate = date;
       const picked = dateFromKey(date);
       calendarState.visibleMonth = new Date(picked.getFullYear(), picked.getMonth(), 1);
@@ -2457,7 +2458,6 @@ function setupCalendar() {
     importantBtn.setAttribute('data-action', 'calendar-toggle-important');
   }
 
-  loadCalendarViewMode();
   renderCalendar();
 }
 
@@ -2471,8 +2471,15 @@ function setupCalendar() {
 // âš ï¸ nutritionFoodDatabase is a large inline object (~600 lines).
 
 const NUTRITION_SAVED_KEY_BASE = 'fittrack_saved_meals_v1';
+const NUTRITION_SAVED_MEAL_TYPES = ['breakfast', 'lunch', 'dinner', 'snack', 'other'];
+
 function nutritionSavedMealsStorageKey() {
   return _userKeyPrefix(NUTRITION_SAVED_KEY_BASE);
+}
+
+function normalizeSavedMealTypeKey(mealType) {
+  const key = String(mealType || 'other').toLowerCase();
+  return NUTRITION_SAVED_MEAL_TYPES.includes(key) ? key : 'other';
 }
 
 const nutritionState = {
@@ -2969,7 +2976,7 @@ function loadSavedMeals() {
         .filter(m => m && typeof m === 'object')
         .map((m) => ({
           ...m,
-          meal_type: m.meal_type || m.meal || 'other',
+          meal_type: normalizeSavedMealTypeKey(m.meal_type || m.meal || 'other'),
           calories: Math.max(0, Number(m.calories) || 0),
           protein: Math.max(0, Number(m.protein) || 0),
           carbs: Math.max(0, Number(m.carbs) || 0),
@@ -3146,10 +3153,8 @@ function renderSavedMeals() {
     return;
   }
 
-  const orderedTypes = ['breakfast', 'lunch', 'dinner', 'snack'];
-  if (!orderedTypes.includes(nutritionState.activeMealType)) {
-    nutritionState.activeMealType = 'breakfast';
-  }
+  const orderedTypes = NUTRITION_SAVED_MEAL_TYPES;
+  nutritionState.activeMealType = normalizeSavedMealTypeKey(nutritionState.activeMealType);
 
   const byType = orderedTypes.reduce((acc, type) => {
     acc[type] = nutritionState.savedMeals.filter((m) => {
@@ -3158,6 +3163,13 @@ function renderSavedMeals() {
     });
     return acc;
   }, {});
+
+  if (!(byType[nutritionState.activeMealType] || []).length) {
+    const firstTypeWithMeals = orderedTypes.find((type) => (byType[type] || []).length > 0);
+    if (firstTypeWithMeals) {
+      nutritionState.activeMealType = firstTypeWithMeals;
+    }
+  }
 
   const activeType = nutritionState.activeMealType;
   const activeItems = byType[activeType] || [];
@@ -3695,12 +3707,45 @@ async function submitNutritionForm(e) {
 
 function nutritionPresetFingerprint(meal) {
   const name = String(meal?.name || '').trim().toLowerCase().replace(/\s+/g, ' ');
-  const mealType = String(meal?.meal_type || meal?.meal || 'other').toLowerCase();
+  const mealType = normalizeSavedMealTypeKey(meal?.meal_type || meal?.meal || 'other');
   const calories = nutritionRound(parseMacro(meal?.calories));
   const protein = nutritionRound(parseMacro(meal?.protein));
   const carbs = nutritionRound(parseMacro(meal?.carbs));
   const fats = nutritionRound(parseMacro(meal?.fats));
   return `${mealType}|${name}|${calories}|${protein}|${carbs}|${fats}`;
+}
+
+function upsertSavedMealPreset(meal) {
+  const normalizedMeal = {
+    id: Number(meal?.id) > 0 ? Number(meal.id) : Date.now(),
+    name: String(meal?.name || '').trim() || 'Saved meal',
+    meal_type: normalizeSavedMealTypeKey(meal?.meal_type || meal?.meal || 'other'),
+    calories: Math.max(0, Number(meal?.calories) || 0),
+    protein: Math.max(0, Number(meal?.protein) || 0),
+    carbs: Math.max(0, Number(meal?.carbs) || 0),
+    fats: Math.max(0, Number(meal?.fats) || 0)
+  };
+
+  const fingerprint = nutritionPresetFingerprint(normalizedMeal);
+  const existingIndex = nutritionState.savedMeals.findIndex(
+    (saved) => nutritionPresetFingerprint(saved) === fingerprint
+  );
+
+  if (existingIndex >= 0) {
+    const [existingMeal] = nutritionState.savedMeals.splice(existingIndex, 1);
+    nutritionState.savedMeals.unshift({
+      ...existingMeal,
+      ...normalizedMeal,
+      id: existingMeal?.id || normalizedMeal.id
+    });
+  } else {
+    nutritionState.savedMeals.unshift(normalizedMeal);
+  }
+
+  nutritionState.activeMealType = normalizedMeal.meal_type;
+  nutritionState.showSavedMeals = true;
+  persistSavedMeals();
+  renderSavedMeals();
 }
 
 function saveLoggedMealPreset(mealId) {
@@ -3718,31 +3763,14 @@ function saveLoggedMealPreset(mealId) {
   const meal = {
     id: Date.now(),
     name: String(entry.name || '').trim() || 'Saved meal',
-    meal_type: String(entry.meal_type || entry.meal || 'other').toLowerCase(),
+    meal_type: normalizeSavedMealTypeKey(entry.meal_type || entry.meal || 'other'),
     calories: Math.max(0, Number(entry.calories) || 0),
     protein: Math.max(0, Number(entry.protein) || 0),
     carbs: Math.max(0, Number(entry.carbs) || 0),
     fats: Math.max(0, Number(entry.fats) || 0)
   };
 
-  const fingerprint = nutritionPresetFingerprint(meal);
-  const existingIndex = nutritionState.savedMeals.findIndex(
-    (saved) => nutritionPresetFingerprint(saved) === fingerprint
-  );
-
-  if (existingIndex >= 0) {
-    const [existingMeal] = nutritionState.savedMeals.splice(existingIndex, 1);
-    nutritionState.savedMeals.unshift(existingMeal);
-  } else {
-    nutritionState.savedMeals.unshift(meal);
-  }
-
-  if (['breakfast', 'lunch', 'dinner', 'snack'].includes(meal.meal_type)) {
-    nutritionState.activeMealType = meal.meal_type;
-  }
-  nutritionState.showSavedMeals = true;
-  persistSavedMeals();
-  renderSavedMeals();
+  upsertSavedMealPreset(meal);
 }
 
 function saveCurrentMealPreset() {
@@ -3775,15 +3803,14 @@ function saveCurrentMealPreset() {
   const meal = {
     id: Date.now(),
     name: food,
-    meal_type: mealType,
+    meal_type: normalizeSavedMealTypeKey(mealType),
     calories: Math.max(0, Number(calories) || 0),
     protein: Math.max(0, Number(protein) || 0),
     carbs: Math.max(0, Number(carbs) || 0),
     fats: Math.max(0, Number(fats) || 0)
   };
-  nutritionState.savedMeals = [meal, ...nutritionState.savedMeals];
-  persistSavedMeals();
-  renderSavedMeals();
+
+  upsertSavedMealPreset(meal);
 }
 
 async function useSavedMeal(savedId) {
@@ -9756,13 +9783,27 @@ function _focusSyncVisualPlayback() {
     }
     video.loop = true;
     video.muted = true;
+    video.defaultMuted = true;
+    video.autoplay = true;
     video.playsInline = true;
+    video.setAttribute('muted', '');
+    video.setAttribute('autoplay', '');
+    video.setAttribute('playsinline', '');
 
-    const playPromise = video.play();
-    if (playPromise && typeof playPromise.catch === 'function') {
-      playPromise.catch(() => {
-        _focusSetVisualStatus('Unable to auto-play this visual. Try another video source.', true);
-      });
+    const tryPlay = () => {
+      if (_focus.state !== 'running' || _focusResolveVisualSource() !== src) return;
+      const playPromise = video.play();
+      if (playPromise && typeof playPromise.catch === 'function') {
+        playPromise.catch(() => {
+          _focusSetVisualStatus('Unable to auto-play this visual. Try another video source.', true);
+        });
+      }
+    };
+
+    if (video.readyState >= 2) {
+      tryPlay();
+    } else {
+      video.addEventListener('loadeddata', tryPlay, { once: true });
     }
 
     layer.classList.add('is-active');
