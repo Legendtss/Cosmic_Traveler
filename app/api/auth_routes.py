@@ -396,6 +396,8 @@ def update_onboarding():
 def update_profile_essentials():
     """
     Save the mandatory profile essentials (age, height, weight, goal, activity level).
+    For weight-related goals (Weight Loss, Muscle Gain) also accepts target_weight
+    and weight_goal_duration_weeks, then computes daily_calorie_delta.
     This completes the onboarding flow.
     """
     uid = get_current_user_id()
@@ -404,31 +406,59 @@ def update_profile_essentials():
 
     # ── Validation ─────────────────────────────────────────
     errors = []
-    
+
     age = data.get("age")
     if age is None or not isinstance(age, (int, float)) or age < 10 or age > 120:
         errors.append("Age must be between 10 and 120.")
-    
+
     height = data.get("height")
     if height is None or not isinstance(height, (int, float)) or height < 50 or height > 300:
         errors.append("Height must be between 50 and 300 cm.")
-    
+
     current_weight = data.get("currentWeight")
     if current_weight is None or not isinstance(current_weight, (int, float)) or current_weight < 20 or current_weight > 500:
         errors.append("Weight must be between 20 and 500 kg.")
-    
+
     goal = data.get("goal")
     valid_goals = ["Weight Loss", "Muscle Gain", "Maintain Fitness", "General Fitness"]
     if not goal or goal not in valid_goals:
         errors.append(f"Goal must be one of: {', '.join(valid_goals)}.")
-    
+
     activity_level = data.get("activityLevel")
     valid_activity = ["sedentary", "light", "moderate", "active", "very_active"]
     if not activity_level or activity_level not in valid_activity:
         errors.append(f"Activity level must be one of: {', '.join(valid_activity)}.")
-    
+
+    # ── Weight-goal specific fields ────────────────────────
+    weight_goal_goals = {"Weight Loss", "Muscle Gain"}
+    target_weight = None
+    weight_goal_duration_weeks = None
+    daily_calorie_delta = 0.0
+
+    if goal in weight_goal_goals:
+        target_weight = data.get("targetWeight")
+        if target_weight is None or not isinstance(target_weight, (int, float)) or target_weight < 20 or target_weight > 500:
+            errors.append("Target weight must be between 20 and 500 kg.")
+        elif goal == "Weight Loss" and current_weight is not None and float(target_weight) >= float(current_weight):
+            errors.append("Target weight must be less than current weight for Weight Loss.")
+        elif goal == "Muscle Gain" and current_weight is not None and float(target_weight) <= float(current_weight):
+            errors.append("Target weight must be greater than current weight for Muscle Gain.")
+
+        weight_goal_duration_weeks = data.get("weightGoalDurationWeeks")
+        if weight_goal_duration_weeks is None or not isinstance(weight_goal_duration_weeks, (int, float)) or weight_goal_duration_weeks < 1 or weight_goal_duration_weeks > 104:
+            errors.append("Goal duration must be between 1 and 104 weeks.")
+
     if errors:
         return jsonify({"ok": False, "errors": errors}), 400
+
+    # ── Compute daily calorie delta for weight goals ───────
+    if goal in weight_goal_goals and target_weight is not None and weight_goal_duration_weeks is not None:
+        # 7700 kcal ≈ 1 kg of body mass; positive = surplus (gain), negative = deficit (loss)
+        weight_diff = float(target_weight) - float(current_weight)  # type: ignore[arg-type]
+        daily_calorie_delta = round((weight_diff * 7700) / (int(weight_goal_duration_weeks) * 7), 1)
+    else:
+        target_weight = float(current_weight)  # type: ignore[arg-type]  # for maintain/general
+        daily_calorie_delta = 0.0
 
     # ── Update user with essentials ────────────────────────
     now = now_iso()
@@ -438,13 +468,28 @@ def update_profile_essentials():
             age = ?,
             height = ?,
             current_weight = ?,
+            target_weight = ?,
+            weight_goal_duration_weeks = ?,
+            daily_calorie_delta = ?,
             goal = ?,
             activity_level = ?,
             profile_essentials_completed_at = ?,
             updated_at = ?
         WHERE id = ?
         """,
-        (int(age), int(height), float(current_weight), goal, activity_level, now, now, uid),  # type: ignore[arg-type]  # validated above
+        (
+            int(age),  # type: ignore[arg-type]
+            int(height),  # type: ignore[arg-type]
+            float(current_weight),  # type: ignore[arg-type]
+            float(target_weight),
+            int(weight_goal_duration_weeks) if weight_goal_duration_weeks is not None else None,
+            daily_calorie_delta,
+            goal,
+            activity_level,
+            now,
+            now,
+            uid,
+        ),
     )
     db.commit()
 
@@ -472,6 +517,9 @@ def _user_dict(db, user_id):
         "age": row["age"] if "age" in cols else None,
         "height": row["height"] if "height" in cols else None,
         "currentWeight": row["current_weight"] if "current_weight" in cols else None,
+        "targetWeight": row["target_weight"] if "target_weight" in cols else None,
+        "weightGoalDurationWeeks": row["weight_goal_duration_weeks"] if "weight_goal_duration_weeks" in cols else None,
+        "dailyCalorieDelta": row["daily_calorie_delta"] if "daily_calorie_delta" in cols else None,
         "activityLevel": row["activity_level"] if "activity_level" in cols else "moderate",
         # Onboarding state
         "onboarding": {

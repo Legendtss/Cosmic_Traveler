@@ -512,6 +512,34 @@
   min-height: 16px;
 }
 
+/* ── Weight-goal conditional fields ───────────────────────── */
+.profile-essentials-weight-goal {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 20px;
+}
+
+.profile-essentials-weight-goal.hidden {
+  display: none;
+}
+
+.profile-essentials-calorie-preview {
+  grid-column: 1 / -1;
+  background: rgba(59, 130, 246, 0.08);
+  border: 1px solid rgba(59, 130, 246, 0.25);
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--text-secondary, #3f5973);
+  text-align: center;
+}
+
+.profile-essentials-calorie-preview.hidden {
+  display: none;
+}
+
 /* ── Global Error ─────────────────────────────────────────── */
 .profile-essentials-global-error {
   background: rgba(239, 68, 68, 0.1);

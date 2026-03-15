@@ -9494,6 +9494,54 @@ function updateFocusWhitelist() {
   if (!_focus.whitelist.includes('focus')) _focus.whitelist.push('focus');
 }
 
+// ─── Internal: apply mode UI without the 'not idle' guard ──
+// Used by _focusLoadState to correctly render mode tabs and settings
+// panels even when restoring a running/paused timer.
+function _focusApplyModeUI(mode) {
+  _focus.mode = mode;
+  // For idle timers, compute totalDurationMs from config
+  if (_focus.state === 'idle') {
+    if (mode === 'pomodoro') {
+      _focus.totalDurationMs = _focus.pomodoroFocus * 60 * 1000;
+    } else if (mode === 'custom') {
+      _focus.totalDurationMs = _focus.customMinutes * 60 * 1000;
+    } else {
+      _focus.totalDurationMs = 0;
+    }
+  }
+  document.querySelectorAll('.focus-mode-tab').forEach(t => {
+    t.classList.toggle('active', t.dataset.mode === mode);
+  });
+  const pomSettings = document.getElementById('focus-pomodoro-settings');
+  const customSettings = document.getElementById('focus-custom-settings');
+  const cycleInd = document.getElementById('focus-cycle-indicator');
+  if (pomSettings) pomSettings.style.display = mode === 'pomodoro' ? '' : 'none';
+  if (customSettings) customSettings.style.display = mode === 'custom' ? '' : 'none';
+  if (cycleInd) cycleInd.style.display = mode === 'pomodoro' ? '' : 'none';
+}
+
+// ─── Re-init focus state for the authenticated user ──
+// Called from _showApp() after bootstrapSession() sets AuthModule.currentUser.
+// Stops any ghost timer from the pre-auth init phase and reloads state
+// from the user-scoped localStorage key (focus_timer_state_<uid>).
+function _focusReinitForUser() {
+  clearInterval(_focus.intervalId);
+  _focus.intervalId = null;
+  _focus.state = 'idle';
+  _focus.startTimestamp = null;
+  _focus.pauseTimestamp = null;
+  _focus.elapsedPaused = 0;
+  _focus.isBreak = false;
+  document.querySelector('.focus-timer-card')?.classList.remove('is-running');
+  document.querySelector('.focus-timer-card')?.classList.remove('focus-breathing');
+  // Reload from the now-known user-scoped key
+  _focusLoadState();
+  _focusRenderCycleDots();
+  _focusUpdateDisplay();
+  _focusUpdateControls();
+}
+window._focusReinitForUser = _focusReinitForUser;
+
 // ─── Visibility API ─────────────────────────────────
 function _focusOnVisibilityChange() {
   if (_focus.state !== 'running') return;
@@ -9575,8 +9623,9 @@ function _focusLoadState() {
       }
     }
 
-    // Restore UI selections
-    switchFocusMode(_focus.mode);
+    // Restore UI selections (use internal helper to bypass the 'not idle'
+    // guard in switchFocusMode — mode tabs must update even for running timers)
+    _focusApplyModeUI(_focus.mode);
 
     // Restore volume slider
     const volSlider = document.getElementById('focus-volume-slider');

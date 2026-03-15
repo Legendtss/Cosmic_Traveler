@@ -251,18 +251,22 @@ window.AuthModule = (() => {
     if (getStartedBtn) {
       getStartedBtn.addEventListener('click', () => {
         _showScreen('auth-screen');
-        // Show signup form
+        // Show signup form, clear any stale errors
         if (loginForm) loginForm.classList.add('hidden');
         if (signupForm) signupForm.classList.remove('hidden');
+        if (loginError) loginError.classList.add('hidden');
+        if (signupError) signupError.classList.add('hidden');
       });
     }
 
     if (loginBtn) {
       loginBtn.addEventListener('click', () => {
         _showScreen('auth-screen');
-        // Show login form
+        // Show login form, clear any stale errors
         if (signupForm) signupForm.classList.add('hidden');
         if (loginForm) loginForm.classList.remove('hidden');
+        if (loginError) loginError.classList.add('hidden');
+        if (signupError) signupError.classList.add('hidden');
       });
     }
 
@@ -271,6 +275,8 @@ window.AuthModule = (() => {
         _showScreen('auth-screen');
         if (loginForm) loginForm.classList.add('hidden');
         if (signupForm) signupForm.classList.remove('hidden');
+        if (loginError) loginError.classList.add('hidden');
+        if (signupError) signupError.classList.add('hidden');
       });
     }
   }
@@ -428,10 +434,49 @@ window.AuthModule = (() => {
     const weightInput = document.getElementById('pe-weight');
     const goalSelect = document.getElementById('pe-goal');
     const activitySelect = document.getElementById('pe-activity');
+    const targetWeightInput = document.getElementById('pe-target-weight');
+    const durationWeeksInput = document.getElementById('pe-duration-weeks');
+    const weightGoalFields = document.getElementById('pe-weight-goal-fields');
+    const caloriePreview = document.getElementById('pe-calorie-preview');
+    const caloriePreviewText = document.getElementById('pe-calorie-preview-text');
+
+    const WEIGHT_GOALS = new Set(['Weight Loss', 'Muscle Gain']);
+
+    function _isWeightGoal() {
+      return WEIGHT_GOALS.has(goalSelect?.value);
+    }
+
+    function _updateWeightGoalFieldsVisibility() {
+      const show = _isWeightGoal();
+      if (weightGoalFields) weightGoalFields.classList.toggle('hidden', !show);
+      if (!show) {
+        if (targetWeightInput) targetWeightInput.value = '';
+        if (durationWeeksInput) durationWeeksInput.value = '';
+        if (caloriePreview) caloriePreview.classList.add('hidden');
+      }
+    }
+
+    function _updateCaloriePreview() {
+      if (!caloriePreview || !caloriePreviewText) return;
+      const currentWeight = parseFloat(weightInput?.value);
+      const targetWeight = parseFloat(targetWeightInput?.value);
+      const weeks = parseInt(durationWeeksInput?.value, 10);
+      const goal = goalSelect?.value;
+
+      if (!_isWeightGoal() || !Number.isFinite(currentWeight) || !Number.isFinite(targetWeight) || !Number.isFinite(weeks) || weeks < 1) {
+        caloriePreview.classList.add('hidden');
+        return;
+      }
+
+      const weightDiff = Math.abs(targetWeight - currentWeight);
+      const dailyDelta = Math.round((weightDiff * 7700) / (weeks * 7));
+      const direction = goal === 'Weight Loss' ? 'deficit' : 'surplus';
+      caloriePreviewText.textContent = `≈ ${dailyDelta} kcal/day ${direction} over ${weeks} weeks`;
+      caloriePreview.classList.remove('hidden');
+    }
 
     // Real-time validation
     function validateForm() {
-      const errors = [];
       let isValid = true;
 
       // Clear previous errors
@@ -472,6 +517,27 @@ window.AuthModule = (() => {
         _setFieldError('activityLevel', 'Please select activity level');
       }
 
+      // Validate weight-goal specific fields
+      if (_isWeightGoal()) {
+        const targetWeight = parseFloat(targetWeightInput?.value);
+        if (!targetWeight || targetWeight < 20 || targetWeight > 500) {
+          isValid = false;
+          _setFieldError('targetWeight', 'Target weight must be 20-500 kg');
+        } else if (goalSelect.value === 'Weight Loss' && targetWeight >= weight) {
+          isValid = false;
+          _setFieldError('targetWeight', 'Must be less than current weight');
+        } else if (goalSelect.value === 'Muscle Gain' && targetWeight <= weight) {
+          isValid = false;
+          _setFieldError('targetWeight', 'Must be greater than current weight');
+        }
+
+        const weeks = parseInt(durationWeeksInput?.value, 10);
+        if (!weeks || weeks < 1 || weeks > 104) {
+          isValid = false;
+          _setFieldError('weightGoalDurationWeeks', 'Duration must be 1-104 weeks');
+        }
+      }
+
       // Enable/disable submit button
       if (submitBtn) submitBtn.disabled = !isValid;
 
@@ -483,13 +549,40 @@ window.AuthModule = (() => {
       if (errorEl) errorEl.textContent = message;
     }
 
+    // When goal changes: show/hide weight goal fields and re-validate
+    if (goalSelect) {
+      goalSelect.addEventListener('change', () => {
+        _updateWeightGoalFieldsVisibility();
+        _updateCaloriePreview();
+        validateForm();
+      });
+    }
+
+    // When target weight or duration changes: update calorie preview and validate
+    [targetWeightInput, durationWeeksInput].forEach(el => {
+      if (el) {
+        el.addEventListener('input', () => {
+          _updateCaloriePreview();
+          validateForm();
+        });
+      }
+    });
+
     // Add input listeners for real-time validation
-    [ageInput, heightInput, weightInput, goalSelect, activitySelect].forEach(el => {
+    [ageInput, heightInput, weightInput, activitySelect].forEach(el => {
       if (el) {
         el.addEventListener('input', validateForm);
         el.addEventListener('change', validateForm);
       }
     });
+
+    // Update calorie preview when current weight changes
+    if (weightInput) {
+      weightInput.addEventListener('input', () => {
+        _updateCaloriePreview();
+        validateForm();
+      });
+    }
 
     // Form submit
     if (form) {
@@ -507,14 +600,21 @@ window.AuthModule = (() => {
           submitBtn.textContent = 'Saving...';
         }
 
+        const payload = {
+          age: parseInt(ageInput.value, 10),
+          height: parseInt(heightInput.value, 10),
+          currentWeight: parseFloat(weightInput.value),
+          goal: goalSelect.value,
+          activityLevel: activitySelect.value,
+        };
+
+        if (_isWeightGoal()) {
+          payload.targetWeight = parseFloat(targetWeightInput.value);
+          payload.weightGoalDurationWeeks = parseInt(durationWeeksInput.value, 10);
+        }
+
         try {
-          const data = await AuthModule.updateProfileEssentials({
-            age: parseInt(ageInput.value, 10),
-            height: parseInt(heightInput.value, 10),
-            currentWeight: parseFloat(weightInput.value),
-            goal: goalSelect.value,
-            activityLevel: activitySelect.value,
-          });
+          const data = await AuthModule.updateProfileEssentials(payload);
 
           if (data.ok) {
             // Success → show app
@@ -569,6 +669,10 @@ window.AuthModule = (() => {
     }
     if (typeof syncNutritionGoalWithProfile === 'function') syncNutritionGoalWithProfile();
     if (typeof renderProfileUI === 'function') renderProfileUI();
+    // Re-init focus timer for the authenticated user. This stops any ghost
+    // timer running from the pre-auth init phase and loads the correct
+    // user-scoped state (focus_timer_state_<uid>).
+    if (typeof window._focusReinitForUser === 'function') window._focusReinitForUser();
   }
 
   // ══════════════════════════════════════════════════════════

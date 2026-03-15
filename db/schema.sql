@@ -13,6 +13,9 @@ CREATE TABLE IF NOT EXISTS users (
   age INTEGER,
   height INTEGER,
   current_weight REAL,
+  target_weight REAL,
+  weight_goal_duration_weeks INTEGER,
+  daily_calorie_delta REAL,
   activity_level TEXT NOT NULL DEFAULT 'moderate' CHECK (activity_level IN ('sedentary','light','moderate','active','very_active')),
   -- Onboarding state tracking
   intro_seen_at TEXT,

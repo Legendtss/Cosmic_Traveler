@@ -444,7 +444,7 @@
   </div>
 
   <!-- ── Auth Screen (login / signup) ─────────────────────── -->
-  <div id="auth-screen" class="auth-screen">
+  <div id="auth-screen" class="auth-screen hidden">
     <div class="auth-shell">
       <div class="auth-brand">
         <h1><span>FitTrack</span> Pro</h1>
@@ -581,6 +581,23 @@
               <option value="General Fitness">General Fitness</option>
             </select>
             <span class="profile-essentials-error" data-field="goal"></span>
+          </div>
+
+          <!-- Shown only for Weight Loss / Muscle Gain -->
+          <div id="pe-weight-goal-fields" class="profile-essentials-weight-goal hidden">
+            <div class="profile-essentials-field">
+              <label for="pe-target-weight">Target Weight (kg)</label>
+              <input id="pe-target-weight" type="number" min="20" max="500" step="0.5" placeholder="e.g., 65">
+              <span class="profile-essentials-error" data-field="targetWeight"></span>
+            </div>
+            <div class="profile-essentials-field">
+              <label for="pe-duration-weeks">Goal Duration (weeks)</label>
+              <input id="pe-duration-weeks" type="number" min="1" max="104" step="1" placeholder="e.g., 12">
+              <span class="profile-essentials-error" data-field="weightGoalDurationWeeks"></span>
+            </div>
+            <div id="pe-calorie-preview" class="profile-essentials-calorie-preview hidden">
+              <span id="pe-calorie-preview-text"></span>
+            </div>
           </div>
 
           <div class="profile-essentials-field profile-essentials-field-full">
