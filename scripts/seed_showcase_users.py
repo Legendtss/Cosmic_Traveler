@@ -17,7 +17,6 @@ Usage:
 import json
 from datetime import date, datetime, timedelta
 
-from app import app
 from app.auth import hash_password
 from app.db import get_db
 from app.utils import now_iso
@@ -192,6 +191,30 @@ def _clear_user_data(db, user_id, email):
     db.execute("DELETE FROM user_progress WHERE user_id = ?", (user_id,))
     db.execute("DELETE FROM sessions WHERE user_id = ?", (user_id,))
     db.execute("DELETE FROM login_attempts WHERE identifier = ?", (f"email:{email}",))
+
+
+def _current_showcase_counts(db, user_id):
+    return {
+        "projects": int(db.execute("SELECT COUNT(*) AS c FROM projects WHERE user_id = ?", (user_id,)).fetchone()["c"] or 0),
+        "tasks": int(db.execute("SELECT COUNT(*) AS c FROM tasks WHERE user_id = ?", (user_id,)).fetchone()["c"] or 0),
+        "notes": int(db.execute("SELECT COUNT(*) AS c FROM notes WHERE user_id = ?", (user_id,)).fetchone()["c"] or 0),
+        "meals": int(db.execute("SELECT COUNT(*) AS c FROM nutrition_entries WHERE user_id = ?", (user_id,)).fetchone()["c"] or 0),
+        "workouts": int(db.execute("SELECT COUNT(*) AS c FROM workouts WHERE user_id = ?", (user_id,)).fetchone()["c"] or 0),
+        "workout_templates": int(db.execute("SELECT COUNT(*) AS c FROM workout_templates WHERE user_id = ?", (user_id,)).fetchone()["c"] or 0),
+        "focus_sessions": int(db.execute("SELECT COUNT(*) AS c FROM focus_sessions WHERE user_id = ?", (user_id,)).fetchone()["c"] or 0),
+        "stats_snapshots": int(db.execute("SELECT COUNT(*) AS c FROM stats_snapshots WHERE user_id = ?", (user_id,)).fetchone()["c"] or 0),
+    }
+
+
+def _has_showcase_payload(db, user_id):
+    counts = _current_showcase_counts(db, user_id)
+    return (
+        counts["projects"] >= 3
+        and counts["tasks"] >= 15
+        and counts["notes"] >= 8
+        and counts["meals"] >= 24
+        and counts["workouts"] >= 8
+    )
 
 
 def _insert_project(db, user_id, *, name, description, status, due_date, subtasks):
@@ -827,9 +850,16 @@ def _seed_stats_and_progress(db, user_id, progress):
     return snapshot_count
 
 
-def seed_single_user(db, user_profile):
+def seed_single_user(db, user_profile, *, force_reset=False):
     email = user_profile["email"].strip().lower()
     user_id = _ensure_user(db, user_profile)
+
+    if (not force_reset) and _has_showcase_payload(db, user_id):
+        existing = _current_showcase_counts(db, user_id)
+        existing["user_id"] = user_id
+        existing["skipped"] = True
+        return existing
+
     _clear_user_data(db, user_id, email)
 
     projects = _seed_projects(db, user_id)
@@ -849,21 +879,30 @@ def seed_single_user(db, user_profile):
         "workout_templates": workout_counts["templates"],
         "focus_sessions": focus_count,
         "stats_snapshots": snapshot_count,
+        "skipped": False,
     }
 
 
-def main():
+def seed_showcase_users_in_context(force_reset=False):
     reports = []
-    with app.app_context():
-        db = get_db()
-        try:
-            for user_profile in SHOWCASE_USERS:
-                report = seed_single_user(db, user_profile)
-                reports.append((user_profile["email"], report))
-            db.commit()
-        except Exception:
-            db.rollback()
-            raise
+    db = get_db()
+    try:
+        for user_profile in SHOWCASE_USERS:
+            report = seed_single_user(db, user_profile, force_reset=force_reset)
+            reports.append((user_profile["email"], report))
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+
+    return reports
+
+
+def main():
+    from app import app as flask_app
+
+    with flask_app.app_context():
+        reports = seed_showcase_users_in_context(force_reset=True)
 
     print("SHOWCASE_SEED_COMPLETE")
     print(f"password={SHOWCASE_PASSWORD}")

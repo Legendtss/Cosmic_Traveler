@@ -87,6 +87,31 @@ def _validate_ai_key_policy(config_class, *, is_production, logger):
         raise RuntimeError("Production configuration invalid:\n- " + "\n- ".join(errors))
 
 
+def _seed_showcase_users_if_enabled(app, logger):
+    """Best-effort startup seeding for showcase accounts.
+
+    Controlled by environment variables:
+    - SEED_SHOWCASE_USERS_ON_STARTUP=1 (enable)
+    - SEED_SHOWCASE_USERS_FORCE_RESET=1 (rebuild demo users each boot)
+    """
+    if not _is_truthy_env(os.environ.get("SEED_SHOWCASE_USERS_ON_STARTUP")):
+        return
+
+    force_reset = _is_truthy_env(os.environ.get("SEED_SHOWCASE_USERS_FORCE_RESET"))
+    try:
+        with app.app_context():
+            from scripts.seed_showcase_users import seed_showcase_users_in_context
+
+            reports = seed_showcase_users_in_context(force_reset=force_reset)
+        seeded = [
+            f"{email}:{'skipped' if report.get('skipped') else 'seeded'}"
+            for email, report in reports
+        ]
+        logger.info("[Seed] Showcase users processed (%s)", ", ".join(seeded))
+    except Exception as exc:
+        logger.exception("[Seed] Showcase user seeding failed: %s", exc)
+
+
 def _get_cors_config():
     """Build CORS configuration based on environment."""
     # Check if running in production (Render, Railway, etc.)
@@ -181,6 +206,7 @@ def create_app(config_class=Config):
 
     register_db(app)
     init_app_data(app)
+    _seed_showcase_users_if_enabled(app, _log)
     setup_middleware(app)
 
     app.register_blueprint(web_bp)
