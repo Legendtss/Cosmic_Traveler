@@ -2153,17 +2153,43 @@ function calendarWeekTaskCardHtml(task) {
       class="calendar-week-task-card ${isCompleted ? 'is-completed' : ''} ${isDraggable ? 'is-draggable' : ''} ${isRecurring ? 'is-recurring' : ''}"
       data-task-id="${task.id}"
       data-occ-date="${task.__occurrenceDate || taskCalendarDateKey(task)}"
+      ondblclick="handleCalendarWeekTaskOpen(${task.id})"
     >
       <div class="calendar-week-task-main">
-        <div class="calendar-week-task-title ${isCompleted ? 'is-done' : ''}">${escapeHtml(task.title)}</div>
-        <div class="calendar-week-task-time">${formatTaskDue(task)}</div>
-      </div>
-      <div class="calendar-week-task-actions">
-        <button class="calendar-open-task" data-action="calendar-open-task" data-task-id="${task.id}" type="button">Open</button>
-        ${isCompleted ? '' : `<button class="calendar-complete-task" data-action="calendar-week-complete-task" data-task-id="${task.id}" data-date="${task.__occurrenceDate || taskCalendarDateKey(task)}" type="button">Complete</button>`}
+        <input 
+          type="checkbox" 
+          class="calendar-week-task-checkbox" 
+          ${isCompleted ? 'checked' : ''}
+          data-task-id="${task.id}"
+          data-date="${task.__occurrenceDate || taskCalendarDateKey(task)}"
+          onchange="handleCalendarWeekTaskToggle(this)"
+          aria-label="Complete task: ${escapeHtml(task.title)}"
+        >
+        <div class="calendar-week-task-title ${isCompleted ? 'is-done' : ''}" title="${escapeHtml(task.title)}">${escapeHtml(task.title)}</div>
       </div>
     </article>
   `;
+}
+
+function handleCalendarWeekTaskOpen(taskId) {
+  const numId = Number(taskId);
+  if (!numId) return;
+  taskUiState.expanded.add(numId);
+  showPage('tasks');
+  renderTasks(taskUiState.tasks);
+}
+
+function handleCalendarWeekTaskToggle(checkbox) {
+  const taskId = Number(checkbox.dataset.taskId);
+  const idNum = taskUiState.tasks.findIndex(t => Number(t.id) === taskId);
+  
+  if (idNum < 0) return;
+  
+  const task = taskUiState.tasks[idNum];
+  task.completed = checkbox.checked ? 1 : 0;
+  
+  saveTasks();
+  updateAppStateAndRender('tasks');
 }
 
 function destroyCalendarWeekSortables() {
@@ -2306,7 +2332,7 @@ function renderCalendarWeekBoard() {
     const isToday = dateKey === todayKey;
     const tasksHtml = dayTasks.length
       ? dayTasks.map(calendarWeekTaskCardHtml).join('')
-      : '<div class="calendar-week-empty">No tasks</div>';
+      : '';
     const niceDate = dateFromKey(dateKey).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     return `
       <section class="calendar-week-column ${isToday ? 'is-today' : ''}">
@@ -2315,10 +2341,12 @@ function renderCalendarWeekBoard() {
             <h4>${dayLabels[idx]}</h4>
             <span>${niceDate}</span>
           </div>
-          <button class="calendar-week-add-btn" type="button" data-action="calendar-week-add-task" data-date="${dateKey}">+ Add task</button>
         </header>
         <div class="calendar-week-task-list" data-date-key="${dateKey}" data-drop-allowed="true">
           ${tasksHtml}
+          <button class="calendar-week-add-task-btn" type="button" data-action="calendar-week-add-task" data-date="${dateKey}" title="Add task for ${niceDate}" aria-label="Add task for ${niceDate}">
+            <i class="fas fa-plus"></i>
+          </button>
         </div>
       </section>
     `;

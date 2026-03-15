@@ -11494,14 +11494,15 @@ body.theme-dark .task-edit-view-note-link { color: #60a5fa; }
 
 /* ── Task List (drop zone) ────────────────────────────────── */
 .calendar-week-task-list {
-  padding: 8px;
+  padding: 6px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  min-height: 160px;
+  gap: 4px;
+  min-height: 100px;
   flex: 1;
   transition: background 0.18s;
   border-radius: 0 0 14px 14px;
+  position: relative;
 }
 .calendar-week-task-list.sortable-drag-over {
   background: rgba(96,165,250,0.06);
@@ -11510,16 +11511,17 @@ body.theme-dark .task-edit-view-note-link { color: #60a5fa; }
 /* ── Task Card ────────────────────────────────────────────── */
 .calendar-week-task-card {
   border: 1.5px solid #e2e8f0;
-  border-radius: 10px;
+  border-radius: 8px;
   background: #fff;
-  padding: 8px 9px;
+  padding: 6px 8px;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 0;
   transition: transform 0.15s cubic-bezier(.4,0,.2,1),
               box-shadow 0.15s cubic-bezier(.4,0,.2,1),
               border-color 0.15s;
   position: relative;
+  cursor: pointer;
 }
 
 .calendar-week-task-card.is-draggable {
@@ -11552,8 +11554,18 @@ body.theme-dark .task-edit-view-note-link { color: #60a5fa; }
 
 .calendar-week-task-main {
   display: flex;
-  flex-direction: column;
-  gap: 3px;
+  align-items: flex-start;
+  gap: 6px;
+  width: 100%;
+}
+
+.calendar-week-task-checkbox {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  margin-top: 2px;
+  cursor: pointer;
+  accent-color: #6366f1;
 }
 
 .calendar-week-task-title {
@@ -11562,6 +11574,13 @@ body.theme-dark .task-edit-view-note-link { color: #60a5fa; }
   font-weight: 700;
   line-height: 1.25;
   word-break: break-word;
+  flex: 1;
+  min-width: 0;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 .calendar-week-task-title.is-done {
@@ -11570,33 +11589,33 @@ body.theme-dark .task-edit-view-note-link { color: #60a5fa; }
 }
 
 .calendar-week-task-time {
-  color: #64748b;
-  font-size: 0.66rem;
-  font-weight: 500;
+  display: none;
 }
 
 .calendar-week-task-actions {
+  display: none;
+}
+
+/* ── Add task button ────────────────────────────────────────── */
+.calendar-week-add-task-btn {
   display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  margin-top: 2px;
-}
-.calendar-week-task-actions button {
-  font-size: 0.62rem;
-  padding: 3px 6px;
-  border-radius: 6px;
-  border: 1px solid #e2e8f0;
-  background: #f8fafc;
-  color: #475569;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: 8px;
+  margin-top: 4px;
+  border: 1.5px dashed #cbd5e1;
+  border-radius: 8px;
+  background: transparent;
+  color: #94a3b8;
   cursor: pointer;
-  font-weight: 600;
-  min-width: 0;
-  flex: 1 1 auto;
-  transition: background 0.15s, color 0.15s;
+  font-size: 1rem;
+  transition: all 0.15s;
 }
-.calendar-week-task-actions button:hover {
-  background: #e0f2fe;
-  color: #2563eb;
+.calendar-week-add-task-btn:hover {
+  border-color: #6366f1;
+  color: #6366f1;
+  background: rgba(99, 102, 241, 0.05);
 }
 
 /* ── Empty State ──────────────────────────────────────────── */
@@ -11705,6 +11724,20 @@ body.theme-dark .calendar-week-add-btn:hover {
   background: #334155;
   border-color: #475569;
   color: #60a5fa;
+}
+
+body.theme-dark .calendar-week-add-task-btn {
+  border-color: #334155;
+  color: #64748b;
+}
+body.theme-dark .calendar-week-add-task-btn:hover {
+  border-color: #6366f1;
+  color: #818cf8;
+  background: rgba(99, 102, 241, 0.1);
+}
+
+body.theme-dark .calendar-week-task-checkbox {
+  accent-color: #6366f1;
 }
 
 body.theme-dark .calendar-week-task-card {

@@ -2195,4 +2195,370 @@ body.theme-dark .profile-menu-avatar svg {
   }
 }
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   DARK MODE: FOCUS, CALENDAR, NOTES — COMPREHENSIVE STYLING
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ─── FOCUS FEATURE ─── */
+body.theme-dark .focus-header-row h2 {
+  color: var(--text-primary);
+}
+
+body.theme-dark .focus-header-row p {
+  color: var(--text-secondary);
+}
+
+body.theme-dark .focus-btn-primary {
+  background: linear-gradient(135deg, #818cf8, #a78bfa);
+  color: #fff;
+}
+
+body.theme-dark .focus-btn-primary:hover {
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  filter: brightness(1.15);
+}
+
+body.theme-dark .focus-btn-secondary {
+  background: var(--bg-card);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-subtle);
+}
+
+body.theme-dark .focus-btn-secondary:hover {
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  border-color: var(--border-strong);
+}
+
+body.theme-dark .focus-btn-danger {
+  background: linear-gradient(135deg, #f87171, #dc2626);
+  color: #fff;
+}
+
+body.theme-dark .focus-btn-danger:hover {
+  background: linear-gradient(135deg, #ef4444, #b91c1c);
+}
+
+body.theme-dark .focus-timer-card {
+  background: var(--bg-card);
+  border-color: #3b4257;
+}
+
+body.theme-dark .focus-timer-card.is-running {
+  border-color: #6366f1;
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
+}
+
+body.theme-dark .focus-progress-ring-circle {
+  stroke: #6366f1;
+}
+
+body.theme-dark .focus-preset {
+  background: var(--bg-card);
+  border-color: var(--border-subtle);
+  color: var(--text-secondary);
+}
+
+body.theme-dark .focus-preset.active {
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.2), rgba(139, 92, 246, 0.2));
+  border-color: #6366f1;
+  color: var(--text-primary);
+}
+
+body.theme-dark .focus-input {
+  background: var(--bg-surface);
+  border-color: var(--border-subtle);
+  color: var(--text-primary);
+}
+
+body.theme-dark .focus-input::placeholder {
+  color: var(--text-muted);
+}
+
+body.theme-dark .focus-exit-modal-content {
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+}
+
+body.theme-dark .focus-exit-modal-content h3 {
+  color: var(--text-primary);
+}
+
+body.theme-dark .focus-exit-modal-content p {
+  color: var(--text-secondary);
+}
+
+/* ─── CALENDAR FEATURE ─── */
+body.theme-dark .calendar-nav-btn {
+  background: var(--bg-card);
+  border-color: var(--border-subtle);
+  color: var(--text-secondary);
+}
+
+body.theme-dark .calendar-nav-btn:hover {
+  background: var(--bg-elevated);
+  border-color: var(--border-strong);
+  color: var(--text-primary);
+}
+
+body.theme-dark .calendar-weekday {
+  color: var(--text-muted);
+}
+
+body.theme-dark .calendar-day {
+  background: var(--bg-surface);
+  border-color: var(--border-subtle);
+  color: var(--text-secondary);
+}
+
+body.theme-dark .calendar-day:hover {
+  background: var(--bg-card);
+  border-color: #6366f1;
+}
+
+body.theme-dark .calendar-day.has-tasks {
+  background: rgba(99, 102, 241, 0.1);
+  border-color: #6366f1;
+}
+
+body.theme-dark .calendar-day.is-selected {
+  background: rgba(99, 102, 241, 0.2);
+  border-color: #6366f1;
+  box-shadow: inset 0 0 0 1px #6366f1;
+}
+
+body.theme-dark .calendar-day.today {
+  background: rgba(139, 92, 246, 0.15);
+  border-color: #a78bfa;
+}
+
+body.theme-dark .day-count {
+  color: #6366f1;
+}
+
+body.theme-dark .calendar-title-row h2 {
+  color: var(--text-primary);
+}
+
+body.theme-dark .calendar-title-row p {
+  color: var(--text-secondary);
+}
+
+body.theme-dark .calendar-head h3 {
+  color: var(--text-primary);
+}
+
+body.theme-dark .calendar-task-item {
+  background: var(--bg-surface);
+  border-color: var(--border-subtle);
+}
+
+body.theme-dark .calendar-task-item:hover {
+  background: var(--bg-card);
+  border-color: var(--border-strong);
+}
+
+body.theme-dark .calendar-task-title {
+  color: var(--text-primary);
+}
+
+body.theme-dark .calendar-task-title.is-done {
+  color: var(--text-muted);
+}
+
+body.theme-dark .calendar-task-time {
+  color: var(--text-muted);
+}
+
+body.theme-dark .calendar-open-task,
+body.theme-dark .calendar-complete-task {
+  background: var(--bg-card);
+  border-color: var(--border-subtle);
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+body.theme-dark .calendar-open-task:hover,
+body.theme-dark .calendar-complete-task:hover {
+  background: var(--bg-elevated);
+  border-color: var(--border-strong);
+  color: var(--text-primary);
+}
+
+body.theme-dark .calendar-complete-task {
+  border-color: rgba(79, 179, 159, 0.6);
+  color: #4fb39f;
+  background: rgba(79, 179, 159, 0.1);
+}
+
+body.theme-dark .calendar-complete-task:hover {
+  background: rgba(79, 179, 159, 0.15);
+}
+
+body.theme-dark .calendar-empty {
+  color: var(--text-muted);
+}
+
+body.theme-dark .task-editor-textarea {
+  background: var(--bg-surface);
+  border-color: var(--border-subtle);
+  color: var(--text-primary);
+}
+
+body.theme-dark .task-editor-textarea::placeholder {
+  color: var(--text-muted);
+}
+
+/* ─── NOTES FEATURE ─── */
+body.theme-dark .note-card {
+  background: var(--bg-card);
+  border-color: var(--border-subtle);
+}
+
+body.theme-dark .note-card:hover {
+  background: var(--bg-elevated);
+  border-color: #6366f1;
+  box-shadow: 0 8px 24px rgba(99, 102, 241, 0.2);
+}
+
+body.theme-dark .note-card-title {
+  color: var(--text-primary);
+}
+
+body.theme-dark .note-card-preview {
+  color: var(--text-secondary);
+}
+
+body.theme-dark .note-card-meta {
+  color: var(--text-muted);
+}
+
+body.theme-dark .note-card-source {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+body.theme-dark .note-card-source.manual {
+  background: rgba(79, 179, 159, 0.15);
+  color: #4fb39f;
+  border: 1px solid rgba(79, 179, 159, 0.3);
+}
+
+body.theme-dark .note-card-source.task {
+  background: rgba(99, 102, 241, 0.15);
+  color: #818cf8;
+  border: 1px solid rgba(99, 102, 241, 0.3);
+}
+
+body.theme-dark .note-card-date {
+  color: var(--text-muted);
+}
+
+body.theme-dark .note-card-tags {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+body.theme-dark .note-tag {
+  background: var(--bg-surface);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-subtle);
+}
+
+body.theme-dark .note-tag:hover {
+  background: var(--bg-card);
+  border-color: var(--border-strong);
+}
+
+body.theme-dark .note-card-linked {
+  color: var(--text-secondary);
+}
+
+body.theme-dark .note-card-linked i {
+  color: #818cf8;
+}
+
+body.theme-dark .notes-empty-state {
+  color: var(--text-muted);
+}
+
+body.theme-dark .notes-filter-btn {
+  background: var(--bg-card);
+  border-color: var(--border-subtle);
+  color: var(--text-secondary);
+}
+
+body.theme-dark .notes-filter-btn:hover {
+  background: var(--bg-elevated);
+  border-color: var(--border-strong);
+  color: var(--text-primary);
+}
+
+body.theme-dark .notes-filter-btn.active {
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  border-color: #6366f1;
+  color: #fff;
+}
+
+body.theme-dark .note-modal {
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(8px);
+}
+
+body.theme-dark .note-modal-content {
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  border-color: var(--border-subtle);
+}
+
+body.theme-dark .note-modal-label {
+  color: var(--text-secondary);
+}
+
+body.theme-dark .note-modal-input,
+body.theme-dark .note-modal-textarea {
+  background: var(--bg-surface);
+  border-color: var(--border-subtle);
+  color: var(--text-primary);
+}
+
+body.theme-dark .note-modal-input::placeholder,
+body.theme-dark .note-modal-textarea::placeholder {
+  color: var(--text-muted);
+}
+
+body.theme-dark .note-modal-btn {
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  color: #fff;
+  border: none;
+}
+
+body.theme-dark .note-modal-btn:hover {
+  background: linear-gradient(135deg, #818cf8, #a78bfa);
+  filter: brightness(1.1);
+}
+
+body.theme-dark .note-modal-btn-cancel {
+  background: var(--bg-card);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-subtle);
+}
+
+body.theme-dark .note-modal-btn-cancel:hover {
+  background: var(--bg-elevated);
+  border-color: var(--border-strong);
+  color: var(--text-primary);
+}
+
+/* ─── SMOOTH TRANSITIONS ─── */
+body.theme-dark .calendar-day,
+body.theme-dark .calendar-task-item,
+body.theme-dark .note-card,
+body.theme-dark .focus-btn-secondary,
+body.theme-dark .notes-filter-btn {
+  transition: all 0.2s ease;
+}
+
 
