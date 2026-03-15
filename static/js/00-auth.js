@@ -685,6 +685,12 @@ window.AuthModule = (() => {
     // timer running from the pre-auth init phase and loads the correct
     // user-scoped state (focus_timer_state_<uid>).
     if (typeof window._focusReinitForUser === 'function') window._focusReinitForUser();
+
+    // Ensure all user-scoped API data is hydrated after interactive auth
+    // flows (login/signup/profile setup) without requiring a full reload.
+    if (typeof window._authAfterShowApp === 'function') {
+      window._authAfterShowApp(user);
+    }
   }
 
   // ══════════════════════════════════════════════════════════

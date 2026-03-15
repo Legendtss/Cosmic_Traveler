@@ -451,6 +451,48 @@ async function loadActiveUserDataViews() {
   if (typeof syncAllToAppState === 'function') syncAllToAppState();
 }
 
+let _authHydrationPromise = null;
+let _authHydrationUserId = null;
+
+function _activeAuthUserId(userOverride) {
+  const resolved = userOverride || (typeof AuthModule !== 'undefined' ? AuthModule.currentUser : null);
+  const id = resolved && resolved.id != null ? String(resolved.id) : '';
+  return id;
+}
+
+async function ensureAuthAppDataHydrated(userOverride) {
+  const userId = _activeAuthUserId(userOverride);
+  if (!userId) return false;
+
+  if (_authHydrationPromise && _authHydrationUserId === userId) {
+    return _authHydrationPromise;
+  }
+
+  const hydrateRun = (async () => {
+    runInitStep('showDashboardPage', () => showPage('dashboard'));
+    await runInitStep('loadActiveUserDataViews', () => loadActiveUserDataViews());
+    runInitStep('initMotivationEngine', () => initMotivationEngine());
+    return true;
+  })();
+
+  _authHydrationPromise = hydrateRun;
+  _authHydrationUserId = userId;
+
+  try {
+    return await hydrateRun;
+  } finally {
+    if (_authHydrationPromise === hydrateRun) {
+      _authHydrationPromise = null;
+    }
+  }
+}
+
+window._authAfterShowApp = function _authAfterShowApp(user) {
+  ensureAuthAppDataHydrated(user).catch((err) => {
+    console.error('Auth app hydration failed:', err);
+  });
+};
+
 async function bootstrapSession() {
   const user = await AuthModule.checkSession();
   const isOnboarded = !!(user && user.onboarding?.profileEssentialsCompletedAt);
@@ -8431,9 +8473,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const hasSession = !!(await runInitStep('bootstrapSession', () => bootstrapSession()));
 
   if (hasSession) {
-    runInitStep('showDashboardPage', () => showPage('dashboard'));
-    await runInitStep('loadActiveUserDataViews', () => loadActiveUserDataViews());
-    runInitStep('initMotivationEngine', () => initMotivationEngine());
+    await runInitStep('ensureAuthAppDataHydrated', () => ensureAuthAppDataHydrated());
   }
 
 

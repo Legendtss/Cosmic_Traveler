@@ -22,6 +22,49 @@ from app.db import get_db
 from app.utils import now_iso
 
 SHOWCASE_PASSWORD = "demo1demo"
+SHOWCASE_SEED_VERSION = 2
+
+SHOWCASE_VARIANTS = {
+    "d@gmail.com": {
+        "project_prefix": "Cut Phase",
+        "task_track": "Lean Sprint",
+        "deep_work_label": "Calorie Audit Block",
+        "meal_style": "Deficit Fuel",
+        "workout_style": "Conditioning",
+        "focus_line": "steady fat-loss execution",
+        "note_tail": "Prioritize satiety meals and daily steps.",
+        "nutrition_calorie_shift": -140,
+        "workout_calorie_shift": 25,
+        "snapshot_tasks_base": 5,
+        "snapshot_minutes_base": 40,
+    },
+    "d1@gmail.com": {
+        "project_prefix": "Maintenance Rhythm",
+        "task_track": "Consistency System",
+        "deep_work_label": "Consistency Block",
+        "meal_style": "Balanced Plate",
+        "workout_style": "Hybrid Fitness",
+        "focus_line": "maintenance with strong routines",
+        "note_tail": "Keep routines easy to repeat during busy days.",
+        "nutrition_calorie_shift": 0,
+        "workout_calorie_shift": -20,
+        "snapshot_tasks_base": 4,
+        "snapshot_minutes_base": 32,
+    },
+    "demo@gmail.com": {
+        "project_prefix": "Mass Build",
+        "task_track": "Strength Progression",
+        "deep_work_label": "Progressive Overload Block",
+        "meal_style": "Surplus Fuel",
+        "workout_style": "Hypertrophy",
+        "focus_line": "muscle gain with structured recovery",
+        "note_tail": "Track lifts, sleep deeply, and protect recovery.",
+        "nutrition_calorie_shift": 260,
+        "workout_calorie_shift": 35,
+        "snapshot_tasks_base": 6,
+        "snapshot_minutes_base": 48,
+    },
+}
 
 SHOWCASE_USERS = [
     {
@@ -87,6 +130,16 @@ def _time_for(index, hour_start=6):
 
 def _dt_for(day_iso, hhmm):
     return f"{day_iso}T{hhmm}:00"
+
+
+def _variant_for(user_profile):
+    email = user_profile["email"].strip().lower()
+    return SHOWCASE_VARIANTS.get(email, SHOWCASE_VARIANTS["d1@gmail.com"])
+
+
+def _seed_marker_title(email):
+    norm = email.strip().lower()
+    return f"SHOWCASE_SEED_V{SHOWCASE_SEED_VERSION}:{norm}"
 
 
 def _ensure_user(db, user_profile):
@@ -206,14 +259,19 @@ def _current_showcase_counts(db, user_id):
     }
 
 
-def _has_showcase_payload(db, user_id):
+def _has_showcase_payload(db, user_id, email):
     counts = _current_showcase_counts(db, user_id)
+    marker = db.execute(
+        "SELECT 1 FROM notes WHERE user_id = ? AND title = ? LIMIT 1",
+        (user_id, _seed_marker_title(email)),
+    ).fetchone()
     return (
         counts["projects"] >= 3
         and counts["tasks"] >= 15
         and counts["notes"] >= 8
         and counts["meals"] >= 24
         and counts["workouts"] >= 8
+        and bool(marker)
     )
 
 
@@ -311,13 +369,19 @@ def _insert_task_note(db, user_id, *, task_id, title, content, tags, day_iso, hh
     )
 
 
-def _seed_projects(db, user_id):
+def _seed_projects(db, user_id, user_profile):
+    variant = _variant_for(user_profile)
+    display_name = user_profile["display_name"]
+
     projects = {}
     projects["launch"] = _insert_project(
         db,
         user_id,
-        name="Website Relaunch",
-        description="Coordinate content, assets, QA, and launch checklist for relaunch week.",
+        name=f"{variant['project_prefix']} Launch Ops",
+        description=(
+            f"{display_name}: coordinate content, assets, QA, and launch checklist "
+            f"for {variant['focus_line']}."
+        ),
         status="active",
         due_date=_day_str(-5),
         subtasks=[
@@ -325,14 +389,14 @@ def _seed_projects(db, user_id):
             "Approve hero visuals",
             "Cross-browser QA",
             "Update analytics events",
-            "Launch readiness review",
+            f"{variant['task_track']} readiness review",
         ],
     )
     projects["wellness"] = _insert_project(
         db,
         user_id,
-        name="90-Day Wellness Sprint",
-        description="Combine fitness, nutrition, and focus habits for measurable progress.",
+        name=f"{variant['project_prefix']} Wellness Sprint",
+        description=f"Combine training, nutrition, and focus habits for {variant['focus_line']}.",
         status="active",
         due_date=_day_str(-30),
         subtasks=[
@@ -346,8 +410,8 @@ def _seed_projects(db, user_id):
     projects["study"] = _insert_project(
         db,
         user_id,
-        name="Data Skills Upgrade",
-        description="Practical analytics upskilling with portfolio-ready outputs.",
+        name=f"{variant['project_prefix']} Skill Stack",
+        description=f"Practical upskilling aligned with {variant['task_track']} outcomes.",
         status="active",
         due_date=_day_str(-21),
         subtasks=[
@@ -360,8 +424,8 @@ def _seed_projects(db, user_id):
     projects["personal"] = _insert_project(
         db,
         user_id,
-        name="Home Reset",
-        description="Declutter and reorganize key zones before next month.",
+        name=f"{variant['project_prefix']} Home Reset",
+        description=f"Declutter and reorganize key zones while maintaining {variant['task_track']} habits.",
         status="completed",
         due_date=_day_str(1),
         subtasks=[
@@ -374,7 +438,11 @@ def _seed_projects(db, user_id):
     return projects
 
 
-def _seed_tasks_and_notes(db, user_id, project_ids):
+def _seed_tasks_and_notes(db, user_id, project_ids, user_profile):
+    variant = _variant_for(user_profile)
+    display_name = user_profile["display_name"]
+    goal = user_profile["goal"]
+
     task_specs = [
         {
             "title": "Plan week priorities",
@@ -518,12 +586,18 @@ def _seed_tasks_and_notes(db, user_id, project_ids):
         },
     ]
 
+    for spec in task_specs:
+        spec["title"] = f"{spec['title']} [{variant['task_track']}]"
+        spec["description"] = f"{spec['description']} ({variant['focus_line']})."
+        if spec["note"]:
+            spec["note"] = f"{spec['note']} {variant['note_tail']}"
+
     # Add a second set to make the task board dense and realistic.
     for offset in range(8):
         task_specs.append(
             {
-                "title": f"Deep work block #{offset + 1}",
-                "description": "Uninterrupted 50-minute focus sprint.",
+                "title": f"{variant['deep_work_label']} #{offset + 1}",
+                "description": f"Uninterrupted 50-minute focus sprint for {variant['task_track']}.",
                 "tags": ["focus", "execution"],
                 "category": "work",
                 "priority": "medium" if offset % 3 else "high",
@@ -574,38 +648,54 @@ def _seed_tasks_and_notes(db, user_id, project_ids):
 
     manual_notes = [
         {
-            "title": "Weekly Reflection",
-            "content": "Energy was strongest on days with early workouts and planned meals.",
-            "tags": ["reflection", "weekly"],
+            "title": f"Weekly Reflection - {variant['task_track']}",
+            "content": (
+                f"{display_name}: best momentum came from {variant['focus_line']}. "
+                f"Current goal is {goal}."
+            ),
+            "tags": ["reflection", "weekly", variant["task_track"].lower().replace(" ", "-")],
             "day": 1,
         },
         {
             "title": "Project Risks",
-            "content": "Risk: QA window is tight. Mitigation: lock scope by Thursday.",
+            "content": (
+                f"Primary risk for {variant['project_prefix']} launch is context-switching. "
+                "Mitigation: lock top 3 outcomes before noon."
+            ),
             "tags": ["project", "risk"],
             "day": 2,
         },
         {
             "title": "Workout Technique Cues",
-            "content": "Keep ribcage stacked during overhead press; slower eccentric.",
+            "content": (
+                f"Training style: {variant['workout_style']}. "
+                "Focus on controlled eccentrics and stable bracing."
+            ),
             "tags": ["workout", "form"],
             "day": 3,
         },
         {
             "title": "Nutrition Shopping List",
-            "content": "Greek yogurt, eggs, oats, salmon, berries, spinach, nuts.",
+            "content": (
+                f"Meal style: {variant['meal_style']}. "
+                "Greek yogurt, eggs, oats, salmon, berries, spinach, nuts."
+            ),
             "tags": ["nutrition", "shopping"],
             "day": 0,
         },
         {
             "title": "Reading Highlights",
-            "content": "Precision in definitions improves model diagnostics.",
+            "content": (
+                f"{variant['task_track']} note: keep definitions precise before diagnosing model drift."
+            ),
             "tags": ["study"],
             "day": 5,
         },
         {
             "title": "Idea Parking Lot",
-            "content": "Add adaptive rest timer and personal records panel in workout tab.",
+            "content": (
+                f"Add leaderboard widgets for {variant['task_track']} and a recovery-quality tracker."
+            ),
             "tags": ["ideas", "product"],
             "day": 4,
         },
@@ -625,7 +715,9 @@ def _seed_tasks_and_notes(db, user_id, project_ids):
     return {"tasks": len(task_ids), "notes": len(manual_notes) + len(linked_note_candidates)}
 
 
-def _seed_nutrition(db, user_id):
+def _seed_nutrition(db, user_id, user_profile):
+    variant = _variant_for(user_profile)
+
     meals_per_day = [
         ("Protein Oats Bowl", "breakfast", 460, 32.0, 58.0, 11.0),
         ("Chicken Quinoa Plate", "lunch", 620, 48.0, 62.0, 17.0),
@@ -639,6 +731,7 @@ def _seed_nutrition(db, user_id):
         day_iso = _day_str(day_offset)
         for idx, meal in enumerate(meals_per_day):
             name, meal_type, calories, protein, carbs, fats = meal
+            meal_name = f"{name} ({variant['meal_style']})"
             db.execute(
                 """
                 INSERT INTO nutrition_entries (
@@ -649,13 +742,13 @@ def _seed_nutrition(db, user_id):
                 """,
                 (
                     user_id,
-                    name,
+                    meal_name,
                     meal_type,
-                    calories + (day_offset % 3) * 15,
+                    max(120, calories + variant["nutrition_calorie_shift"] + (day_offset % 3) * 15),
                     protein + (0.5 * (day_offset % 2)),
                     carbs + float(day_offset % 4),
                     fats + float(day_offset % 3),
-                    "Seeded showcase meal",
+                    f"Seeded showcase meal - {variant['task_track']}",
                     day_iso,
                     _time_for(idx, hour_start=7),
                     now,
@@ -666,7 +759,9 @@ def _seed_nutrition(db, user_id):
     return count
 
 
-def _seed_workouts(db, user_id):
+def _seed_workouts(db, user_id, user_profile):
+    variant = _variant_for(user_profile)
+
     workout_specs = [
         ("Upper Body Strength", "strength", 52, 360, "high", True),
         ("Zone 2 Run", "cardio", 38, 330, "medium", True),
@@ -684,10 +779,11 @@ def _seed_workouts(db, user_id):
     count = 0
     for idx, spec in enumerate(workout_specs):
         name, workout_type, duration, calories_burned, intensity, completed = spec
+        seeded_name = f"{variant['workout_style']} - {name}"
         day_iso = _day_str(idx)
         exercises = [
-            {"name": f"{name} - A", "reps": "3x10"},
-            {"name": f"{name} - B", "reps": "3x12"},
+            {"name": f"{seeded_name} - A", "reps": "3x10"},
+            {"name": f"{seeded_name} - B", "reps": "3x12"},
         ]
         db.execute(
             """
@@ -699,13 +795,13 @@ def _seed_workouts(db, user_id):
             """,
             (
                 user_id,
-                name,
+                seeded_name,
                 workout_type,
                 duration,
-                calories_burned,
+                max(80, calories_burned + variant["workout_calorie_shift"]),
                 intensity,
                 json.dumps(exercises),
-                "Seeded showcase workout",
+                f"Seeded showcase workout - {variant['focus_line']}",
                 1 if completed else 0,
                 day_iso,
                 _time_for(idx, hour_start=6),
@@ -725,6 +821,7 @@ def _seed_workouts(db, user_id):
     template_count = 0
     for idx, spec in enumerate(template_specs):
         name, workout_type, duration, calories_burned, intensity = spec
+        template_name = f"{variant['workout_style']} Template - {name}"
         db.execute(
             """
             INSERT INTO workout_templates (
@@ -735,13 +832,13 @@ def _seed_workouts(db, user_id):
             """,
             (
                 user_id,
-                name,
+                template_name,
                 workout_type,
                 duration,
-                calories_burned,
+                max(70, calories_burned + variant["workout_calorie_shift"]),
                 intensity,
                 json.dumps([{"name": f"Template Move {idx + 1}", "reps": "3x10"}]),
-                "Saved workout template",
+                f"Saved workout template - {variant['task_track']}",
                 now,
                 now,
             ),
@@ -751,7 +848,9 @@ def _seed_workouts(db, user_id):
     return {"workouts": count, "templates": template_count}
 
 
-def _seed_focus_sessions(db, user_id):
+def _seed_focus_sessions(db, user_id, user_profile):
+    variant = _variant_for(user_profile)
+
     session_specs = [
         ("pomodoro", 1500, 1460, True, "Design sprint"),
         ("pomodoro", 1500, 1500, True, "Code review"),
@@ -770,6 +869,7 @@ def _seed_focus_sessions(db, user_id):
         day_iso = _day_str(idx)
         started = _dt_for(day_iso, _time_for(idx, hour_start=7))
         ended = _dt_for(day_iso, _time_for(idx + 1, hour_start=7)) if completed else None
+        seeded_label = f"{label} [{variant['task_track']}]"
         db.execute(
             """
             INSERT INTO focus_sessions (
@@ -784,7 +884,7 @@ def _seed_focus_sessions(db, user_id):
                 planned,
                 actual,
                 1 if completed else 0,
-                label,
+                seeded_label,
                 day_iso,
                 started,
                 ended,
@@ -796,7 +896,8 @@ def _seed_focus_sessions(db, user_id):
     return count
 
 
-def _seed_stats_and_progress(db, user_id, progress):
+def _seed_stats_and_progress(db, user_id, progress, user_profile):
+    variant = _variant_for(user_profile)
     now = now_iso()
 
     db.execute(
@@ -823,12 +924,15 @@ def _seed_stats_and_progress(db, user_id, progress):
     snapshot_count = 0
     for day_offset in range(7):
         snapshot_date = _day_str(day_offset)
+        task_base = int(variant["snapshot_tasks_base"])
+        minute_base = int(variant["snapshot_minutes_base"])
+        calorie_base = int(user_profile["calorie_goal"])
         payload = {
-            "tasks_completed": 4 + (day_offset % 3),
-            "calories_consumed": 2100 + day_offset * 35,
-            "protein_consumed": 132 + day_offset * 2,
-            "workout_minutes": 35 + day_offset * 4,
-            "calories_burned": 280 + day_offset * 28,
+            "tasks_completed": task_base + (day_offset % 3),
+            "calories_consumed": calorie_base + variant["nutrition_calorie_shift"] + day_offset * 28,
+            "protein_consumed": 128 + (task_base * 2) + day_offset,
+            "workout_minutes": minute_base + day_offset * 4,
+            "calories_burned": 260 + variant["workout_calorie_shift"] + day_offset * 24,
         }
         db.execute(
             """
@@ -850,11 +954,30 @@ def _seed_stats_and_progress(db, user_id, progress):
     return snapshot_count
 
 
+def _insert_seed_marker_note(db, user_id, email):
+    now = now_iso()
+    marker = _seed_marker_title(email)
+    db.execute(
+        """
+        INSERT INTO notes (user_id, title, content, source_type, source_id, tags_json, created_at, updated_at)
+        VALUES (?, ?, ?, 'manual', NULL, ?, ?, ?)
+        """,
+        (
+            user_id,
+            marker,
+            f"Showcase seed marker for version {SHOWCASE_SEED_VERSION}.",
+            json.dumps(["seed", "showcase", f"v{SHOWCASE_SEED_VERSION}"]),
+            now,
+            now,
+        ),
+    )
+
+
 def seed_single_user(db, user_profile, *, force_reset=False):
     email = user_profile["email"].strip().lower()
     user_id = _ensure_user(db, user_profile)
 
-    if (not force_reset) and _has_showcase_payload(db, user_id):
+    if (not force_reset) and _has_showcase_payload(db, user_id, email):
         existing = _current_showcase_counts(db, user_id)
         existing["user_id"] = user_id
         existing["skipped"] = True
@@ -862,18 +985,19 @@ def seed_single_user(db, user_profile, *, force_reset=False):
 
     _clear_user_data(db, user_id, email)
 
-    projects = _seed_projects(db, user_id)
-    task_note_counts = _seed_tasks_and_notes(db, user_id, projects)
-    meals_count = _seed_nutrition(db, user_id)
-    workout_counts = _seed_workouts(db, user_id)
-    focus_count = _seed_focus_sessions(db, user_id)
-    snapshot_count = _seed_stats_and_progress(db, user_id, user_profile["progress"])
+    projects = _seed_projects(db, user_id, user_profile)
+    task_note_counts = _seed_tasks_and_notes(db, user_id, projects, user_profile)
+    meals_count = _seed_nutrition(db, user_id, user_profile)
+    workout_counts = _seed_workouts(db, user_id, user_profile)
+    focus_count = _seed_focus_sessions(db, user_id, user_profile)
+    snapshot_count = _seed_stats_and_progress(db, user_id, user_profile["progress"], user_profile)
+    _insert_seed_marker_note(db, user_id, email)
 
     return {
         "user_id": user_id,
         "projects": len(projects),
         "tasks": task_note_counts["tasks"],
-        "notes": task_note_counts["notes"],
+        "notes": task_note_counts["notes"] + 1,
         "meals": meals_count,
         "workouts": workout_counts["workouts"],
         "workout_templates": workout_counts["templates"],
