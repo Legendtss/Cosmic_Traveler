@@ -358,7 +358,6 @@ def ensure_tasks_tags_column(conn):
             conn.execute("ALTER TABLE tasks ADD COLUMN note_content TEXT NOT NULL DEFAULT ''")
         if "note_saved_to_notes" not in names:
             conn.execute("ALTER TABLE tasks ADD COLUMN note_saved_to_notes INTEGER NOT NULL DEFAULT 0")
-        conn.commit()
     else:
         # SQLite: PRAGMA table_info
         cols = conn.execute("PRAGMA table_info(tasks)").fetchall()
@@ -404,7 +403,6 @@ def ensure_auth_columns(conn):
         for col_name, col_def in _add_missing:
             if col_name not in names:
                 conn.execute(f"ALTER TABLE users ADD COLUMN {col_name} {col_def}")
-        conn.commit()
         
         # Create sessions table if it doesn't exist
         conn.execute("""
@@ -432,7 +430,6 @@ def ensure_auth_columns(conn):
         conn.execute("""
             CREATE INDEX IF NOT EXISTS idx_login_attempts_locked_until ON login_attempts(locked_until)
         """)
-        conn.commit()
     else:
         # SQLite: PRAGMA table_info
         cols = conn.execute("PRAGMA table_info(users)").fetchall()
@@ -481,6 +478,88 @@ def ensure_auth_columns(conn):
             )
         """)
         conn.execute("CREATE INDEX IF NOT EXISTS idx_login_attempts_locked_until ON login_attempts(locked_until)")
+
+
+def ensure_focus_sessions_columns(conn):
+    """Add missing columns to focus_sessions table if needed."""
+    config = _db_config()
+
+    if config["type"] == "postgresql":
+        cols = conn.execute(
+            """
+            SELECT column_name FROM information_schema.columns
+            WHERE table_name='focus_sessions'
+            """
+        ).fetchall()
+        names = {row["column_name"] for row in cols}
+
+        if "updated_at" not in names:
+            conn.execute(
+                "ALTER TABLE focus_sessions ADD COLUMN updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP"
+            )
+            conn.execute(
+                "UPDATE focus_sessions SET updated_at = created_at WHERE updated_at IS NULL OR updated_at = ''"
+            )
+    else:
+        cols = conn.execute("PRAGMA table_info(focus_sessions)").fetchall()
+        names = {row["name"] for row in cols}
+
+        if "updated_at" not in names:
+            conn.execute(
+                "ALTER TABLE focus_sessions ADD COLUMN updated_at TEXT NOT NULL DEFAULT (CURRENT_TIMESTAMP)"
+            )
+            conn.execute(
+                "UPDATE focus_sessions SET updated_at = created_at WHERE updated_at IS NULL OR updated_at = ''"
+            )
+
+
+def ensure_notes_task_link_triggers(conn):
+    """Create cross-ownership trigger for notes on PostgreSQL, if not present.
+
+    SQLite equivalent triggers are handled by schema.sql via init_schema(); this
+    function is a no-op for SQLite.
+    """
+    config = _db_config()
+    if config["type"] != "postgresql":
+        return
+
+    raw_conn = conn._conn
+    cur = raw_conn.cursor()
+    try:
+        cur.execute("""
+            CREATE OR REPLACE FUNCTION check_notes_task_ownership() RETURNS TRIGGER AS $$
+            BEGIN
+              IF NEW.source_type = 'task' AND NOT EXISTS (
+                SELECT 1 FROM tasks WHERE id = NEW.source_id AND user_id = NEW.user_id
+              ) THEN
+                RAISE EXCEPTION 'Invalid task-linked note: task missing or not owned by user';
+              END IF;
+              RETURN NEW;
+            END;
+            $$ LANGUAGE plpgsql
+        """)
+
+        cur.execute(
+            "SELECT 1 FROM pg_trigger WHERE tgname = 'trg_notes_task_link_insert'"
+        )
+        if not cur.fetchone():
+            cur.execute("""
+                CREATE TRIGGER trg_notes_task_link_insert
+                  BEFORE INSERT ON notes FOR EACH ROW
+                  EXECUTE FUNCTION check_notes_task_ownership()
+            """)
+
+        cur.execute(
+            "SELECT 1 FROM pg_trigger WHERE tgname = 'trg_notes_task_link_update'"
+        )
+        if not cur.fetchone():
+            cur.execute("""
+                CREATE TRIGGER trg_notes_task_link_update
+                  BEFORE UPDATE ON notes FOR EACH ROW
+                  EXECUTE FUNCTION check_notes_task_ownership()
+            """)
+    finally:
+        cur.close()
 
 
 def ensure_default_user(conn):
@@ -675,6 +754,8 @@ def init_app_data(app):
                     init_schema(conn)
                     ensure_tasks_tags_column(conn)
                     ensure_auth_columns(conn)
+                    ensure_focus_sessions_columns(conn)
+                    ensure_notes_task_link_triggers(conn)
                 conn.commit()
                 app.logger.info("[DB] PostgreSQL initialization complete")
             except Exception:
@@ -705,6 +786,7 @@ def init_app_data(app):
                 init_schema(conn)
                 ensure_tasks_tags_column(conn)
                 ensure_auth_columns(conn)
+                ensure_focus_sessions_columns(conn)
                 if should_migrate_json(conn):
                     migrate_json_to_sqlite(conn)
             conn.commit()

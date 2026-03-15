@@ -8,7 +8,7 @@
  *
  * Sections (in order):
  *   1.  Page Navigation & Layout           (L~1–150)
- *   2.  Demo User System                   (L~153–1025)
+ *   2.  Auth Session Bootstrap             (L~153–1025)
  *   3.  Priority Colors                    (L~1026–1056)
  *   4.  Task Rendering & Views             (L~1057–1673)
  *   5.  Tasks API & Interactions           (L~1674–2443)
@@ -50,7 +50,7 @@
 // ========================================================================
 // Controls which page-section is visible. Nav icon animations.
 // Also: task detail accordion toggle, mobile sidebar hamburger menu.
-// âš ï¸ Global: showPage() is monkey-patched by Notes module at EOF.
+// Publishes PAGE_SHOWN via EventBus after successful navigation.
 
 const NAV_ICON_ANIMATION_CLASSES = [
   'icon-anim-task',
@@ -153,6 +153,10 @@ function showPage(pageName) {
       focusPage.classList.add('active');
     }
     return;
+  }
+
+  if (window.EventBus && typeof window.EventBus.publish === 'function') {
+    window.EventBus.publish('PAGE_SHOWN', pageName);
   }
 }
 
@@ -361,6 +365,7 @@ function setupLayoutCustomizer() {
 
 function applyAuthUserContext(user) {
   if (!user) return;
+  const identity = resolveProfileIdentity(user);
   const inferredWeightGoal = user.goal === 'Weight Loss'
     ? 'loss'
     : user.goal === 'Muscle Gain'
@@ -368,8 +373,8 @@ function applyAuthUserContext(user) {
       : 'maintain';
   profileState = {
     ...profileState,
-    fullName: user.displayName || profileState.fullName,
-    email: user.email || profileState.email,
+    fullName: identity.name || profileState.fullName,
+    email: identity.email || profileState.email,
     level: user.level || profileState.level,
     goal: user.goal || profileState.goal,
     weightGoal: inferredWeightGoal,
@@ -382,9 +387,11 @@ function applyAuthUserContext(user) {
   dashboardState.calorieGoal = user.calorieGoal || dashboardState.calorieGoal;
   const goalLine = document.getElementById('dash-goal-line');
   if (goalLine && user.goal) goalLine.textContent = user.goal;
+  if (typeof persistProfileState === 'function') persistProfileState();
   syncNutritionGoalWithProfile();
   renderProfileUI();
 }
+window.applyAuthUserContext = applyAuthUserContext;
 
 
 async function loadActiveUserDataViews() {
@@ -404,21 +411,25 @@ async function loadActiveUserDataViews() {
 
 async function bootstrapSession() {
   const user = await AuthModule.checkSession();
+  const isOnboarded = !!(user && user.onboarding?.profileEssentialsCompletedAt);
   
   // Use the new routing state machine from 00-auth.js
   if (typeof window._authRouteToCorrectScreen === 'function') {
-    window._authRouteToCorrectScreen(user, false);
-    
-    // If user is fully onboarded, continue with app setup
-    if (user && user.onboarding?.profileEssentialsCompletedAt) {
+    if (isOnboarded) {
+      if (typeof window._authShowApp === 'function') {
+        window._authShowApp(user);
+      } else {
+        window._authRouteToCorrectScreen(user, false);
+      }
       const record = getUserPrefsRecord();
-      applyAuthUserContext(user);
       applyUserFeaturePreferences(record?.preferences || DEFAULT_FEATURE_PREFS);
       return true;
     }
+
+    window._authRouteToCorrectScreen(user, false);
     return false;
   }
-  return true;
+  return isOnboarded;
 }
 
 
@@ -6875,9 +6886,28 @@ const THEME_STORAGE_KEY_BASE = 'fittrack_theme_v1';
 function themeStorageKey() {
   return _userKeyPrefix(THEME_STORAGE_KEY_BASE);
 }
+
+function resolveProfileIdentity(userOverride = null) {
+  const authUser = userOverride || (typeof AuthModule !== 'undefined' ? AuthModule.currentUser : null);
+  const email = String(authUser?.email || '').trim();
+  const displayName = String(authUser?.displayName || '').trim();
+  const fallbackFromEmail = email.includes('@') ? email.split('@')[0] : '';
+  return {
+    name: displayName || fallbackFromEmail,
+    email,
+  };
+}
+
+function applyResolvedProfileIdentity(userOverride = null) {
+  const identity = resolveProfileIdentity(userOverride);
+  if (identity.name) profileState.fullName = identity.name;
+  if (identity.email) profileState.email = identity.email;
+  return identity;
+}
+
 const defaultProfile = {
-  fullName: 'Alex Johnson',
-  email: 'alex.johnson@email.com',
+  fullName: 'User',
+  email: 'you@example.com',
   dob: '1990-05-15',
   age: 30,
   gender: 'Prefer not to say',
@@ -6901,8 +6931,9 @@ const defaultProfile = {
 let profileState = { ...defaultProfile };
 
 function renderTopProfileMenu() {
-  const name = profileState.fullName || defaultProfile.fullName;
-  const email = profileState.email || defaultProfile.email;
+  const identity = resolveProfileIdentity();
+  const name = identity.name || profileState.fullName || defaultProfile.fullName;
+  const email = identity.email || profileState.email || defaultProfile.email;
 
   const topName = document.getElementById('top-profile-name');
   const topEmail = document.getElementById('top-profile-email');
@@ -7035,10 +7066,12 @@ function loadProfileState() {
           ? profileState.currentWeight + 5
           : profileState.currentWeight;
     }
+    applyResolvedProfileIdentity();
     profileState = { ...profileState, ...calculateProfileHealthMetrics(profileState) };
     persistProfileState();
   } catch (_err) {
     profileState = { ...defaultProfile };
+    applyResolvedProfileIdentity();
   }
 }
 
@@ -7351,6 +7384,7 @@ function syncNutritionGoalWithProfile() {
 }
 
 function renderProfileUI() {
+  applyResolvedProfileIdentity();
   const mapValues = [
     ['profile-full-name', profileState.fullName],
     ['profile-email', profileState.email],
@@ -9643,250 +9677,7 @@ function _focusLoadState() {
 
 // ========================================================================
 // Â§19  NOTES MODULE
-// ========================================================================
-// Full CRUD via /api/notes. Filter by source (manual/task), search.
-// Create/edit/detail modals. Task â†” note linking.
-// âš ï¸ Global mutable: _notes (items, filter, searchQuery, editingNoteId)
-// âš ï¸ MONKEY-PATCHES showPage() at EOF to auto-load notes on navigate.
-//    This means any subsequent monkey-patch would clobber this one.
-// âš ï¸ Contains its own escapeHtml() (different impl from Â§4's version).
-// âš ï¸ _notesSearchTimer used for debounced search (400ms).
-
-const _notes = {
-  items: [],
-  filter: 'all',      // 'all' | 'manual' | 'task'
-  searchQuery: '',
-  editingNoteId: null, // null = creating, number = editing
-  viewingNote: null,
-  searchTimer: null,
-};
-
-// ---------- API ----------
-async function notesApiFetch(url, opts = {}) {
-  try {
-    const res = await fetch(url, { credentials: 'same-origin', ...opts });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    return await res.json();
-  } catch (e) {
-    console.error('[Notes]', e);
-    return null;
-  }
-}
-
-async function loadNotes() {
-  const params = new URLSearchParams();
-  if (_notes.filter !== 'all') params.set('source_type', _notes.filter);
-  if (_notes.searchQuery) params.set('search', _notes.searchQuery);
-  const url = '/api/notes' + (params.toString() ? '?' + params : '');
-  const data = await notesApiFetch(url);
-  if (data && Array.isArray(data)) {
-    _notes.items = data;
-  }
-  renderNotes();
-  if (typeof syncToAppState === 'function') syncToAppState('notes');
-}
-
-function renderNotes() {
-  const grid = document.getElementById('notes-grid');
-  const empty = document.getElementById('notes-empty');
-  if (!grid) return;
-
-  // Remove old cards
-  grid.querySelectorAll('.note-card').forEach(c => c.remove());
-
-  if (!_notes.items.length) {
-    if (empty) empty.style.display = '';
-    return;
-  }
-  if (empty) empty.style.display = 'none';
-
-  _notes.items.forEach(note => {
-    const card = document.createElement('div');
-    card.className = 'note-card';
-    card.onclick = () => openNoteDetail(note.id);
-
-    const tagsHtml = (note.tags || []).map(t => `<span class="note-tag">${escapeHtml(t)}</span>`).join('');
-    const sourceClass = note.source_type === 'task' ? 'task' : 'manual';
-    const sourceLabel = note.source_type === 'task' ? '<i class="fas fa-link"></i> Task' : '<i class="fas fa-pen"></i> Manual';
-    const linkedHtml = note.linked_task_title
-      ? `<div class="note-card-linked"><i class="fas fa-check-circle"></i> ${escapeHtml(note.linked_task_title)}</div>`
-      : '';
-    const dateStr = note.updated_at ? new Date(note.updated_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '';
-
-    card.innerHTML = `
-      <div class="note-card-title">${escapeHtml(note.title)}</div>
-      <div class="note-card-preview">${escapeHtml(note.content || '').substring(0, 180)}</div>
-      ${linkedHtml}
-      <div class="note-card-meta">
-        <span class="note-card-source ${sourceClass}">${sourceLabel}</span>
-        <span class="note-card-date">${dateStr}</span>
-      </div>
-      ${tagsHtml ? `<div class="note-card-tags">${tagsHtml}</div>` : ''}
-    `;
-    grid.appendChild(card);
-  });
-}
-
-// Note: escapeHtml is defined globally at ~line 545. Do not duplicate.
-
-// ---------- Filters ----------
-function setNotesFilter(f) {
-  _notes.filter = f;
-  document.querySelectorAll('.notes-filter-btn').forEach(btn => {
-    btn.classList.toggle('active', btn.dataset.filter === f);
-  });
-  loadNotes();
-}
-
-let _notesSearchTimer;
-function notesSearchDebounce() {
-  clearTimeout(_notesSearchTimer);
-  _notesSearchTimer = setTimeout(() => {
-    _notes.searchQuery = (document.getElementById('notes-search-input')?.value || '').trim();
-    loadNotes();
-  }, 300);
-}
-
-// ---------- Create / Edit Modal ----------
-function openNoteCreateModal() {
-  _notes.editingNoteId = null;
-  const modal = document.getElementById('note-modal');
-  const title = document.getElementById('note-modal-title');
-  const form = document.getElementById('note-modal-form');
-  if (!modal) return;
-  if (title) title.textContent = 'New Note';
-  if (form) form.reset();
-  modal.classList.add('is-open');
-  modal.setAttribute('aria-hidden', 'false');
-  document.getElementById('note-title-input')?.focus();
-}
-
-function openNoteEditModal(note) {
-  _notes.editingNoteId = note.id;
-  const modal = document.getElementById('note-modal');
-  const title = document.getElementById('note-modal-title');
-  if (!modal) return;
-  if (title) title.textContent = 'Edit Note';
-  document.getElementById('note-title-input').value = note.title || '';
-  document.getElementById('note-content-input').value = note.content || '';
-  document.getElementById('note-tags-input').value = (note.tags || []).join(', ');
-  modal.classList.add('is-open');
-  modal.setAttribute('aria-hidden', 'false');
-  document.getElementById('note-title-input')?.focus();
-}
-
-function closeNoteModal() {
-  const modal = document.getElementById('note-modal');
-  if (modal) {
-    modal.classList.remove('is-open');
-    modal.setAttribute('aria-hidden', 'true');
-  }
-  _notes.editingNoteId = null;
-}
-
-async function handleNoteFormSubmit(e) {
-  e.preventDefault();
-  const titleVal = (document.getElementById('note-title-input')?.value || '').trim();
-  const contentVal = (document.getElementById('note-content-input')?.value || '').trim();
-  const tagsVal = (document.getElementById('note-tags-input')?.value || '').trim();
-  if (!titleVal) return;
-
-  const tags = tagsVal ? tagsVal.split(',').map(t => t.trim().toLowerCase()).filter(Boolean) : [];
-  const payload = { title: titleVal, content: contentVal, tags };
-
-  if (_notes.editingNoteId) {
-    await notesApiFetch(`/api/notes/${_notes.editingNoteId}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
-  } else {
-    payload.source_type = 'manual';
-    await notesApiFetch('/api/notes', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
-  }
-
-  closeNoteModal();
-  await loadNotes();
-}
-
-// ---------- Detail Modal ----------
-async function openNoteDetail(noteId) {
-  const note = await notesApiFetch(`/api/notes/${noteId}`);
-  if (!note) return;
-  _notes.viewingNote = note;
-
-  const modal = document.getElementById('note-detail-modal');
-  document.getElementById('note-detail-title').textContent = note.title;
-
-  const dateStr = note.created_at ? new Date(note.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
-  const sourceLabel = note.source_type === 'task' ? 'Linked to Task' : 'Manual';
-  let metaHtml = `<span><i class="fas fa-calendar-alt"></i> ${dateStr}</span>`;
-  metaHtml += `<span><i class="fas fa-tag"></i> ${sourceLabel}</span>`;
-  if (note.linked_task_title) {
-    metaHtml += `<span><i class="fas fa-check-circle"></i> ${escapeHtml(note.linked_task_title)}</span>`;
-  }
-  document.getElementById('note-detail-meta').innerHTML = metaHtml;
-  document.getElementById('note-detail-content').textContent = note.content || '(No content)';
-
-  const tagsHtml = (note.tags || []).map(t => `<span class="note-tag">${escapeHtml(t)}</span>`).join('');
-  document.getElementById('note-detail-tags').innerHTML = tagsHtml;
-
-  modal.classList.add('is-open');
-  modal.setAttribute('aria-hidden', 'false');
-}
-
-function closeNoteDetailModal() {
-  const modal = document.getElementById('note-detail-modal');
-  if (modal) {
-    modal.classList.remove('is-open');
-    modal.setAttribute('aria-hidden', 'true');
-  }
-  _notes.viewingNote = null;
-}
-
-async function deleteCurrentNote() {
-  if (!_notes.viewingNote) return;
-  if (!confirm('Delete this note? This cannot be undone.')) return;
-  await notesApiFetch(`/api/notes/${_notes.viewingNote.id}`, { method: 'DELETE' });
-  closeNoteDetailModal();
-  await loadNotes();
-}
-
-function editCurrentNote() {
-  if (!_notes.viewingNote) return;
-  closeNoteDetailModal();
-  openNoteEditModal(_notes.viewingNote);
-}
-
-// ---------- Task â†” Note link ----------
-async function viewLinkedNote(e) {
-  if (e) e.preventDefault();
-  const taskId = Number(taskUiState.editingTaskId);
-  if (!taskId) return;
-  const note = await notesApiFetch(`/api/notes/from-task/${taskId}`);
-  if (note && note.id) {
-    closeTaskEditModal();
-    showPage('notes');
-    setTimeout(() => openNoteDetail(note.id), 200);
-  }
-}
-
-// ---------- Notes page init on navigate ----------
-// âš ï¸ MONKEY-PATCH: wraps the global showPage() function.
-// _origShowPage holds the original. If another module patches showPage
-// after this, this chain will be silently broken.
-const _origShowPage = showPage;
-showPage = function(pageName) {
-  _origShowPage(pageName);
-  if (pageName === 'notes') {
-    loadNotes();
-  }
-};
-
+// Notes vertical slice now lives in features/notes/*.js.
 
 // ========================================================================
 // Â§20  ARCHITECTURE BRIDGE " Controller â†” Monolith Integration
@@ -9986,10 +9777,6 @@ showPage = function(pageName) {
 
     window.EventBus.subscribe('STATE_UPDATED:focus', function () {
       if (typeof renderFocusUI === 'function') renderFocusUI();
-    });
-
-    window.EventBus.subscribe('STATE_UPDATED:notes', function () {
-      if (typeof renderNotesUI === 'function') renderNotesUI();
     });
 
     window.EventBus.subscribe('STATE_UPDATED:calendar', function () {

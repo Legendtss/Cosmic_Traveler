@@ -15,56 +15,50 @@ Depends on:
 """
 
 import functools
-import threading
 import time
-from collections import defaultdict
 
 from flask import g, jsonify, request
 
 
 class RateLimiter:
-    """Simple in-memory rate limiter (per IP, non-persistent) with thread-safety."""
+    """Simple in-memory rate limiter (per IP, non-persistent)."""
     
     def __init__(self, max_requests=100, window_seconds=60):
         self.max_requests = max_requests
         self.window_seconds = window_seconds
-        self.requests = defaultdict(list)
-        self._lock = threading.Lock()  # Thread-safe access
+        self.requests: dict = {}
     
     def is_allowed(self, client_id):
-        """Check if request is allowed for client. Returns True if within limit.
-        
-        Thread-safe using a lock for concurrent requests.
-        """
+        """Check if request is allowed for client. Returns True if within limit."""
         now = time.time()
-        
-        with self._lock:
-            # Clean old requests outside window
-            self.requests[client_id] = [
-                req_time for req_time in self.requests[client_id]
-                if now - req_time < self.window_seconds
-            ]
-            
-            if len(self.requests[client_id]) < self.max_requests:
-                self.requests[client_id].append(now)
-                return True
-            return False
-
-
-# Global rate limiter instance
-_rate_limiter = RateLimiter(max_requests=100, window_seconds=60)
+        # Prune timestamps outside the window
+        calls = [t for t in self.requests.get(client_id, []) if now - t < self.window_seconds]
+        if len(calls) < self.max_requests:
+            calls.append(now)
+            self.requests[client_id] = calls
+            return True
+        # Keep pruned list (may be empty if all expired but we're still over limit)
+        if calls:
+            self.requests[client_id] = calls
+        elif client_id in self.requests:
+            del self.requests[client_id]
+        return False
 
 
 def rate_limit(max_requests=100, window_seconds=60):
-    """Decorator to rate limit a route by client IP."""
+    """Decorator to rate limit a route by client IP.
+
+    Each decorated endpoint gets its own RateLimiter instance so that the
+    configured max_requests/window_seconds values are actually respected.
+    """
+    limiter = RateLimiter(max_requests=max_requests, window_seconds=window_seconds)
+
     def decorator(f):
         @functools.wraps(f)
         def decorated_function(*args, **kwargs):
             client_ip = request.remote_addr or "unknown"
-            
-            if not _rate_limiter.is_allowed(client_ip):
-                return jsonify({"error": "Rate limit exceeded. Max 100 requests per minute."}), 429
-            
+            if not limiter.is_allowed(client_ip):
+                return jsonify({"error": "Rate limit exceeded. Try again later."}), 429
             return f(*args, **kwargs)
         return decorated_function
     return decorator

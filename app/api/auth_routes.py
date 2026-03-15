@@ -207,8 +207,9 @@ def signup():
     # Ensure user_progress row exists
     db.execute(
         """
-        INSERT OR IGNORE INTO user_progress (user_id, total_points, current_streak, longest_streak, level, updated_at)
+        INSERT INTO user_progress (user_id, total_points, current_streak, longest_streak, level, updated_at)
         VALUES (?, 0, 0, 0, 1, ?)
+        ON CONFLICT(user_id) DO NOTHING
         """,
         (user_id, now),
     )

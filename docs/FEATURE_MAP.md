@@ -1,7 +1,7 @@
 # FitTrack Pro — Feature Map
 
 > **Purpose:** Map every user-facing feature to its code locations.
-> **Last updated:** 2026-02-24
+> **Last updated:** 2026-03-15
 
 ---
 
@@ -187,15 +187,15 @@ Backend engine: `app/points_engine.py` — scoring rules, XP/level math.
 
 ---
 
-## 15. Demo Users
+## 15. Auth Session & Onboarding
 
 | Layer | Location |
 |-------|----------|
-| HTML | `#demo-user-overlay`, user cards |
-| JS | §2 Demo Users |
-| CSS | (inline styles + §17 Global Polish) |
-| API | `GET /api/helpers/demo-users`, `POST /api/helpers/demo-users` → `helpers.py` |
-| Storage | `localStorage` keyed by demo user ID |
+| HTML | `#auth-root`, `#welcome-screen`, `#profile-essentials-screen`, `#demo-tour-screen` |
+| JS | `static/js/00-auth.js` and `script.js` §2 Auth Session Bootstrap |
+| CSS | `static/css/00-auth.css`, `static/css/01-onboarding.css` |
+| API | `POST /api/auth/signup`, `POST /api/auth/login`, `GET /api/auth/me`, `POST /api/auth/logout`, onboarding completion routes in `auth_routes.py` |
+| Storage | HttpOnly session cookie + server-side `sessions` table; user-scoped localStorage keys for prefs |
 
 ---
 
@@ -221,4 +221,4 @@ Backend engine: `app/points_engine.py` — scoring rules, XP/level math.
 | Emoji icon animations | `static/emoji animations/*.html` (embedded via iframes) |
 | DB connection management | `app/db.py` — `get_db()`, `close_db()`, teardown hook |
 | Row→dict mapping | `app/mappers.py` — `map_task()`, `map_nutrition()`, etc. |
-| Shared route helpers | `app/api/helpers.py` — `get_demo_user_id()`, `safe_int()` |
+| Shared route helpers | `app/api/helpers.py` — `default_user_id()`, `normalize_tags()` |

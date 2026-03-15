@@ -197,12 +197,13 @@ def save_daily_snapshot(db, user_id, day_eval):
     # Recompute streak
     current_streak = _compute_current_streak(db, user_id, date_str)
 
-    # Recompute total points from all snapshots
-    total_row = db.execute(
-        "SELECT COALESCE(SUM(json_extract(payload_json, '$.total_points')), 0) as total FROM stats_snapshots WHERE user_id = ?",
+    # Recompute total points from all snapshots.
+    # Summing in Python keeps this path dialect-neutral (SQLite + PostgreSQL).
+    snapshot_rows = db.execute(
+        "SELECT payload_json FROM stats_snapshots WHERE user_id = ?",
         (user_id,),
-    ).fetchone()
-    total_points = int(total_row["total"]) if total_row else 0
+    ).fetchall()
+    total_points = _sum_total_points_from_payloads(snapshot_rows)
 
     # Compute level
     level = level_from_xp(total_points)
@@ -231,6 +232,31 @@ def save_daily_snapshot(db, user_id, day_eval):
         "longest_streak": longest_streak,
         "level": level,
     }
+
+
+def _sum_total_points_from_payloads(rows):
+    """Return total points across snapshot payloads, tolerant of malformed JSON."""
+    total = 0
+    for row in rows or []:
+        try:
+            payload_raw = row["payload_json"]
+        except Exception:
+            payload_raw = None
+
+        try:
+            payload = json.loads(payload_raw or "{}")
+        except (TypeError, ValueError):
+            payload = {}
+
+        points = 0
+        if isinstance(payload, dict):
+            points = payload.get("total_points", 0)
+
+        try:
+            total += int(float(points))
+        except (TypeError, ValueError):
+            continue
+    return total
 
 
 def _compute_current_streak(db, user_id, from_date_str):

@@ -103,30 +103,13 @@
   window.stateAddNutritionLog = async function stateAddNutritionLog(mealData) {
     if (_isDuplicate('meals', { a: 'add', n: mealData.name, c: mealData.calories })) return;
 
-    if (typeof activeDemoUserId !== 'undefined' && activeDemoUserId) {
-      // Demo mode — write to localStorage via existing helpers
-      var meals = getActiveUserMealsData();
-      meals.push({
-        id: nextLocalId(meals),
-        name: mealData.name,
-        meal_type: mealData.meal_type,
-        calories: mealData.calories,
-        protein: mealData.protein,
-        carbs: mealData.carbs,
-        fats: mealData.fats,
-        date: mealData.date,
-        time: mealData.time,
-      });
-      setActiveUserMealsData(meals);
-    } else {
-      // API mode — POST to server
-      var res = await fetch('/api/meals', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(mealData),
-      });
-      if (!res.ok) throw new Error('API error: ' + res.status);
-    }
+    // API mode — POST to server
+    var res = await fetch('/api/meals', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(mealData),
+    });
+    if (!res.ok) throw new Error('API error: ' + res.status);
 
     // Reload and sync
     await loadMeals();
@@ -182,7 +165,14 @@
    * Reload notes from API/store, then sync to AppState.
    */
   window.stateSyncNotes = async function stateSyncNotes() {
-    await loadNotes();
+    if (window.NotesController && typeof window.NotesController.onReload === 'function') {
+      await window.NotesController.onReload();
+      return;
+    }
+    if (typeof loadNotes === 'function') {
+      await loadNotes();
+      return;
+    }
     syncToAppState('notes');
   };
 

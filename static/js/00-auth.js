@@ -652,23 +652,35 @@ window.AuthModule = (() => {
     _hideAllScreens();
     if (appWrapper) appWrapper.style.display = 'grid';
 
+    const usedSharedContext = !!(
+      user
+      && typeof window.applyAuthUserContext === 'function'
+    );
+    if (usedSharedContext) {
+      window.applyAuthUserContext(user);
+    }
+
     // Apply user context to the legacy profile state
-    if (typeof profileState !== 'undefined' && user) {
-      profileState.fullName = user.displayName || profileState.fullName;
-      profileState.email = user.email || profileState.email;
+    if (!usedSharedContext && typeof profileState !== 'undefined' && user) {
+      const email = String(user.email || '').trim();
+      const displayName = String(user.displayName || '').trim();
+      const fallbackFromEmail = email.includes('@') ? email.split('@')[0] : '';
+      profileState.fullName = displayName || fallbackFromEmail || profileState.fullName;
+      profileState.email = email || profileState.email;
       profileState.level = user.level || profileState.level;
       profileState.goal = user.goal || profileState.goal;
       // Apply new profile essentials
       if (user.age) profileState.age = user.age;
       if (user.height) profileState.height = user.height;
       if (user.currentWeight) profileState.currentWeight = user.currentWeight;
+      if (typeof persistProfileState === 'function') persistProfileState();
     }
-    if (typeof dashboardState !== 'undefined' && user) {
+    if (!usedSharedContext && typeof dashboardState !== 'undefined' && user) {
       dashboardState.weeklyWorkoutTarget = user.weeklyWorkoutTarget || dashboardState.weeklyWorkoutTarget;
       dashboardState.calorieGoal = user.calorieGoal || dashboardState.calorieGoal;
     }
-    if (typeof syncNutritionGoalWithProfile === 'function') syncNutritionGoalWithProfile();
-    if (typeof renderProfileUI === 'function') renderProfileUI();
+    if (!usedSharedContext && typeof syncNutritionGoalWithProfile === 'function') syncNutritionGoalWithProfile();
+    if (!usedSharedContext && typeof renderProfileUI === 'function') renderProfileUI();
     // Re-init focus timer for the authenticated user. This stops any ghost
     // timer running from the pre-auth init phase and loads the correct
     // user-scoped state (focus_timer_state_<uid>).

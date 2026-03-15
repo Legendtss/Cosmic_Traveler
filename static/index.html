@@ -754,8 +754,8 @@
           <button id="profile-menu-btn" class="profile-menu-btn" type="button" aria-haspopup="menu" aria-expanded="false" title="User Profile">
             <span class="profile-menu-avatar"><i class="fas fa-user"></i></span>
             <span class="profile-menu-meta">
-              <strong id="top-profile-name">Alex Johnson</strong>
-              <small id="top-profile-email">alex.johnson@email.com</small>
+              <strong id="top-profile-name">User</strong>
+              <small id="top-profile-email">you@example.com</small>
             </span>
             <i class="fas fa-chevron-down"></i>
           </button>
@@ -763,8 +763,8 @@
             <div class="profile-menu-head">
               <span class="profile-menu-avatar large"><i class="fas fa-user"></i></span>
               <div>
-                <strong id="top-profile-head-name">Alex Johnson</strong>
-                <small id="top-profile-head-email">alex.johnson@email.com</small>
+                <strong id="top-profile-head-name">User</strong>
+                <small id="top-profile-head-email">you@example.com</small>
               </div>
             </div>
             <button class="profile-menu-item" type="button" data-action="open-profile-page">
@@ -1230,7 +1230,7 @@
               <label for="task-edit-save-to-notes">
                 <i class="fas fa-sticky-note"></i> Save this description to Notes
               </label>
-              <a href="#" class="task-edit-view-note-link" id="task-edit-view-note-link" onclick="viewLinkedNote(event)" style="display:none;">
+              <a href="#" class="task-edit-view-note-link" id="task-edit-view-note-link" style="display:none;">
                 <i class="fas fa-external-link-alt"></i> View linked note
               </a>
             </div>
@@ -1901,7 +1901,7 @@
               <p>Capture ideas, link to tasks, and review past work</p>
             </div>
             <div class="notes-header-actions">
-              <button class="notes-btn notes-btn-primary" onclick="openNoteCreateModal()">
+              <button class="notes-btn notes-btn-primary" id="notes-new-note-btn">
                 <i class="fas fa-plus"></i> New Note
               </button>
             </div>
@@ -1911,12 +1911,12 @@
           <div class="notes-toolbar">
             <div class="notes-search-wrap">
               <i class="fas fa-search"></i>
-              <input type="text" id="notes-search-input" placeholder="Search notes..." oninput="notesSearchDebounce()">
+              <input type="text" id="notes-search-input" placeholder="Search notes...">
             </div>
             <div class="notes-filter-group">
-              <button class="notes-filter-btn active" data-filter="all" onclick="setNotesFilter('all')">All</button>
-              <button class="notes-filter-btn" data-filter="manual" onclick="setNotesFilter('manual')">Manual</button>
-              <button class="notes-filter-btn" data-filter="task" onclick="setNotesFilter('task')">Linked to Task</button>
+              <button class="notes-filter-btn active" data-filter="all">All</button>
+              <button class="notes-filter-btn" data-filter="manual">Manual</button>
+              <button class="notes-filter-btn" data-filter="task">Linked to Task</button>
             </div>
           </div>
 
@@ -1935,9 +1935,9 @@
         <div class="note-modal-card" role="dialog" aria-modal="true">
           <div class="note-modal-head">
             <h3 id="note-modal-title">New Note</h3>
-            <button class="note-modal-close-btn" onclick="closeNoteModal()" aria-label="Close">&times;</button>
+            <button class="note-modal-close-btn" data-notes-close-modal aria-label="Close">&times;</button>
           </div>
-          <form id="note-modal-form" class="note-modal-form" onsubmit="handleNoteFormSubmit(event)">
+          <form id="note-modal-form" class="note-modal-form">
             <div>
               <label class="note-modal-label" for="note-title-input">Title</label>
               <input id="note-title-input" class="note-modal-input" type="text" placeholder="Note title" required>
@@ -1951,7 +1951,7 @@
               <input id="note-tags-input" class="note-modal-input" type="text" placeholder="e.g. study, ideas, work">
             </div>
             <div class="note-modal-actions">
-              <button type="button" class="notes-btn notes-btn-soft" onclick="closeNoteModal()">Cancel</button>
+              <button type="button" class="notes-btn notes-btn-soft" data-notes-close-modal>Cancel</button>
               <button type="submit" class="notes-btn notes-btn-primary" id="note-modal-save-btn">Save Note</button>
             </div>
           </form>
@@ -1963,7 +1963,7 @@
         <div class="note-modal-card note-detail-card" role="dialog" aria-modal="true">
           <div class="note-modal-head">
             <h3 id="note-detail-title">Note</h3>
-            <button class="note-modal-close-btn" onclick="closeNoteDetailModal()" aria-label="Close">&times;</button>
+            <button class="note-modal-close-btn" data-notes-close-detail aria-label="Close">&times;</button>
           </div>
           <div class="note-detail-body">
             <div class="note-detail-meta" id="note-detail-meta"></div>
@@ -1971,13 +1971,13 @@
             <div class="note-detail-tags" id="note-detail-tags"></div>
           </div>
           <div class="note-modal-actions">
-            <button class="notes-btn notes-btn-danger" id="note-detail-delete-btn" onclick="deleteCurrentNote()">
+            <button class="notes-btn notes-btn-danger" id="note-detail-delete-btn">
               <i class="fas fa-trash"></i> Delete
             </button>
-            <button class="notes-btn notes-btn-soft" id="note-detail-edit-btn" onclick="editCurrentNote()">
+            <button class="notes-btn notes-btn-soft" id="note-detail-edit-btn">
               <i class="fas fa-edit"></i> Edit
             </button>
-            <button class="notes-btn notes-btn-primary" onclick="closeNoteDetailModal()">Close</button>
+            <button class="notes-btn notes-btn-primary" data-notes-close-detail>Close</button>
           </div>
         </div>
       </div>
@@ -2001,7 +2001,7 @@
 
             <aside class="profile-hero">
               <div class="profile-hero-avatar"><i class="fas fa-user"></i></div>
-              <h4 id="profile-hero-name">Alex Johnson</h4>
+              <h4 id="profile-hero-name">User</h4>
               <p id="profile-hero-member">Member since Jan 2024</p>
               <div class="profile-hero-stats">
                 <div><strong id="profile-hero-workouts">0</strong><span>Total Workouts</span></div>
@@ -2219,6 +2219,7 @@
   <script src="features/notes/notes.selectors.js"></script>
   <script src="features/notes/notes.service.js"></script>
   <script src="features/notes/notes.controller.js"></script>
+  <script src="features/notes/notes.view.js"></script>
 
   <!-- ── Feature Modules: AI Chat ──────────────────────────── -->
   <script src="features/ai-chat/ai-chat.service.js"></script>

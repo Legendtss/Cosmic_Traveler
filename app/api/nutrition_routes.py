@@ -132,6 +132,7 @@ def ai_detect_foods():
 @nutrition_bp.route("/api/nutrition/ai-log", methods=["POST"])
 @rate_limit(max_requests=20, window_seconds=60)
 def ai_log_meal():
+    uid = default_user_id()  # Auth check first — before any external API calls
     req_data = request.get_json(silent=True) or {}
     confirmed_foods = req_data.get("foods", [])
     if not confirmed_foods:
@@ -158,7 +159,7 @@ def ai_log_meal():
             "time": log_time,
         })
 
-    saved_ids = NutritionRepository.bulk_create(default_user_id(), entries)
+    saved_ids = NutritionRepository.bulk_create(uid, entries)
     result["saved_entry_ids"] = saved_ids
     return jsonify(result), 201
 

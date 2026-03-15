@@ -1,6 +1,9 @@
 // ========================================
-// FitTrack Pro - Main Script
+// FitTrack Pro - Main Script (Documentation Snapshot)
 // ========================================
+// NOTE: This file is an archival reference for docs and can lag behind
+// static/script.js. Runtime architecture and behavior are defined by
+// static/script.js and the extracted feature modules under static/features.
 
 // Page Navigation
 const NAV_ICON_ANIMATION_CLASSES = [

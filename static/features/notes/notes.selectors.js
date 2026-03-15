@@ -11,21 +11,27 @@
 (function () {
   'use strict';
 
-  function _notes() {
-    if (typeof AppState !== 'undefined' && AppState.notes && AppState.notes.length) {
+  function _getState() {
+    if (window.NotesService && typeof window.NotesService.getState === 'function') {
+      return window.NotesService.getState();
+    }
+    return window._notes || { items: [] };
+  }
+
+  function _getItems() {
+    if (typeof AppState !== 'undefined' && Array.isArray(AppState.notes) && AppState.hydrated) {
       return AppState.notes;
     }
-    if (typeof _notes !== 'undefined' && _notes.items) return _notes.items;
-    return [];
+    return _getState().items || [];
   }
 
   window.NotesSelectors = {
 
-    getAll: function () { return _notes().slice(); },
+    getAll: function () { return _getItems().slice(); },
 
     getById: function (noteId) {
       var id = Number(noteId);
-      return _notes().find(function (n) { return n.id === id; }) || null;
+      return _getItems().find(function (note) { return note.id === id; }) || null;
     },
 
     /**
@@ -35,7 +41,10 @@
      */
     getFiltered: function (opts) {
       opts = opts || {};
-      var items = _notes();
+      var items = _getItems();
+      if (opts.filter && opts.filter !== 'all') {
+        items = items.filter(function (note) { return note.source_type === opts.filter; });
+      }
       if (opts.tag) {
         items = items.filter(function (n) { return (n.tags || []).indexOf(opts.tag) >= 0; });
       }
@@ -54,7 +63,11 @@
      * @returns {number}
      */
     getCount: function () {
-      return _notes().length;
+      return _getItems().length;
+    },
+
+    getState: function () {
+      return _getState();
     }
   };
 

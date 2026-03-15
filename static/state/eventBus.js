@@ -16,6 +16,7 @@
  *   STATE_UPDATED:streaks
  *   STATE_UPDATED:profile
  *   STATE_UPDATED:calendar
+ *   PAGE_SHOWN
  *
  * RULES:
  *   - Does NOT mutate any state.

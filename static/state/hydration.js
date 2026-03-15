@@ -21,6 +21,32 @@
 (function () {
   'use strict';
 
+  function _syncUserIdentity(S) {
+    var authUser = (typeof AuthModule !== 'undefined') ? AuthModule.currentUser : null;
+
+    if (authUser) {
+      S.user = {
+        id: authUser.id || 'default',
+        fullName: authUser.displayName || authUser.fullName || '',
+        email: authUser.email || '',
+      };
+      return;
+    }
+
+    if (typeof profileState !== 'undefined') {
+      S.user = {
+        id: 'default',
+        fullName: profileState.fullName || '',
+        email: profileState.email || '',
+      };
+      return;
+    }
+
+    if (!S.user) {
+      S.user = { id: 'default', fullName: '', email: '' };
+    }
+  }
+
   // ── Full hydration (one-time) ────────────────────────────────
 
   /**
@@ -83,21 +109,13 @@
       S.importantDates = Array.from(calendarState.importantDates);
     }
 
-    // Demo user
-    if (typeof activeDemoUserId !== 'undefined') {
-      S.demoUserId = activeDemoUserId;
-    }
-
     // Profile
     if (typeof profileState !== 'undefined') {
       S.profile = Object.assign({}, profileState);
       S.theme = profileState.theme || 'light';
-      S.user = {
-        id: (typeof activeDemoUserId !== 'undefined' && activeDemoUserId) || 'default',
-        fullName: profileState.fullName || '',
-        email: profileState.email || '',
-      };
     }
+
+    _syncUserIdentity(S);
 
     S.lastSyncAt = Date.now();
   };
@@ -142,6 +160,7 @@
           S.profile = Object.assign({}, profileState);
           S.theme = profileState.theme || 'light';
         }
+        _syncUserIdentity(S);
         break;
       case 'streaks':
         // Streaks are synced via syncStreakResult() — no-op here
@@ -149,6 +168,11 @@
       default:
         console.warn('[AppState] Unknown sync domain:', domain);
     }
+
+    if (domain !== 'profile') {
+      _syncUserIdentity(S);
+    }
+
     S.lastSyncAt = Date.now();
 
     // Publish domain update event via EventBus

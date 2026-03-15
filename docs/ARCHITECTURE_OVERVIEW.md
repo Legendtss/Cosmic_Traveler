@@ -1,7 +1,7 @@
 # FitTrack Pro — Architecture Overview
 
 > **Purpose:** Describe the CURRENT system architecture. Not a redesign proposal.
-> **Last updated:** 2025-07-15
+> **Last updated:** 2026-03-15
 
 ---
 
@@ -40,13 +40,14 @@
 │  └──────────────┘  └──────────────┘                                 │
 │                                                                     │
 │  Repositories: task_repo, nutrition_repo, workout_repo,             │
-│                streaks_repo, notes_repo (DAO layer)                 │
+│                streaks_repo, focus_repo, notes_repo                 │
 │                                                                     │
 │  Shared: db.py, config.py, mappers.py, utils.py, helpers.py        │
 │  AI:     ai_avatar.py, nutrition_ai.py, points_engine.py           │
 │                                                                     │
-│  SQLite ──→ data/fitness.sqlite                                     │
-│  Schema ──→ db/schema.sql                                           │
+│  Auth:  session cookie + sessions table                             │
+│  DB:    SQLite or PostgreSQL via app/db.py                          │
+│  Schema: db/schema.sql + db/schema_postgres.sql                     │
 └─────────────────────────────────────────────────────────────────────┘
                          │
                          ▼
@@ -82,22 +83,24 @@
 29–31. features/statistics/ — Selectors → Service → Controller
 32–34. features/profile/   — Selectors → Service → Controller
 35–37. features/focus/     — Selectors → Service → Controller
-38–40. features/notes/     — Selectors → Service → Controller
-41–42. features/ai-chat/   — Service → Controller
-43. script.js             — Legacy monolith (rendering + DOM wiring)
+38–41. features/notes/     — Selectors → Service → Controller → View
+42–43. features/ai-chat/   — Service → Controller
+44. script.js             — Legacy monolith (rendering + DOM wiring)
 ```
 
 ### Feature Module Pattern
 
-Each domain follows a 3-layer pattern:
+Most domains follow a 3-layer pattern:
+
+Notes is the first extracted vertical slice that adds a View layer and owns its DOM/event wiring outside script.js.
 
 ```
 ┌───────────────────────┐
 │     Controller        │  ← Thin bridge: DOM events → Service calls
 │                       │     Zero business logic. Exposes on window.*
 ├───────────────────────┤
-│     Service           │  ← Write operations: delegates to script.js
-│                       │     globals via late-binding
+│     Service           │  ← Write operations (API/local persistence)
+│                       │     and syncToAppState publication
 ├───────────────────────┤
 │     Selectors         │  ← Read-only queries: reads from AppState
 │                       │     Pure functions, no side effects
@@ -120,7 +123,7 @@ window.FT.workouts.*    // WorkoutsController
 ### EventBus Integration
 
 `hydration.js` broadcasts `STATE_UPDATED:<domain>` on every `syncToAppState()` call.
-The bridge in script.js subscribes to these events and triggers rendering functions.
+Most domains still render through the bridge in script.js, but Notes now subscribes inside its own feature view module and owns its page wiring directly.
 
 ## 3. File Inventory
 
@@ -139,7 +142,7 @@ The bridge in script.js subscribes to these events and triggers rendering functi
 | `features/statistics/` | 3 files | Selectors, Service, Controller |
 | `features/profile/` | 3 files | Selectors, Service, Controller |
 | `features/focus/` | 3 files | Selectors, Service, Controller |
-| `features/notes/` | 3 files | Selectors, Service, Controller |
+| `features/notes/` | 4 files | Selectors, Service, Controller, View |
 | `features/ai-chat/` | 2 files | Service, Controller |
 | `css/` | 15 files | Modular CSS per domain |
 | `script.js` | ~11,100 | Legacy monolith (rendering, DOM wiring, init) |
@@ -165,6 +168,7 @@ The bridge in script.js subscribes to these events and triggers rendering functi
 | `nutrition_repo.py` | `NutritionRepository` | Meal CRUD + bulk create |
 | `workout_repo.py` | `WorkoutRepository` | Workout CRUD + toggle |
 | `streaks_repo.py` | `StreaksRepository`, `AnalyticsRepository` | Points eval + cross-domain analytics |
+| `focus_repo.py` | `FocusRepository` | Focus session CRUD + summary |
 | `notes_repo.py` | `NoteRepository` | Note CRUD + task-note linking |
 
 ### API Routes (app/api/)
@@ -178,15 +182,15 @@ The bridge in script.js subscribes to these events and triggers rendering functi
 | `workouts_routes.py` | `workouts_bp` | CRUD `/api/workouts`, toggle | `WorkoutRepository` |
 | `streaks_routes.py` | `streaks_bp` | Evaluate, progress, achievements, analytics | `StreaksRepository`, `AnalyticsRepository` |
 | `ai_routes.py` | `ai_bp` | Chat, mentor context, execute actions | — (uses points_engine) |
-| `focus_routes.py` | `focus_bp` | Focus session CRUD, summary | — (direct SQL, pending) |
+| `focus_routes.py` | `focus_bp` | Focus session CRUD, summary | `FocusRepository` |
 | `notes_routes.py` | `notes_bp` | Notes CRUD, task-note linking | `NoteRepository` |
 
 ## 4. Data Storage Strategy
 
-### SQLite (Server-Side / Persistent)
+### Server-Side Database (SQLite or PostgreSQL)
 
-Tables defined in `db/schema.sql`:
-- `users` — single default user (ID=1)
+Tables defined in `db/schema.sql` / `db/schema_postgres.sql`:
+- `users` — authenticated user accounts, onboarding fields, and profile essentials
 - `tasks` — with `note_content`, `note_saved_to_notes` columns
 - `nutrition_entries` — meal logs
 - `workouts` — workout logs
@@ -200,7 +204,7 @@ Tables defined in `db/schema.sql`:
 
 | Key Pattern | Data |
 |-------------|------|
-| `fittrack_demo_user_*` | Demo user ID, prefs, per-user data |
+| `fittrack_*_<auth_user_id>` | User-scoped frontend preferences/data keyed from authenticated session |
 | `fittrack_task_enhancements_*` | Subtasks, Eisenhower quadrant |
 | `fittrack_tasks_layout_*` | List/matrix/tag view preference |
 | `fittrack_calendar_*` | Important dates, view mode |
@@ -215,9 +219,14 @@ Tables defined in `db/schema.sql`:
 
 ## 5. Authentication Model
 
-**None.** The backend uses a hardcoded `DEFAULT_USER_ID` (env var, defaults to `1`).
-No auth headers, no sessions, no tokens. All API calls are unauthenticated.
-The demo user system is purely frontend — the backend is unaware of it.
+The backend now uses session-based authentication.
+
+- Auth routes live in app/api/auth_routes.py
+- Password hashes are stored in users.password_hash
+- Session tokens are set in an HttpOnly cookie and stored hashed in the sessions table
+- Route modules resolve the current user through app/api/helpers.py -> app/auth.py -> get_current_user_id()
+
+DEFAULT_USER_ID still exists only for bootstrap and migration defaults in app/db.py. It is no longer the request-time identity model.
 
 ## 6. Theme System
 
@@ -231,23 +240,22 @@ The demo user system is purely frontend — the backend is unaware of it.
 
 ## 7. Known Architectural Debt
 
-1. **Legacy monolith**: `script.js` still contains all rendering & DOM wiring (~11,100 lines) — Controllers delegate to it via late-binding
-2. **Monolithic stylesheet**: `styles.css` is ~11,200 lines (split CSS exists in `css/` but `styles.css` is still loaded)
-3. **Dual data stores**: Projects are localStorage-only; everything else uses API
-4. **Duplicated constants**: Points/streak constants exist in both JS and Python
-5. **Duplicated functions**: `escapeHtml()` defined twice in script.js (§4 and §19)
-6. **Monkey-patching**: Notes module patches `showPage()` at EOF — fragile chain
-7. **No authentication**: Single hardcoded user
-8. **Feature toggles are frontend-only**: Backend serves all data regardless
-9. **focus_routes.py**: Last route file with raw SQL — needs repository extraction
-10. **Controllers are facades only**: DOM event handlers in script.js still call globals directly, not through Controllers
+1. Legacy monolith: script.js still owns most rendering, orchestration, and DOM wiring
+2. Modular façade pattern: many Controller and Service files are still thin shells over globals rather than independent feature modules
+3. Mixed persistence boundaries: projects and parts of profile/preferences remain localStorage-first while the rest is server-backed
+4. Documentation drift: architecture docs have lagged behind live code changes, which increases onboarding and maintenance cost
+5. Duplicated business rules: some calculations and constants still exist in both JS and Python
+6. Global mutable state: most frontend domains are still coordinated through top-level objects in script.js
+7. Feature toggles are mostly frontend-enforced: backend access patterns are still broader than UI visibility rules
+8. Rendering ownership is still mostly centralized: EventBus exists, and Notes is extracted, but most renderers still live inside the monolith
 
 ## 8. Migration Path
 
 ### Completed
 - Backend blueprint decomposition (9 route files)
-- Repository pattern for tasks, nutrition, workouts, streaks, notes
-- Frontend feature module extraction (12 domains × Controller/Service/Selector)
+- Repository pattern for tasks, nutrition, workouts, streaks, focus, notes
+- Frontend feature module extraction across 12 domains, with Notes now including a View layer
+- Notes vertical slice extraction (feature-owned service/view/controller with direct DOM wiring)
 - State infrastructure (AppState, EventBus, ApiClient, Hydration)
 - FT facade namespace unifying all Controllers
 - EventBus → rendering bridge in script.js
@@ -257,6 +265,6 @@ The demo user system is purely frontend — the backend is unaware of it.
 ### Next Steps
 1. **Wire Controllers to DOM**: Replace `addTask()` calls with `TasksController.onAddTask()` in script.js event handlers
 2. **Extract rendering**: Move `renderTasksUI()`, etc. out of script.js into feature modules
-3. **focus_routes.py** → FocusRepository
+3. Continue moving rendering ownership out of script.js one domain at a time, with Focus and Tasks now the highest-value next slices
 4. **ES Module migration**: Convert IIFE/window.* to `export`/`import` with `type="module"`
-5. **Authentication layer**: Replace hardcoded user ID
+5. Harden auth/session boundaries further by removing remaining bootstrap fallbacks and tightening per-route authorization checks

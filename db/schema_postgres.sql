@@ -145,7 +145,8 @@ CREATE TABLE IF NOT EXISTS focus_sessions (
   date TEXT NOT NULL,
   started_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   ended_at TEXT,
-  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS notes (
@@ -175,3 +176,35 @@ CREATE INDEX IF NOT EXISTS idx_stats_user_date ON stats_snapshots(user_id, snaps
 CREATE INDEX IF NOT EXISTS idx_focus_user_date ON focus_sessions(user_id, date);
 CREATE INDEX IF NOT EXISTS idx_notes_user ON notes(user_id);
 CREATE INDEX IF NOT EXISTS idx_notes_source ON notes(source_type, source_id);
+
+-- Enforce that task-linked notes reference a task owned by the same user.
+CREATE OR REPLACE FUNCTION check_notes_task_ownership() RETURNS TRIGGER AS $$
+BEGIN
+  IF NEW.source_type = 'task' AND NOT EXISTS (
+    SELECT 1 FROM tasks WHERE id = NEW.source_id AND user_id = NEW.user_id
+  ) THEN
+    RAISE EXCEPTION 'Invalid task-linked note: task missing or not owned by user';
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_trigger WHERE tgname = 'trg_notes_task_link_insert'
+  ) THEN
+    CREATE TRIGGER trg_notes_task_link_insert
+      BEFORE INSERT ON notes FOR EACH ROW
+      EXECUTE FUNCTION check_notes_task_ownership();
+  END IF;
+END $$;
+
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_trigger WHERE tgname = 'trg_notes_task_link_update'
+  ) THEN
+    CREATE TRIGGER trg_notes_task_link_update
+      BEFORE UPDATE ON notes FOR EACH ROW
+      EXECUTE FUNCTION check_notes_task_ownership();
+  END IF;
+END $$;

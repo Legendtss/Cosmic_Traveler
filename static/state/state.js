@@ -24,7 +24,6 @@
   window.AppState = {
     // ── User identity ──────────────────────────────────────────
     user: null,               // { id, fullName, email }
-    demoUserId: null,         // mirrors activeDemoUserId
 
     // ── Core data arrays ───────────────────────────────────────
     tasks: [],                // mirrors taskUiState.tasks

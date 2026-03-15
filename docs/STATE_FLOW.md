@@ -1,19 +1,18 @@
 # FitTrack Pro — State Flow
 
 > **Purpose:** Document how state flows through the application.
-> **Last updated:** 2026-02-24
+> **Last updated:** 2026-03-15
 
 ---
 
-## 1. Global State Objects (script.js)
+## 1. Global State Objects
 
 All mutable state lives in these top-level objects. There is no centralized
-state management (no Redux, no Vuex). Each module owns its own state object.
+state management (no Redux, no Vuex). Most are still defined in script.js,
+while Notes state is now owned by the Notes feature service.
 
 | Object | Section | Storage | Description |
 |--------|---------|---------|-------------|
-| `activeDemoUserId` | §2 | localStorage | Current demo user ID (string or null) |
-| `activeDemoFeaturePrefs` | §2 | localStorage | Feature toggles per demo user |
 | `taskUiState` | §4 | Memory + API | Tasks array, layout, expanded set, edit state |
 | `taskEnhancements` | §4 | localStorage | Per-task subtasks and Eisenhower quadrant |
 | `calendarState` | §6 | localStorage | Selected date, view mode, important dates, Sortable instances |
@@ -25,7 +24,7 @@ state management (no Redux, no Vuex). Each module owns its own state object.
 | `statisticsState` | §12 | Memory | Chart data, period settings |
 | `profileState` | §13 | localStorage | User profile, theme, macro targets |
 | `_focus` | §18 | Memory + API | Timer state, audio, pomodoro config, sessions |
-| `_notes` | §19 | Memory + API | Notes array, filter, search, editing state |
+| `_notes` | features/notes | Memory + API | Notes array, filter, search, editing state |
 
 ### AI Chat State (loose variables, §16–17)
 
@@ -49,30 +48,23 @@ User Action
     ▼
 Event Handler (click/submit)
     │
-    ├── Demo mode? ──→ Read/write localStorage
-    │                    │
-    │                    ▼
-    │               Update state object
-    │                    │
-    │                    ▼
-    │               Re-render UI
+    ▼
+fetch() to /api/*
     │
-    └── Real mode? ──→ fetch() to /api/*
-                         │
-                         ▼
-                    Flask route handler
-                         │
-                         ▼
-                    SQLite CRUD via get_db()
-                         │
-                         ▼
-                    JSON response
-                         │
-                         ▼
-                    Update state object
-                         │
-                         ▼
-                    Re-render UI
+    ▼
+Flask route handler
+    │
+    ▼
+SQLite/PostgreSQL CRUD via get_db()
+    │
+    ▼
+JSON response
+    │
+    ▼
+Update state object
+    │
+    ▼
+Re-render UI
 ```
 
 ### Pattern B: localStorage-Only Resources (Projects, Profile, Prefs)
@@ -160,7 +152,7 @@ Re-render streaks UI
 DOMContentLoaded fires
     │
     ▼
-loadProfileState()           — Restore profile from localStorage
+loadProfileState()            — Restore local profile defaults
 loadThemePreference()         — Apply dark/light theme
     │
     ▼
@@ -180,32 +172,31 @@ Setup steps (each wrapped in try/catch):
     initFocusModule()
     │
     ▼
-bootstrapDemoSession()        — Check for active demo user
+bootstrapSession()            — GET /api/auth/me
     │
-    ├── Has session? → showPage('dashboard')
-    │                  loadActiveUserDataViews()
+    ├── Has authenticated user?
+    │      ├── onboarding complete → show app shell, showPage('dashboard'), loadActiveUserDataViews()
+    │      └── onboarding incomplete → route to demo-tour or profile-essentials
     │
-    └── No session?  → Show demo user selector overlay
+    └── No authenticated user → intro/auth screens
     │
     ▼
 Register global listeners:
-    window 'focus'        — Validate demo user still exists
-    window 'beforeunload' — Clean up timers
-    │
-    ▼
-[Notes module monkey-patches showPage() at EOF]
+    document visibilitychange — focus timer refresh
+    window beforeunload       — timer cleanup and persistence
+    EventBus PAGE_SHOWN       — page-specific lazy loads such as notes via feature-owned subscribers
 ```
 
 ---
 
 ## 4. Cross-Module Communication
 
-There is **no event bus or pub/sub system**. Modules communicate via:
+There is a lightweight EventBus, but the architecture is still hybrid rather than fully event-driven. Modules communicate via:
 
-1. **Direct function calls**: e.g., task completion calls `renderCalendar()` and streak evaluation
-2. **Shared state mutation**: e.g., `taskUiState.tasks` is read by calendar, dashboard, and streaks
-3. **DOM re-rendering**: each module's `render*()` function reads fresh state and rebuilds HTML
-4. **Monkey-patching**: Notes module wraps `showPage()` to intercept navigation
+1. EventBus publications such as STATE_UPDATED:tasks and PAGE_SHOWN
+2. Direct function calls across legacy code paths
+3. Shared state mutation, for example taskUiState, nutritionState, _focus, and _notes
+4. DOM re-rendering from centralized render functions inside script.js, plus feature-owned rendering for Notes
 
 ### Key Cross-Module Dependencies
 
@@ -215,7 +206,7 @@ There is **no event bus or pub/sub system**. Modules communicate via:
 | Meal logged | Nutrition UI updates, streaks re-evaluate |
 | Workout logged | Workout list updates, streaks re-evaluate, dashboard refreshes |
 | Page navigation | Relevant `setup*()` or `render*()` fires |
-| Demo user switched | ALL modules reload from new localStorage keys |
+| Auth session changed | User-scoped localStorage keys and server-backed data rehydrate |
 | Profile saved | Nutrition goals may update, theme may change |
 
 ---
