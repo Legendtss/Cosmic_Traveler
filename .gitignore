@@ -38,3 +38,4 @@ Thumbs.db
 fix_utf8.py
 scripts/fix_*.py
 scripts/cleanup_*.ps1
+scripts/_tmp_focus_lock_logic.py
