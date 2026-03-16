@@ -5,20 +5,35 @@ Handles all goal-related endpoints
 from flask import Blueprint, request, jsonify, session, send_file
 from app.repositories.goals_repo import GoalsRepository
 from app.db import get_db
-import google.generativeai as genai
 import os
 import io
-from PIL import Image, ImageDraw, ImageFilter
 import base64
 from datetime import datetime
+
+# Try to import image processing library
+try:
+    from PIL import Image, ImageDraw, ImageFilter
+    HAS_PIL = True
+except ImportError:
+    HAS_PIL = False
+
+# Try to import Gemini API (might not be installed or available)
+try:
+    import google.generativeai as genai
+    HAS_GENAI = True
+except (ImportError, AttributeError):
+    HAS_GENAI = False
 
 
 goals_bp = Blueprint('goals', __name__, url_prefix='/api/goals')
 
-# Configure Gemini API
+# Configure Gemini API if available
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
-if GEMINI_API_KEY:
-    genai.configure(api_key=GEMINI_API_KEY)
+if GEMINI_API_KEY and HAS_GENAI:
+    try:
+        genai.configure(api_key=GEMINI_API_KEY)
+    except Exception:
+        GEMINI_API_KEY = None
 
 
 def get_user_id():
@@ -263,7 +278,7 @@ def upload_or_generate_image(goal_id):
                 'card_image_url': image_url
             }), 200
         
-        elif 'ai_prompt' in data and GEMINI_API_KEY:
+        elif 'ai_prompt' in data and GEMINI_API_KEY and HAS_GENAI:
             # Generate image with Gemini
             prompt = data['ai_prompt']
             
@@ -289,6 +304,21 @@ def upload_or_generate_image(goal_id):
             except Exception as e:
                 return jsonify({'error': f'Image generation failed: {str(e)}'}), 500
         
+        elif 'ai_prompt' in data and not HAS_GENAI:
+            # Genai not available but try to store the prompt anyway
+            prompt = data['ai_prompt']
+            GoalsRepository.update_goal(
+                goal_id, user_id, 
+                ai_prompt=prompt,
+                card_image_url=None
+            )
+            return jsonify({
+                'success': True,
+                'message': 'AI prompt stored (Gemini not available)',
+                'ai_prompt': prompt,
+                'warning': 'AI image generation service not configured'
+            }), 200
+        
         else:
             return jsonify({'error': 'No image data provided'}), 400
     
@@ -302,6 +332,9 @@ def download_card(goal_id):
     user_id = get_user_id()
     if not user_id:
         return jsonify({'error': 'Unauthorized'}), 401
+    
+    if not HAS_PIL:
+        return jsonify({'error': 'Image generation not available. Pillow library not installed.'}), 503
     
     goal = GoalsRepository.get_goal_by_id(goal_id, user_id)
     if not goal:
@@ -329,8 +362,11 @@ def download_card(goal_id):
         return jsonify({'error': str(e)}), 500
 
 
-def generate_card_image(goal: dict) -> Image.Image:
+def generate_card_image(goal: dict):
     """Generate a card image from goal data"""
+    if not HAS_PIL:
+        raise RuntimeError("PIL/Pillow not available for image generation")
+    
     # Card dimensions
     width, height = 800, 600
     
