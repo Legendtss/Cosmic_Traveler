@@ -1,0 +1,373 @@
+<!-- Goals Section UI Templates -->
+<div id="goals-container" class="feature-container">
+  <!-- Header -->
+  <div class="goals-header">
+    <div class="goals-title-section">
+      <h1>Personal Goals</h1>
+      <p class="subtitle">Track your personal improvement journey</p>
+    </div>
+    <button id="goals-add-btn" class="btn btn-primary">+ Add Goal</button>
+  </div>
+
+  <!-- Filter/Status Tabs -->
+  <div class="goals-filters">
+    <button class="filter-btn active" data-status="active">Active</button>
+    <button class="filter-btn" data-status="completed">Completed</button>
+    <button class="filter-btn" data-status="all">All</button>
+  </div>
+
+  <!-- Goals Grid -->
+  <div id="goals-grid" class="goals-grid">
+    <!-- Goals will be rendered here -->
+  </div>
+
+  <!-- Empty State -->
+  <div id="goals-empty" class="empty-state" style="display: none;">
+    <div class="empty-icon">🎯</div>
+    <h3>No goals yet</h3>
+    <p>Create your first personal goal to start your improvement journey!</p>
+  </div>
+</div>
+
+<!-- GOAL CARD TEMPLATE -->
+<template id="goal-card-template">
+  <div class="goal-card" data-goal-id="">
+    <!-- Card with blur overlay -->
+    <div class="card-container">
+      <div class="card-blur-wrapper">
+        <!-- Background image or AI generated image -->
+        <div class="card-background">
+          <img src="" alt="goal card" class="card-image" />
+        </div>
+
+        <!-- Blur overlay with segments -->
+        <div class="card-blur-overlay">
+          <div class="blur-segments">
+            <!-- 10 segments that unlock progressively -->
+            <div class="blur-segment" data-segment="0"></div>
+            <div class="blur-segment" data-segment="1"></div>
+            <div class="blur-segment" data-segment="2"></div>
+            <div class="blur-segment" data-segment="3"></div>
+            <div class="blur-segment" data-segment="4"></div>
+            <div class="blur-segment" data-segment="5"></div>
+            <div class="blur-segment" data-segment="6"></div>
+            <div class="blur-segment" data-segment="7"></div>
+            <div class="blur-segment" data-segment="8"></div>
+            <div class="blur-segment" data-segment="9"></div>
+          </div>
+        </div>
+
+        <!-- Content overlay -->
+        <div class="card-content">
+          <h3 class="goal-title"></h3>
+          <p class="goal-category"></p>
+          
+          <!-- Progress on card -->
+          <div class="card-progress">
+            <div class="progress-bar">
+              <div class="progress-fill"></div>
+            </div>
+            <span class="progress-text">0%</span>
+          </div>
+
+          <!-- Time limit if exists -->
+          <div class="goal-deadline">
+            <span class="deadline-label">Due:</span>
+            <span class="deadline-date"></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Card Actions -->
+      <div class="card-actions">
+        <button class="action-btn edit-btn" title="Edit goal">✏️</button>
+        <button class="action-btn share-btn" title="Share goal">🔗</button>
+        <button class="action-btn download-btn" title="Download card">⬇️</button>
+        <button class="action-btn delete-btn" title="Delete goal">🗑️</button>
+      </div>
+
+      <!-- Status Badge -->
+      <div class="status-badge"></div>
+    </div>
+  </div>
+</template>
+
+<!-- CREATE/EDIT GOAL MODAL -->
+<div id="goal-modal" class="modal" style="display: none;">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h2 id="modal-title">Create New Goal</h2>
+      <button class="modal-close" id="goal-modal-close">&times;</button>
+    </div>
+
+    <div class="modal-body">
+      <form id="goal-form">
+        <!-- Goal Title -->
+        <div class="form-group">
+          <label for="goal-title">Goal Title *</label>
+          <input type="text" id="goal-title" name="title" placeholder="e.g., Learn Spanish, Build Muscle" required />
+        </div>
+
+        <!-- Goal Description -->
+        <div class="form-group">
+          <label for="goal-description">Description</label>
+          <textarea id="goal-description" name="description" placeholder="What does success look like?" rows="3"></textarea>
+        </div>
+
+        <!-- Goal Category -->
+        <div class="form-group">
+          <label for="goal-category">Category *</label>
+          <input type="text" id="goal-category" name="category" placeholder="e.g., Personal Growth, Fitness, Learning" required />
+        </div>
+
+        <!-- Target Progress -->
+        <div class="form-group">
+          <label for="goal-target">Target (%) </label>
+          <input type="number" id="goal-target" name="target_progress" min="1" max="100" value="100" />
+        </div>
+
+        <!-- Time Limit -->
+        <div class="form-group">
+          <label for="goal-deadline">Deadline</label>
+          <input type="date" id="goal-deadline" name="time_limit" />
+        </div>
+
+        <!-- Image Upload Section -->
+        <div class="form-group">
+          <label>Card Image</label>
+          <div class="image-upload-section">
+            <div class="tabs">
+              <button type="button" class="tab-btn active" data-tab="upload">Upload Image</button>
+              <button type="button" class="tab-btn" data-tab="ai">AI Generate</button>
+              <button type="button" class="tab-btn" data-tab="templates">Use Template</button>
+            </div>
+
+            <!-- Upload Tab -->
+            <div id="upload-tab" class="tab-content active">
+              <div class="file-upload">
+                <input type="file" id="image-file" accept="image/*" />
+                <label for="image-file" class="upload-label">
+                  <span class="upload-icon">📸</span>
+                  <span>Click to upload or drag image here</span>
+                </label>
+                <img id="image-preview" class="image-preview" style="display: none;" />
+              </div>
+            </div>
+
+            <!-- AI Generate Tab -->
+            <div id="ai-tab" class="tab-content">
+              <div class="form-group">
+                <label for="ai-prompt">Describe the card design you want:</label>
+                <textarea id="ai-prompt" placeholder="e.g., A motivational card with mountains and a sunrise, golden colors" rows="3"></textarea>
+              </div>
+              <button type="button" class="btn btn-secondary" id="generate-ai-btn">Generate with AI</button>
+            </div>
+
+            <!-- Templates Tab -->
+            <div id="templates-tab" class="tab-content">
+              <div class="template-grid">
+                <!-- Template cards will be rendered here -->
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Notes -->
+        <div class="form-group">
+          <label for="goal-notes">Notes</label>
+          <textarea id="goal-notes" name="notes" placeholder="Add any additional notes..." rows="3"></textarea>
+        </div>
+
+        <!-- Form Actions -->
+        <div class="form-actions">
+          <button type="button" class="btn btn-secondary" id="goal-modal-cancel">Cancel</button>
+          <button type="submit" class="btn btn-primary" id="goal-submit-btn">Create Goal</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- SHARE GOAL MODAL -->
+<div id="share-modal" class="modal" style="display: none;">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h2>Share Your Goal</h2>
+      <button class="modal-close" id="share-modal-close">&times;</button>
+    </div>
+
+    <div class="modal-body">
+      <div class="share-content">
+        <p class="share-description">Share your goal progress with friends and get motivated together!</p>
+
+        <!-- Share URL (after generation) -->
+        <div id="share-url-container" style="display: none;">
+          <div class="share-url-group">
+            <label for="share-url-input">Share Link:</label>
+            <div class="url-copy-group">
+              <input type="text" id="share-url-input" readonly />
+              <button type="button" class="btn btn-secondary" id="copy-share-url-btn">Copy</button>
+            </div>
+          </div>
+
+          <!-- Social Share Buttons -->
+          <div class="social-share">
+            <p>Share on:</p>
+            <button type="button" class="social-btn twitter">Twitter</button>
+            <button type="button" class="social-btn facebook">Facebook</button>
+            <button type="button" class="social-btn whatsapp">WhatsApp</button>
+          </div>
+
+          <!-- Share Status -->
+          <div class="share-status-info">
+            <p><strong>Your goal is now public</strong></p>
+            <p>Anyone with this link can see your progress</p>
+          </div>
+
+          <!-- Revoke Share -->
+          <button type="button" class="btn btn-danger" id="revoke-share-btn">Stop Sharing</button>
+        </div>
+
+        <!-- Generate Share Button (before generation) -->
+        <div id="share-generate-container">
+          <button type="button" class="btn btn-primary" id="generate-share-btn">Generate Share Link</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SHARED GOAL VIEW PAGE -->
+<div id="shared-goal-container" class="feature-container shared-goal-view" style="display: none;">
+  <div class="shared-goal-content">
+    <!-- Goal Card Display -->
+    <div class="shared-card-display">
+      <div class="card-blur-wrapper">
+        <div class="card-background">
+          <img src="" alt="shared goal" class="card-image" />
+        </div>
+
+        <div class="card-blur-overlay">
+          <div class="blur-segments">
+            <div class="blur-segment" data-segment="0"></div>
+            <div class="blur-segment" data-segment="1"></div>
+            <div class="blur-segment" data-segment="2"></div>
+            <div class="blur-segment" data-segment="3"></div>
+            <div class="blur-segment" data-segment="4"></div>
+            <div class="blur-segment" data-segment="5"></div>
+            <div class="blur-segment" data-segment="6"></div>
+            <div class="blur-segment" data-segment="7"></div>
+            <div class="blur-segment" data-segment="8"></div>
+            <div class="blur-segment" data-segment="9"></div>
+          </div>
+        </div>
+
+        <div class="card-content">
+          <h2 class="goal-title"></h2>
+          <p class="goal-category"></p>
+          <div class="card-progress">
+            <div class="progress-bar">
+              <div class="progress-fill"></div>
+            </div>
+            <span class="progress-text">0%</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Goal Details -->
+    <div class="shared-goal-details">
+      <div class="detail-item">
+        <h3>Description</h3>
+        <p class="goal-description"></p>
+      </div>
+
+      <div class="detail-item">
+        <h3>Progress</h3>
+        <div class="progress-detail">
+          <div class="progress-bar">
+            <div class="progress-fill"></div>
+          </div>
+          <span class="progress-text">0/100</span>
+        </div>
+      </div>
+
+      <!-- Encourage Button -->
+      <button class="btn btn-primary encourage-btn">👏 Encourage This Goal</button>
+    </div>
+  </div>
+</div>
+
+<!-- PROGRESS UPDATE MODAL -->
+<div id="progress-modal" class="modal" style="display: none;">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h2>Update Progress</h2>
+      <button class="modal-close" id="progress-modal-close">&times;</button>
+    </div>
+
+    <div class="modal-body">
+      <div class="progress-update-form">
+        <div class="goal-info">
+          <h3 class="goal-title"></h3>
+          <p class="goal-category"></p>
+        </div>
+
+        <!-- Current Progress Display -->
+        <div class="current-progress-display">
+          <p>Current Progress: <strong><span class="current-percent">0</span>%</strong></p>
+          <div class="progress-bar">
+            <div class="progress-fill"></div>
+          </div>
+        </div>
+
+        <!-- Progress Slider -->
+        <div class="form-group">
+          <label for="progress-slider">Update to:</label>
+          <input type="range" id="progress-slider" min="0" max="100" value="0" class="slider" />
+          <div class="slider-labels">
+            <span class="slider-value">0%</span>
+          </div>
+        </div>
+
+        <!-- Quick Update Buttons -->
+        <div class="quick-update-buttons">
+          <button type="button" class="quick-btn" data-increment="10">+10%</button>
+          <button type="button" class="quick-btn" data-increment="25">+25%</button>
+          <button type="button" class="quick-btn" data-increment="50">+50%</button>
+          <button type="button" class="quick-btn" data-increment="100">Complete</button>
+        </div>
+
+        <!-- Progress Notes -->
+        <div class="form-group">
+          <label for="progress-notes">Add note (optional):</label>
+          <textarea id="progress-notes" placeholder="What did you accomplish?" rows="3"></textarea>
+        </div>
+
+        <!-- Form Actions -->
+        <div class="form-actions">
+          <button type="button" class="btn btn-secondary" id="progress-cancel">Cancel</button>
+          <button type="button" class="btn btn-primary" id="progress-submit">Save Progress</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- TEMPLATE CARDS (Pre-built options) -->
+<template id="template-card-template">
+  <div class="template-card" data-template-id="">
+    <img src="" alt="template" class="template-image" />
+    <p class="template-name"></p>
+  </div>
+</template>
+
+<!-- Pre-built Goal Templates -->
+<template id="goal-template-item">
+  <div class="goal-template">
+    <div class="template-icon"></div>
+    <h4></h4>
+    <p></p>
+    <button type="button" class="btn btn-sm btn-primary use-template">Use Template</button>
+  </div>
+</template>

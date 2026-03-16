@@ -195,6 +195,27 @@ CREATE TABLE IF NOT EXISTS notes (
   )
 );
 
+CREATE TABLE IF NOT EXISTS goals (
+  id INTEGER PRIMARY KEY,
+  user_id INTEGER NOT NULL,
+  title TEXT NOT NULL,
+  description TEXT NOT NULL DEFAULT '',
+  category TEXT NOT NULL DEFAULT 'personal',
+  target_progress REAL NOT NULL DEFAULT 100 CHECK (target_progress > 0 AND target_progress <= 100),
+  current_progress REAL NOT NULL DEFAULT 0 CHECK (current_progress >= 0 AND current_progress <= 100),
+  time_limit TEXT,
+  notes TEXT NOT NULL DEFAULT '',
+  card_image_url TEXT,
+  ai_prompt TEXT,
+  status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active','completed','archived')),
+  is_shared INTEGER NOT NULL DEFAULT 0 CHECK (is_shared IN (0,1)),
+  share_token TEXT UNIQUE,
+  created_at TEXT NOT NULL DEFAULT (CURRENT_TIMESTAMP),
+  updated_at TEXT NOT NULL DEFAULT (CURRENT_TIMESTAMP),
+  completed_at TEXT,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
 CREATE INDEX IF NOT EXISTS idx_tasks_user_date ON tasks(user_id, date);
 CREATE INDEX IF NOT EXISTS idx_tasks_user_completed_date ON tasks(user_id, completed, date);
 CREATE INDEX IF NOT EXISTS idx_tasks_project ON tasks(project_id);
@@ -208,6 +229,8 @@ CREATE INDEX IF NOT EXISTS idx_stats_user_date ON stats_snapshots(user_id, snaps
 CREATE INDEX IF NOT EXISTS idx_focus_user_date ON focus_sessions(user_id, date);
 CREATE INDEX IF NOT EXISTS idx_notes_user ON notes(user_id);
 CREATE INDEX IF NOT EXISTS idx_notes_source ON notes(source_type, source_id);
+CREATE INDEX IF NOT EXISTS idx_goals_user ON goals(user_id);
+CREATE INDEX IF NOT EXISTS idx_goals_share_token ON goals(share_token);
 
 -- Enforce that task-linked notes reference a task owned by the same user.
 CREATE TRIGGER IF NOT EXISTS trg_notes_task_link_insert

@@ -32,6 +32,7 @@ from .api.ai_routes import ai_bp
 from .api.focus_routes import focus_bp
 from .api.notes_routes import notes_bp
 from .api.projects_routes import projects_bp
+from .api.goals_routes import goals_bp
 from .api.auth_routes import auth_bp
 from .config import Config
 from .db import init_app_data, register_db
@@ -230,6 +231,7 @@ def create_app(config_class=Config):
     app.register_blueprint(focus_bp)
     app.register_blueprint(notes_bp)
     app.register_blueprint(projects_bp)
+    app.register_blueprint(goals_bp)
 
     return app
 

@@ -49,6 +49,7 @@ def delete_existing_users(conn, emails):
             cursor.execute('DELETE FROM focus_sessions WHERE user_id = ?', (user_id,))
             cursor.execute('DELETE FROM stats_snapshots WHERE user_id = ?', (user_id,))
             cursor.execute('DELETE FROM user_progress WHERE user_id = ?', (user_id,))
+            cursor.execute('DELETE FROM goals WHERE user_id = ?', (user_id,))
             cursor.execute('DELETE FROM nutrition_entries WHERE user_id = ?', (user_id,))
             cursor.execute('DELETE FROM workouts WHERE user_id = ?', (user_id,))
             cursor.execute('DELETE FROM notes WHERE user_id = ?', (user_id,))
@@ -157,6 +158,17 @@ def insert_workout(conn, user_id, workout_name, duration_minutes, calories_burne
     ''', (user_id, workout_name, 'other', duration_minutes, calories_burned, 1, date_str, now_iso(), now_iso()))
     conn.commit()
 
+def insert_goal(conn, user_id, title, description, category, current_progress=25, time_limit=None):
+    """Create a personal goal entry"""
+    cursor = conn.cursor()
+    deadline_str = time_limit if time_limit else (datetime.now() + timedelta(days=90)).strftime('%Y-%m-%d')
+    cursor.execute('''
+        INSERT INTO goals 
+        (user_id, title, description, category, target_progress, current_progress, time_limit, status, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ''', (user_id, title, description, category, 100, current_progress, deadline_str, 'active', now_iso(), now_iso()))
+    conn.commit()
+
 def seed_user_1_athlete(conn, user_id):
     """User 1: Alex - Athletic Bodybuilder (Age 26, Male, Muscle Building)"""
     print("\n  Seeding User 1 (Athlete): Projects, Tasks, Notes, Meals, Workouts...")
@@ -189,6 +201,11 @@ def seed_user_1_athlete(conn, user_id):
     insert_workout(conn, user_id, "Upper Body Hypertrophy - Chest & Back", 75, 650)
     insert_workout(conn, user_id, "Lower Body Strength - Squats & Legs", 90, 750)
     insert_workout(conn, user_id, "Accessory Work - Arms & Shoulders", 60, 450)
+    
+    # GOALS (personal goals with blur reveal progression)
+    insert_goal(conn, user_id, "Build 25 pounds of muscle", "Winter bulk phase with 4x/week training", "Fitness", 35, "2026-06-30")
+    insert_goal(conn, user_id, "Bench Press 365 lbs", "Break through current 315 lbs plateau", "Strength", 60)
+    insert_goal(conn, user_id, "Master perfect form squats", "Record all lifts for technique review", "Technique", 25)
 
 def seed_user_2_marathon(conn, user_id):
     """User 2: Jordan - Marathon Runner (Age 35, Female, Endurance/Weight Loss)"""
@@ -221,6 +238,11 @@ def seed_user_2_marathon(conn, user_id):
     insert_workout(conn, user_id, "Easy 8-mile recovery run", 65, 610)
     insert_workout(conn, user_id, "Speed work - 6x1000m intervals", 55, 680)
     insert_workout(conn, user_id, "20-mile long run", 130, 1240)
+    
+    # GOALS (personal goals with blur reveal progression)
+    insert_goal(conn, user_id, "Complete marathon in sub 4:10", "Training for October 2026 race day", "Running", 40, "2026-10-15")
+    insert_goal(conn, user_id, "Lose 8 lbs for speed", "Cut from 65kg to 57kg for better pace", "Fitness", 25, "2026-08-31")
+    insert_goal(conn, user_id, "Run without knee pain", "Increase mileage while maintaining joint health", "Health", 50)
 
 def seed_user_3_wellness(conn, user_id):
     """User 3: Sam - Wellness Practitioner (Age 42, Non-binary, Balanced Fitness)"""
@@ -253,6 +275,11 @@ def seed_user_3_wellness(conn, user_id):
     insert_workout(conn, user_id, "Yoga Session - Gentle Flow", 50, 180)
     insert_workout(conn, user_id, "Resistance Training - Full Body", 60, 320)
     insert_workout(conn, user_id, "Hiking in Nature", 90, 400)
+    
+    # GOALS (personal goals with blur reveal progression)
+    insert_goal(conn, user_id, "50-day meditation streak", "Daily 10-minute morning practice for mental clarity", "Wellness", 45, "2026-05-30")
+    insert_goal(conn, user_id, "Achieve perfect sleep schedule", "Consistent 8 hours nightly between 10pm-6am", "Health", 30)
+    insert_goal(conn, user_id, "Master advanced yoga poses", "Work toward handstand and full splits", "Flexibility", 55)
 
 def main():
     print("\n" + "="*70)

@@ -31,6 +31,12 @@ def index():
     return send_from_directory(str(current_app.config["STATIC_DIR"]), "index.html")
 
 
+@web_bp.route("/shared/goal/<share_token>")
+def shared_goal(share_token):
+    """Serve shared goal page"""
+    return send_from_directory(str(current_app.config["STATIC_DIR"]), "index.html")
+
+
 @web_bp.route("/music/<path:filename>")
 def serve_music(filename):
     root_dir = current_app.config["ROOT_DIR"]

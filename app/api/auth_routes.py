@@ -242,10 +242,9 @@ def login():
     email_blocked, email_wait = _check_rate_limit(f"email:{email}")
     
     if ip_blocked or email_blocked:
-        wait_time = max(ip_wait, email_wait)
         return jsonify({
             "ok": False,
-            "errors": [f"Too many login attempts. Please wait {wait_time} seconds."]
+            "errors": ["Too many login attempts. Please try again later."]
         }), 429
 
     db = get_db()
