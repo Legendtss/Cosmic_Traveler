@@ -15,7 +15,7 @@
  */
 'use strict';
 
-const VER         = '2';
+const VER         = '4';
 const SHELL_CACHE = `ft-shell-v${VER}`;
 const DATA_CACHE  = `ft-data-v${VER}`;
 
@@ -27,12 +27,14 @@ const SHELL_FILES = [
   '/styles.css',
   '/css/00-auth.css',
   '/css/01-onboarding.css',
+  '/features/goals/goals-style.css',
   '/manifest.json',
   '/app-icon.svg',
   '/app-icon-maskable.svg',
   '/js/00-auth.js',
   '/state/offlineQueue.js',
   '/script.js',
+  '/features/goals/goals-handler.js',
 ];
 
 // ────────────────────────────────────────────────────────────────

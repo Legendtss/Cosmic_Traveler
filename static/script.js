@@ -2591,6 +2591,44 @@ function normalizeSavedMealTypeKey(mealType) {
   return NUTRITION_SAVED_MEAL_TYPES.includes(key) ? key : 'other';
 }
 
+const DEMO_SAVED_MEALS = {
+  'testgoals@test.com': [
+    { id: 'seed-goals-1', name: 'Protein Oats Bowl', meal_type: 'breakfast', calories: 420, protein: 32, carbs: 52, fats: 9 },
+    { id: 'seed-goals-2', name: 'Chicken Quinoa Plate', meal_type: 'lunch', calories: 610, protein: 48, carbs: 58, fats: 14 },
+    { id: 'seed-goals-3', name: 'Greek Yogurt + Nuts', meal_type: 'snack', calories: 290, protein: 20, carbs: 16, fats: 15 },
+    { id: 'seed-goals-4', name: 'Salmon Rice Veg', meal_type: 'dinner', calories: 680, protein: 44, carbs: 64, fats: 24 }
+  ],
+  'demo@gmail.com': [
+    { id: 'seed-demo-1', name: 'Mass Build Breakfast', meal_type: 'breakfast', calories: 540, protein: 36, carbs: 68, fats: 16 },
+    { id: 'seed-demo-2', name: 'Hypertrophy Lunch', meal_type: 'lunch', calories: 720, protein: 52, carbs: 74, fats: 18 },
+    { id: 'seed-demo-3', name: 'Recovery Shake', meal_type: 'snack', calories: 360, protein: 32, carbs: 38, fats: 8 }
+  ],
+  'd@gmail.com': [
+    { id: 'seed-cut-1', name: 'Deficit Oats', meal_type: 'breakfast', calories: 380, protein: 28, carbs: 46, fats: 8 },
+    { id: 'seed-cut-2', name: 'Lean Chicken Salad', meal_type: 'lunch', calories: 520, protein: 44, carbs: 32, fats: 14 }
+  ]
+};
+
+function seedSavedMealsIfEmpty() {
+  if (nutritionState.savedMeals.length) return;
+  const email = String(AuthModule?.currentUser?.email || '').trim().toLowerCase();
+  if (!email) return;
+  const presets = DEMO_SAVED_MEALS[email];
+  if (!Array.isArray(presets) || presets.length === 0) return;
+
+  nutritionState.savedMeals = presets.map((meal) => ({
+    id: meal.id || `seed-${Math.random().toString(36).slice(2, 8)}`,
+    name: meal.name || 'Saved meal',
+    meal_type: normalizeSavedMealTypeKey(meal.meal_type || meal.meal || 'other'),
+    calories: Math.max(0, Number(meal.calories) || 0),
+    protein: Math.max(0, Number(meal.protein) || 0),
+    carbs: Math.max(0, Number(meal.carbs) || 0),
+    fats: Math.max(0, Number(meal.fats) || 0),
+    created_at: new Date().toISOString()
+  }));
+  persistSavedMeals();
+}
+
 const nutritionState = {
   weightGoal: 'maintain',
   baseGoals: {
@@ -3076,25 +3114,27 @@ function loadSavedMeals() {
   nutritionState.savedMeals = [];
   try {
     const raw = localStorage.getItem(nutritionSavedMealsStorageKey());
-    if (!raw) {
-      return;
-    }
-    const parsed = JSON.parse(raw);
-    if (Array.isArray(parsed)) {
-      nutritionState.savedMeals = parsed
-        .filter(m => m && typeof m === 'object')
-        .map((m) => ({
-          ...m,
-          meal_type: normalizeSavedMealTypeKey(m.meal_type || m.meal || 'other'),
-          calories: Math.max(0, Number(m.calories) || 0),
-          protein: Math.max(0, Number(m.protein) || 0),
-          carbs: Math.max(0, Number(m.carbs) || 0),
-          fats: Math.max(0, Number(m.fats) || 0)
-        }));
-      persistSavedMeals();
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        nutritionState.savedMeals = parsed
+          .filter(m => m && typeof m === 'object')
+          .map((m) => ({
+            ...m,
+            meal_type: normalizeSavedMealTypeKey(m.meal_type || m.meal || 'other'),
+            calories: Math.max(0, Number(m.calories) || 0),
+            protein: Math.max(0, Number(m.protein) || 0),
+            carbs: Math.max(0, Number(m.carbs) || 0),
+            fats: Math.max(0, Number(m.fats) || 0)
+          }));
+        persistSavedMeals();
+      }
     }
   } catch (_err) {
     nutritionState.savedMeals = [];
+  }
+  if (!nutritionState.savedMeals.length) {
+    seedSavedMealsIfEmpty();
   }
 }
 
@@ -10028,12 +10068,20 @@ function applyFocusCustomVisualUrl() {
 }
 
 // ─── Mode Switching ─────────────────────────────────
-function switchFocusMode(mode) {
-  if (_focus.state !== 'idle') {
-    showToast('Stop the current timer first', 'warning');
-    return;
+function _focusAllowSettingsChange() {
+    if (_focus.state === 'running') {
+      showToast('Pause or stop the timer to change settings', 'warning');
+      return false;
+    }
+    if (_focus.state === 'paused') {
+      _focusFullReset();
+    }
+    return true;
   }
-  _focus.mode = mode;
+
+  function switchFocusMode(mode) {
+    if (!_focusAllowSettingsChange()) return;
+    _focus.mode = mode;
 
   document.querySelectorAll('.focus-mode-tab').forEach(t => t.classList.toggle('active', t.dataset.mode === mode));
 
@@ -10063,25 +10111,25 @@ function switchFocusMode(mode) {
 }
 
 // ─── Pomodoro Presets ───────────────────────────────
-function setPomodoroDuration(min) {
-  if (_focus.state !== 'idle') return;
-  _focus.pomodoroFocus = min;
+  function setPomodoroDuration(min) {
+    if (!_focusAllowSettingsChange()) return;
+    _focus.pomodoroFocus = min;
   _focus.totalDurationMs = min * 60 * 1000;
   document.querySelectorAll('#focus-pomodoro-settings .focus-setting-row:first-child .focus-preset')
     .forEach(b => b.classList.toggle('active', +b.dataset.minutes === min));
   _focusUpdateDisplay();
   _focusSaveState();
 }
-function setPomodoroBreak(min) {
-  if (_focus.state !== 'idle') return;
-  _focus.pomodoroBreak = min;
+  function setPomodoroBreak(min) {
+    if (!_focusAllowSettingsChange()) return;
+    _focus.pomodoroBreak = min;
   document.querySelectorAll('#focus-pomodoro-settings .focus-setting-row:nth-child(2) .focus-preset')
     .forEach(b => b.classList.toggle('active', +b.dataset.minutes === min));
   _focusSaveState();
 }
-function setPomodoroSessions(n) {
-  if (_focus.state !== 'idle') return;
-  _focus.pomodoroSessions = n;
+  function setPomodoroSessions(n) {
+    if (!_focusAllowSettingsChange()) return;
+    _focus.pomodoroSessions = n;
   document.querySelectorAll('#focus-pomodoro-settings .focus-setting-row:nth-child(3) .focus-preset')
     .forEach(b => b.classList.toggle('active', +b.dataset.sessions === n));
   _focus.currentSession = Math.min(_focus.currentSession, n);
@@ -10337,45 +10385,53 @@ function _focusFormatTime(ms) {
 }
 
 function _focusUpdateControls() {
-  const startBtn = document.getElementById('focus-start-btn');
-  const pauseBtn = document.getElementById('focus-pause-btn');
-  const resumeBtn = document.getElementById('focus-resume-btn');
-  const stopBtn = document.getElementById('focus-stop-btn');
-  const resetBtn = document.getElementById('focus-reset-btn');
+    const startBtn = document.getElementById('focus-start-btn');
+    const pauseBtn = document.getElementById('focus-pause-btn');
+    const resumeBtn = document.getElementById('focus-resume-btn');
+    const stopBtn = document.getElementById('focus-stop-btn');
+    const resetBtn = document.getElementById('focus-reset-btn');
 
   if (!startBtn) return;
 
   const s = _focus.state;
-  startBtn.style.display = s === 'idle' ? '' : 'none';
-  pauseBtn.style.display = s === 'running' ? '' : 'none';
-  resumeBtn.style.display = s === 'paused' ? '' : 'none';
-  stopBtn.style.display = (s === 'running' || s === 'paused') ? '' : 'none';
-  resetBtn.style.display = s !== 'idle' ? '' : 'none';
+    startBtn.style.display = s === 'idle' ? '' : 'none';
+    pauseBtn.style.display = s === 'running' ? '' : 'none';
+    resumeBtn.style.display = s === 'paused' ? '' : 'none';
+    stopBtn.style.display = (s === 'running' || s === 'paused') ? '' : 'none';
+    resetBtn.style.display = s === 'paused' ? '' : 'none';
 
-  _focusSyncSettingsLock();
-}
+    _focusSyncSettingsLock();
+  }
 
-function _focusSyncSettingsLock() {
-  const locked = _focus.state !== 'idle';
+  function _focusSyncSettingsLock() {
+    const locked = _focus.state === 'running';
 
-  document.querySelectorAll('.focus-mode-tab').forEach((tab) => {
-    tab.disabled = locked;
-    tab.classList.toggle('is-locked', locked);
-  });
+    const modeTabs = document.querySelector('.focus-mode-tabs');
+    if (modeTabs) modeTabs.style.display = locked ? 'none' : '';
 
-  document.querySelectorAll('#focus-pomodoro-settings .focus-preset').forEach((btn) => {
-    btn.disabled = locked;
-    btn.classList.toggle('is-locked', locked);
-  });
+    document.querySelectorAll('.focus-mode-tab').forEach((tab) => {
+      tab.disabled = locked;
+      tab.classList.toggle('is-locked', locked);
+    });
 
-  const customMinutesInput = document.getElementById('focus-custom-minutes');
-  const customLabelInput = document.getElementById('focus-custom-label');
-  if (customMinutesInput) customMinutesInput.disabled = locked;
-  if (customLabelInput) customLabelInput.disabled = locked;
+    const pomSettings = document.getElementById('focus-pomodoro-settings');
+    const customSettings = document.getElementById('focus-custom-settings');
+    if (pomSettings) pomSettings.style.display = locked ? 'none' : '';
+    if (customSettings) customSettings.style.display = locked ? 'none' : '';
+
+    document.querySelectorAll('#focus-pomodoro-settings .focus-preset').forEach((btn) => {
+      btn.disabled = locked;
+      btn.classList.toggle('is-locked', locked);
+    });
+
+    const customMinutesInput = document.getElementById('focus-custom-minutes');
+    const customLabelInput = document.getElementById('focus-custom-label');
+    if (customMinutesInput) customMinutesInput.disabled = locked;
+    if (customLabelInput) customLabelInput.disabled = locked;
 
   const lockNote = document.getElementById('focus-settings-lock-note');
-  if (lockNote) lockNote.style.display = locked ? '' : 'none';
-}
+    if (lockNote) lockNote.style.display = locked ? '' : 'none';
+  }
 
 // ─── Cycle Dots ─────────────────────────────────────
 function _focusRenderCycleDots() {
