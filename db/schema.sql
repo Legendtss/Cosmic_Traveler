@@ -170,6 +170,8 @@ CREATE TABLE IF NOT EXISTS focus_sessions (
   duration_actual INTEGER NOT NULL DEFAULT 0 CHECK (duration_actual >= 0),
   completed INTEGER NOT NULL DEFAULT 0 CHECK (completed IN (0,1)),
   label TEXT NOT NULL DEFAULT '',
+    task_id INTEGER REFERENCES tasks(id) ON DELETE SET NULL,
+    project_id INTEGER REFERENCES projects(id) ON DELETE SET NULL,
   date TEXT NOT NULL,
   started_at TEXT NOT NULL DEFAULT (CURRENT_TIMESTAMP),
   ended_at TEXT,

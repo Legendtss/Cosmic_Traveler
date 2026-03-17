@@ -972,6 +972,7 @@ function taskCardHtml(task, options = {}) {
               <span><i class="fas fa-calendar-alt"></i> ${formatTaskDue(task)}</span>
               ${remaining ? `<span class="${remaining === 'Overdue' ? 'is-overdue' : 'is-remaining'}"><i class="fas fa-clock"></i> ${remaining}</span>` : ''}
               ${subtasks.length ? `<span>${completedSubtasks}/${subtasks.length} subtasks</span>` : ''}
+              ${task.focus_time_spent ? `<span class="task-focus-time"><i class="fas fa-brain"></i> Focus: ${task.focus_time_spent}m</span>` : ''}
             </div>
           </div>
         </div>
@@ -9831,7 +9832,71 @@ function _focusInjectGradient() {
 }
 
 // ─── Init ────────────────────────────────────────────
+let _focusProjects = [];
+let _focusTasks = [];
+
+async function focusLoadLinkOptions() {
+  try {
+    const [pRes, tRes] = await Promise.all([
+      fetch('/api/projects'),
+      fetch('/api/tasks')
+    ]);
+    if (pRes.ok) _focusProjects = await pRes.json();
+    if (tRes.ok) {
+      const ts = await tRes.json();
+      _focusTasks = ts.tasks || ts || []; 
+      if (!Array.isArray(_focusTasks) && typeof _focusTasks === 'object') {
+         for (let key in _focusTasks) {
+            if (Array.isArray(_focusTasks[key])) {
+                _focusTasks = _focusTasks[key];
+                break;
+            }
+         }
+      }
+    }
+    
+    const pSelect = document.getElementById('focus-link-project');
+    const tSelect = document.getElementById('focus-link-task');
+    if (!pSelect || !tSelect) return;
+
+    pSelect.innerHTML = '<option value="">None</option>' + _focusProjects.map(p => {
+        return `<option value="${p.id}">${escapeHtml(p.name)}</option>`;
+    }).join('');
+    
+    tSelect.innerHTML = '<option value="">None</option>' + _focusTasks.map(t => {
+        return `<option value="${t.id}" data-pid="${t.project_id || ''}">${escapeHtml(t.title)}</option>`;
+    }).join('');
+  } catch(e) {
+    console.error('Failed to load focus link options:', e);
+  }
+}
+
+window.focusLoadTaskOptions = function(projectId) {
+  const tSelect = document.getElementById('focus-link-task');
+  if (!tSelect) return;
+  
+  if (!projectId) {
+    tSelect.innerHTML = '<option value="">None</option>' + _focusTasks.map(t => {
+        return `<option value="${t.id}" data-pid="${t.project_id || ''}">${escapeHtml(t.title)}</option>`;
+    }).join('');
+  } else {
+    const filtered = _focusTasks.filter(t => parseInt(t.project_id) === parseInt(projectId));
+    tSelect.innerHTML = '<option value="">None (Whole Project)</option>' + filtered.map(t => {
+        return `<option value="${t.id}" data-pid="${t.project_id || ''}">${escapeHtml(t.title)}</option>`;
+    }).join('');
+  }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    document.body.addEventListener('change', (e) => {
+        if (e.target.id === 'focus-link-project') {
+             window.focusLoadTaskOptions(e.target.value);
+        }
+    });
+});
+
 function initFocusModule() {
+  focusLoadLinkOptions();
   _focusInjectGradient();
   _focusLoadState();
   _focusInitVisualControls();
@@ -10460,16 +10525,37 @@ function _focusRenderCycleDots() {
 function _focusLogSession(completed, actualMinutes) {
   if (actualMinutes <= 0) return;
 
-  const session = {
-    mode: _focus.mode,
-    durationPlanned: _focus.mode === 'pomodoro' ? _focus.pomodoroFocus : (_focus.mode === 'custom' ? _focus.customMinutes : 0),
-    durationActual: actualMinutes,
-    completed: completed,
-    label: _focus.mode === 'custom' ? _focus.customLabel : (_focus.mode === 'pomodoro' ? `Pomodoro S${_focus.currentSession}` : 'Stopwatch'),
-    date: new Date().toISOString().slice(0, 10),
-    startedAt: _focus.sessionStartIso || new Date().toISOString(),
-    endedAt: new Date().toISOString(),
-  };
+      const pSelect = document.getElementById('focus-link-project');
+    const tSelect = document.getElementById('focus-link-task');
+    let pid = pSelect && pSelect.value ? parseInt(pSelect.value) : null;
+    let tid = tSelect && tSelect.value ? parseInt(tSelect.value) : null;
+    
+    let taskName = null;
+    let projName = null;
+
+    if (tSelect && tSelect.options && tSelect.selectedIndex >= 0) {
+       const opt = tSelect.options[tSelect.selectedIndex];
+       if (opt.value) taskName = opt.textContent;
+    }
+    if (pSelect && pSelect.options && pSelect.selectedIndex >= 0) {
+       const opt = pSelect.options[pSelect.selectedIndex];
+       if (opt.value) projName = opt.textContent;
+    }
+
+    const session = {
+      mode: _focus.mode,
+      durationPlanned: _focus.mode === 'pomodoro' ? _focus.pomodoroFocus : (_focus.mode === 'custom' ? _focus.customMinutes : 0),
+      durationActual: actualMinutes,
+      completed: completed,
+      label: _focus.mode === 'custom' ? _focus.customLabel : (_focus.mode === 'pomodoro' ? `Pomodoro S${_focus.currentSession}` : 'Stopwatch'),
+      date: new Date().toISOString().slice(0, 10),
+      startedAt: _focus.sessionStartIso || new Date().toISOString(),
+      endedAt: new Date().toISOString(),
+      taskId: tid,
+      projectId: pid,
+      taskTitle: taskName,
+      projectName: projName
+    };
 
   // Save to API or localStorage
   if (typeof isDemoMode === 'function' && isDemoMode()) {

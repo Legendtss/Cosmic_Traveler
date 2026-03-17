@@ -126,13 +126,22 @@ class TaskRepository:
     @staticmethod
     def get_all(user_id, date_filter=None):
         db = get_db()
+        q_base = """
+            SELECT t.*, 
+                   COALESCE(SUM(f.duration_actual), 0) as focus_time_spent
+            FROM tasks t
+            LEFT JOIN focus_sessions f ON t.id = f.task_id AND f.completed = 1
+            WHERE t.user_id = ? {date_cond}
+            GROUP BY t.id
+            ORDER BY t.id DESC
+        """
         if date_filter:
             return db.execute(
-                "SELECT * FROM tasks WHERE user_id = ? AND date = ? ORDER BY id DESC",
+                q_base.format(date_cond="AND t.date = ?"),
                 (user_id, date_filter),
             ).fetchall()
         return db.execute(
-            "SELECT * FROM tasks WHERE user_id = ? ORDER BY id DESC",
+            q_base.format(date_cond=""),
             (user_id,),
         ).fetchall()
 
@@ -148,7 +157,14 @@ class TaskRepository:
     def get_by_id(task_id, user_id):
         db = get_db()
         return db.execute(
-            "SELECT * FROM tasks WHERE id = ? AND user_id = ?",
+            """
+            SELECT t.*, 
+                   COALESCE(SUM(f.duration_actual), 0) as focus_time_spent
+            FROM tasks t
+            LEFT JOIN focus_sessions f ON t.id = f.task_id AND f.completed = 1
+            WHERE t.id = ? AND t.user_id = ?
+            GROUP BY t.id
+            """,
             (task_id, user_id),
         ).fetchone()
 

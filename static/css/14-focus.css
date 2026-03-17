@@ -645,18 +645,89 @@
 .focus-mode-overlay.active { display: block; }
 @keyframes focusFadeIn { from { opacity: 0; } to { opacity: 1; } }
 
-body.focus-mode-active .sidebar {
-  pointer-events: none;
-  opacity: 0.3;
-  filter: blur(2px);
+/* --- Focus Mode Fullscreen Sub-styles --- */
+body.focus-mode-active .sidebar,
+body.focus-mode-active .top-bar,
+body.focus-mode-active .sidebar-user-area,
+body.focus-mode-active .focus-summary-grid,
+body.focus-mode-active .focus-header-row > div:first-child,
+body.focus-mode-active .focus-layout-grid > *:not(.focus-main-panel),
+body.focus-mode-active .focus-audio-card,
+body.focus-mode-active .focus-pomodoro-settings,
+body.focus-mode-active .focus-custom-settings,
+body.focus-mode-active .focus-mode-tabs,
+body.focus-mode-active .focus-settings-lock-note,
+body.focus-mode-active .focus-stats-section {
+  display: none !important;
 }
-body.focus-mode-active .sidebar .nav-item {
-  pointer-events: none;
+
+body.focus-mode-active .main-content {
+  margin: 0 !important;
+  padding: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  overflow: hidden !important;
+  background: var(--bg-main, #f3f4f6);
 }
-body.focus-mode-active .top-bar {
-  pointer-events: none;
-  opacity: 0.3;
+
+body.focus-mode-active #focus {
+  padding: 0 !important;
+  margin: 0 !important;
+  height: 100vh !important;
+  width: 100vw !important;
 }
+
+body.focus-mode-active .focus-shell {
+  padding: 0 !important;
+  max-width: none !important;
+  height: 100vh !important;
+}
+
+body.focus-mode-active .focus-timer-card {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 9999 !important;
+  margin: 0 !important;
+  border-radius: 0 !important;
+  border: none !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+body.focus-mode-active .focus-visual-layer {
+  position: fixed !important;
+  inset: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  z-index: 0 !important;
+  border-radius: 0 !important;
+}
+
+body.focus-mode-active .focus-timer-card > :not(.focus-visual-layer) {
+  position: relative;
+  z-index: 2;
+}
+
+body.focus-mode-active .focus-timer-display {
+  transform: scale(1.5);
+  margin-bottom: 3rem;
+}
+
+body.focus-mode-active .focus-controls {
+  transform: scale(1.2);
+}
+
+body.focus-mode-active .focus-header-actions {
+  position: fixed !important;
+  top: 20px !important;
+  right: 20px !important;
+  z-index: 10000 !important;
+}
+
 body.focus-mode-active .focus-btn[onclick="toggleFocusMode()"] {
   background: linear-gradient(135deg, #ef4444, #dc2626) !important;
 }
@@ -669,7 +740,7 @@ body.focus-mode-active .focus-btn[onclick="toggleFocusMode()"] i::before {
   display: none;
   position: fixed;
   inset: 0;
-  z-index: 10000;
+  z-index: 1000000;
   background: rgba(0,0,0,0.5);
   backdrop-filter: blur(4px);
   align-items: center;
@@ -822,3 +893,73 @@ body.theme-dark .focus-exit-modal-content {
 }
 body.theme-dark .focus-exit-modal-content p { color: #9ca3af; }
 
+
+
+
+.focus-progress-ring-container {
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
+}
+
+/* --- Focus Layout grid for Timer + Linking --- */
+.focus-layout-grid {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 20px;
+  margin-bottom: 20px;
+}
+
+@media (max-width: 900px) {
+  .focus-layout-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.focus-main-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.focus-side-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.focus-link-card {
+  padding: 20px;
+  background: var(--surface-1, #fff);
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+}
+
+.focus-link-card h3 {
+  margin-top: 0;
+  margin-bottom: 15px;
+  font-size: 1.1rem;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.focus-link-card select {
+  width: 100%;
+  padding: 10px;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+  margin-bottom: 15px;
+  font-family: inherit;
+  background: var(--surface-2, #f9fafb);
+}
+
+body.theme-dark .focus-link-card {
+  background: #1e1e2e;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+}
+body.theme-dark .focus-link-card select {
+  background: #2a2a3c;
+  border-color: #3f3f5a;
+  color: #fff;
+}

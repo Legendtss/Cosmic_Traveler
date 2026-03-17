@@ -24,17 +24,26 @@ class FocusRepository:
 
     @staticmethod
     def get_all(user_id, date_filter=None):
-        """Get all focus sessions, optionally filtered by date."""
+        """Get all focus sessions, optionally filtered by date. Includes linked task/project info."""
         db = get_db()
+        query = """
+            SELECT f.*, 
+                   t.title as task_title, 
+                   p.name as project_name
+            FROM focus_sessions f
+            LEFT JOIN tasks t ON f.task_id = t.id
+            LEFT JOIN projects p ON f.project_id = p.id
+            WHERE f.user_id = ?
+        """
+        params = [user_id]
+        
         if date_filter:
-            return db.execute(
-                "SELECT * FROM focus_sessions WHERE user_id = ? AND date = ? ORDER BY id DESC",
-                (user_id, date_filter),
-            ).fetchall()
-        return db.execute(
-            "SELECT * FROM focus_sessions WHERE user_id = ? ORDER BY id DESC",
-            (user_id,),
-        ).fetchall()
+            query += " AND f.date = ?"
+            params.append(date_filter)
+            
+        query += " ORDER BY f.id DESC"
+        
+        return db.execute(query, params).fetchall()
 
     @staticmethod
     def get_by_id(session_id, user_id):
@@ -47,15 +56,15 @@ class FocusRepository:
 
     @staticmethod
     def create(user_id, *, mode="pomodoro", duration_planned=0, duration_actual=0,
-               completed=False, label="", date=None, started_at=None, ended_at=None):
+               completed=False, label="", date=None, started_at=None, ended_at=None, task_id=None, project_id=None):
         """Create a focus session."""
         db = get_db()
         now = now_iso()
         cursor = db.execute(
             """
             INSERT INTO focus_sessions
-            (user_id, mode, duration_planned, duration_actual, completed, label, date, started_at, ended_at, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            (user_id, mode, duration_planned, duration_actual, completed, label, date, started_at, ended_at, task_id, project_id, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 user_id,
@@ -67,6 +76,8 @@ class FocusRepository:
                 date or today_str(),
                 started_at or now,
                 ended_at if completed else None,
+                task_id if task_id else None,
+                project_id if project_id else None,
                 now,
                 now,
             ),

@@ -90,12 +90,22 @@ def create_goal():
         return jsonify({'error': 'Missing required fields'}), 400
     
     try:
+        # Validate and convert target_progress safely
+        target_progress = data.get('target_progress')
+        if target_progress is None or target_progress == '':
+            target_progress = 100.0
+        else:
+            try:
+                target_progress = float(target_progress)
+            except (ValueError, TypeError):
+                target_progress = 100.0
+
         goal_id = GoalsRepository.create_goal(
             user_id=user_id,
             title=data['title'],
             description=data.get('description', ''),
             category=data['category'],
-            target_progress=float(data.get('target_progress', 100)),
+            target_progress=target_progress,
             time_limit=data.get('time_limit'),
             card_image_url=data.get('card_image_url'),
             ai_prompt=data.get('ai_prompt')

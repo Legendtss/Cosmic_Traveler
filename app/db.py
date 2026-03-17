@@ -52,7 +52,7 @@ class PostgreSQLConnectionWrapper:
     _SERIAL_TABLES = frozenset({
         'users', 'projects', 'tasks', 'project_subtasks', 'workouts',
         'nutrition_entries', 'stats_snapshots', 'user_progress',
-        'focus_sessions', 'notes',
+        'focus_sessions', 'notes', 'goals'
     })
 
     def __init__(self, psycopg2_conn, *, release_callback=None):
@@ -644,6 +644,13 @@ def ensure_focus_sessions_columns(conn):
             conn.execute(
                 "UPDATE focus_sessions SET updated_at = created_at WHERE updated_at IS NULL OR updated_at = ''"
             )
+            
+        if "task_id" not in names:
+            conn.execute("ALTER TABLE focus_sessions ADD COLUMN task_id INTEGER REFERENCES tasks(id) ON DELETE SET NULL")
+            
+        if "project_id" not in names:
+            conn.execute("ALTER TABLE focus_sessions ADD COLUMN project_id INTEGER REFERENCES projects(id) ON DELETE SET NULL")
+
     else:
         cols = conn.execute("PRAGMA table_info(focus_sessions)").fetchall()
         names = {row["name"] for row in cols}
@@ -655,6 +662,12 @@ def ensure_focus_sessions_columns(conn):
             conn.execute(
                 "UPDATE focus_sessions SET updated_at = created_at WHERE updated_at IS NULL OR updated_at = ''"
             )
+            
+        if "task_id" not in names:
+            conn.execute("ALTER TABLE focus_sessions ADD COLUMN task_id INTEGER REFERENCES tasks(id) ON DELETE SET NULL")
+            
+        if "project_id" not in names:
+            conn.execute("ALTER TABLE focus_sessions ADD COLUMN project_id INTEGER REFERENCES projects(id) ON DELETE SET NULL")
 
 
 def ensure_notes_task_link_triggers(conn):

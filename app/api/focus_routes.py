@@ -43,6 +43,10 @@ def get_focus_sessions():
             "date": r["date"],
             "startedAt": r["started_at"],
             "endedAt": r["ended_at"],
+            "taskId": dict(r).get("task_id"),
+            "projectId": dict(r).get("project_id"),
+            "taskTitle": dict(r).get("task_title"),
+            "projectName": dict(r).get("project_name"),
         })
     return jsonify(sessions)
 
@@ -65,6 +69,8 @@ def create_focus_session():
         date=data.get("date"),
         started_at=data.get("startedAt"),
         ended_at=data.get("endedAt") if data.get("completed") else None,
+        task_id=data.get("taskId"),
+        project_id=data.get("projectId"),
     )
     return jsonify({"id": row["id"], "status": "created"}), 201
 

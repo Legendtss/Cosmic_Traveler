@@ -1062,3 +1062,6 @@ body.task-edit-modal-open .dash-floating-timer {
 }
 
 
+
+.task-focus-time { color: var(--accent-primary, #6366f1); font-weight: 500; font-size: 0.85rem; display: inline-flex; align-items: center; gap: 4px; }
+
