@@ -2283,18 +2283,20 @@ function setupCalendarWeekDnD() {
     scrollSensitivity: 80,
     scrollSpeed: 12,
     bubbleScroll: true,
-    onStart: (evt) => {
-      document.body.style.cursor = 'grabbing';
-      if (evt.from) evt.from.classList.add('sortable-drag-over');
-    },
+      onStart: (evt) => {
+        document.body.style.cursor = 'grabbing';
+        document.body.classList.add('is-calendar-dragging');
+        if (evt.from) evt.from.classList.add('sortable-drag-over');
+      },
     onMove: (evt) => {
       const lists = document.querySelectorAll('.calendar-week-task-list');
       lists.forEach(l => l.classList.remove('sortable-drag-over'));
       if (evt.to) evt.to.classList.add('sortable-drag-over');
     },
-    onEnd: async (evt) => {
-      document.body.style.cursor = '';
-      const allLists = document.querySelectorAll('.calendar-week-task-list');
+      onEnd: async (evt) => {
+        document.body.style.cursor = '';
+        document.body.classList.remove('is-calendar-dragging');
+        const allLists = document.querySelectorAll('.calendar-week-task-list');
       allLists.forEach(l => l.classList.remove('sortable-drag-over'));
       const item = evt.item;
       if (!item) return;
