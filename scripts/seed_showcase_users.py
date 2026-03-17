@@ -267,6 +267,7 @@ def _ensure_user(db, user_profile):
 
 
 def _clear_user_data(db, user_id, email):
+    db.execute("DELETE FROM goals WHERE user_id = ?", (user_id,))
     db.execute("DELETE FROM notes WHERE user_id = ?", (user_id,))
     db.execute("DELETE FROM tasks WHERE user_id = ?", (user_id,))
     db.execute("DELETE FROM projects WHERE user_id = ?", (user_id,))
@@ -470,6 +471,80 @@ def _seed_projects(db, user_id, user_profile):
         ],
     )
     return projects
+
+
+def _seed_goals(db, user_id, user_profile):
+    now = now_iso()
+    goal = user_profile["goal"]
+    display_name = user_profile["display_name"]
+    variants = [
+        {
+            "title": f"{display_name}: 30-day consistency streak",
+            "description": "Lock in daily habits with a clean 30-day streak.",
+            "category": "Habits",
+            "target_progress": 100,
+            "current_progress": 68,
+            "time_limit": _day_str(-24),
+            "status": "active",
+            "completed_at": None,
+        },
+        {
+            "title": f"{goal} milestone",
+            "description": "Reach the next measurable milestone for the active goal.",
+            "category": "Fitness",
+            "target_progress": 100,
+            "current_progress": 100,
+            "time_limit": _day_str(-45),
+            "status": "completed",
+            "completed_at": _dt_for(_day_str(6), "18:30"),
+        },
+        {
+            "title": "Nutrition precision week",
+            "description": "Hit protein and calorie targets 6 of 7 days.",
+            "category": "Nutrition",
+            "target_progress": 100,
+            "current_progress": 42,
+            "time_limit": _day_str(-10),
+            "status": "active",
+            "completed_at": None,
+        },
+        {
+            "title": "Mobility maintenance",
+            "description": "10-minute mobility routine after workouts for two weeks.",
+            "category": "Recovery",
+            "target_progress": 100,
+            "current_progress": 100,
+            "time_limit": _day_str(-70),
+            "status": "completed",
+            "completed_at": _dt_for(_day_str(12), "07:10"),
+        },
+    ]
+
+    for item in variants:
+        db.execute(
+            """
+            INSERT INTO goals (
+                user_id, title, description, category,
+                target_progress, current_progress, time_limit, notes,
+                status, is_shared, created_at, updated_at, completed_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?)
+            """,
+            (
+                user_id,
+                item["title"],
+                item["description"],
+                item["category"],
+                item["target_progress"],
+                item["current_progress"],
+                item["time_limit"],
+                "",
+                item["status"],
+                now,
+                now,
+                item["completed_at"],
+            ),
+        )
 
 
 def _seed_tasks_and_notes(db, user_id, project_ids, user_profile):
@@ -1020,6 +1095,7 @@ def seed_single_user(db, user_profile, *, force_reset=False):
     _clear_user_data(db, user_id, email)
 
     projects = _seed_projects(db, user_id, user_profile)
+    _seed_goals(db, user_id, user_profile)
     task_note_counts = _seed_tasks_and_notes(db, user_id, projects, user_profile)
     meals_count = _seed_nutrition(db, user_id, user_profile)
     workout_counts = _seed_workouts(db, user_id, user_profile)
