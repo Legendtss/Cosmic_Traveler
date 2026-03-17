@@ -65,9 +65,9 @@ const goalsHandler = {
     document.getElementById('goals-container').style.display = 'none';
     container.style.display = 'block';
 
-    // Build blur segments HTML
+    // Build blur segments HTML - 4 milestones: 25%, 50%, 75%, 100%
     let segmentsHTML = '';
-    for (let i = 0; i < 10; i++) {
+    for (let i = 0; i < 4; i++) {
       const isUnlocked = unlockedSegments.includes(i);
       segmentsHTML += `<div class="blur-segment ${isUnlocked ? 'unlocked' : ''}" data-segment="${i}"></div>`;
     }
@@ -316,23 +316,30 @@ const goalsHandler = {
     const overlay = cardElement.querySelector('.card-blur-overlay');
     const segmentsContainer = cardElement.querySelector('.blur-segments');
 
-    // Calculate how many segments should be unlocked (10 total segments)
-    const unlockedCount = Math.ceil((goal.current_progress / 100) * 10);
+    // Milestone thresholds: 25%, 50%, 75%, 100%
+    const milestoneThresholds = [25, 50, 75, 100];
+    const currentProgress = goal.current_progress;
 
-    // Update segments
+    // Update segments - Reveal milestone based on progress
     segments.forEach((segment, index) => {
-      if (index < unlockedCount) {
+      const threshold = milestoneThresholds[index];
+      
+      if (currentProgress >= threshold) {
         segment.classList.add('unlocked');
         segment.classList.add('unlocking'); // Trigger animation
       } else {
         segment.classList.remove('unlocked');
+        segment.classList.remove('unlocking');
       }
     });
 
     // If fully completed (100%), add special gold effect
-    if (goal.current_progress >= 100) {
+    if (currentProgress >= 100) {
       overlay.classList.add('completed');
       segmentsContainer.classList.add('fully-unlocked');
+    } else {
+      overlay.classList.remove('completed');
+      segmentsContainer.classList.remove('fully-unlocked');
     }
   },
 
@@ -437,16 +444,20 @@ const goalsHandler = {
         body: JSON.stringify(formData)
       });
 
+      const data = await response.json();
+
       if (response.ok) {
         this.closeModal('goal-modal');
         this.loadGoals();
         this.showNotification('Goal ' + (this.goalsState.editingGoalId ? 'updated' : 'created') + ' successfully!', 'success');
       } else {
-        this.showNotification('Failed to save goal', 'error');
+        const errorMsg = data.error || data.message || 'Failed to save goal';
+        console.error('API Error:', { status: response.status, data: data });
+        this.showNotification(errorMsg, 'error');
       }
     } catch (error) {
       console.error('Error submitting goal:', error);
-      this.showNotification('Error saving goal', 'error');
+      this.showNotification(error.message || 'Error saving goal', 'error');
     }
   },
 

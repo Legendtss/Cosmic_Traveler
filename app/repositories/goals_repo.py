@@ -222,11 +222,13 @@ class GoalsRepository:
         return GoalsRepository.update_goal(goal_id, user_id, status='archived')
     
     @staticmethod
-    def get_unlock_segments(current_progress: float, num_segments: int = 10) -> List[int]:
+    def get_unlock_segments(current_progress: float, num_segments: int = 4) -> List[int]:
         """Calculate which segments should be unlocked based on progress
         Returns list of segment indices that are unlocked (0-indexed)
         
-        Example: 25% progress with 10 segments = [0, 1, 2] (first 3 unlocked)
+        Milestone-based: 4 segments at 25%, 50%, 75%, 100%
+        Example: 50% progress with 4 segments = [0, 1] (first 2 unlocked)
+        Example: 75% progress with 4 segments = [0, 1, 2] (first 3 unlocked)
         """
         unlocked_count = int((current_progress / 100) * num_segments)
         return list(range(unlocked_count))

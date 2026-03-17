@@ -233,14 +233,14 @@ def get_shared_goal(share_token):
     if not goal:
         return jsonify({'error': 'Goal not found or not shared'}), 404
     
-    # Calculate unlock segments
-    unlocked = GoalsRepository.get_unlock_segments(goal['current_progress'])
+    # Calculate unlock segments (4 milestones: 25%, 50%, 75%, 100%)
+    unlocked = GoalsRepository.get_unlock_segments(goal['current_progress'], num_segments=4)
     
     return jsonify({
         'success': True,
         'goal': goal,
         'unlocked_segments': unlocked,
-        'total_segments': 10
+        'total_segments': 4
     }), 200
 
 
