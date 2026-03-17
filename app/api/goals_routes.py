@@ -2,8 +2,9 @@
 Goals API Routes
 Handles all goal-related endpoints
 """
-from flask import Blueprint, request, jsonify, session, send_file
+from flask import Blueprint, request, jsonify, send_file
 from app.repositories.goals_repo import GoalsRepository
+from app.auth import get_current_user_id
 from app.db import get_db
 import os
 import io
@@ -37,10 +38,8 @@ if GEMINI_API_KEY and HAS_GENAI:
 
 
 def get_user_id():
-    """Get user ID from session"""
-    if 'user_id' not in session:
-        return None
-    return session['user_id']
+    """Get user ID from session cookie - will abort with 401 if not authenticated"""
+    return get_current_user_id()
 
 
 @goals_bp.route('', methods=['GET'])
