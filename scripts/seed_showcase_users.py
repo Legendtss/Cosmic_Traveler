@@ -1,10 +1,11 @@
 """
 Seed showcase users with rich, linked demo data.
 
-Creates or updates the following accounts with password demo1demo:
-- d@gmail.com
-- d1@gmail.com
-- demo@gmail.com
+Creates or updates the following accounts:
+- d@gmail.com (password: demo1demo)
+- d1@gmail.com (password: demo1demo)
+- demo@gmail.com (password: demo1demo)
+- testgoals@test.com (password: password123)
 
 For each account, this script replaces only that user's data with a
 comprehensive dataset spanning projects/subtasks, tasks, notes, nutrition,
@@ -64,6 +65,19 @@ SHOWCASE_VARIANTS = {
         "snapshot_tasks_base": 6,
         "snapshot_minutes_base": 48,
     },
+    "testgoals@test.com": {
+        "project_prefix": "Goals Push",
+        "task_track": "Goal Sprint",
+        "deep_work_label": "Goals Deep Work",
+        "meal_style": "Balanced Fuel",
+        "workout_style": "Hybrid",
+        "focus_line": "consistent goal execution",
+        "note_tail": "Keep milestones visible and review weekly.",
+        "nutrition_calorie_shift": 80,
+        "workout_calorie_shift": 15,
+        "snapshot_tasks_base": 4,
+        "snapshot_minutes_base": 36,
+    },
 }
 
 SHOWCASE_USERS = [
@@ -115,6 +129,23 @@ SHOWCASE_USERS = [
         "activity_level": "very_active",
         "progress": {"total_points": 1985, "current_streak": 13, "longest_streak": 24, "level": 7},
     },
+    {
+        "email": "testgoals@test.com",
+        "password": "password123",
+        "display_name": "Goals Test",
+        "level": "Intermediate",
+        "goal": "Maintain Fitness",
+        "weekly_workout_target": 4,
+        "calorie_goal": 2300,
+        "age": 28,
+        "height": 175,
+        "current_weight": 72.5,
+        "target_weight": 72.0,
+        "weight_goal_duration_weeks": 12,
+        "daily_calorie_delta": -45.0,
+        "activity_level": "moderate",
+        "progress": {"total_points": 910, "current_streak": 7, "longest_streak": 12, "level": 4},
+    },
 ]
 
 
@@ -136,6 +167,9 @@ def _variant_for(user_profile):
     email = user_profile["email"].strip().lower()
     return SHOWCASE_VARIANTS.get(email, SHOWCASE_VARIANTS["d1@gmail.com"])
 
+def _password_for(user_profile):
+    return user_profile.get("password") or SHOWCASE_PASSWORD
+
 
 def _seed_marker_title(email):
     norm = email.strip().lower()
@@ -145,7 +179,7 @@ def _seed_marker_title(email):
 def _ensure_user(db, user_profile):
     now = now_iso()
     email = user_profile["email"].strip().lower()
-    password_hash = hash_password(SHOWCASE_PASSWORD)
+    password_hash = hash_password(_password_for(user_profile))
 
     existing = db.execute("SELECT id FROM users WHERE email = ?", (email,)).fetchone()
     if existing:
@@ -1029,14 +1063,17 @@ def main():
         reports = seed_showcase_users_in_context(force_reset=True)
 
     print("SHOWCASE_SEED_COMPLETE")
-    print(f"password={SHOWCASE_PASSWORD}")
     for email, report in reports:
+        password = next(
+            (u.get("password") for u in SHOWCASE_USERS if u["email"].strip().lower() == email.strip().lower()),
+            SHOWCASE_PASSWORD,
+        )
         print(
             f"{email} -> user_id={report['user_id']} "
             f"projects={report['projects']} tasks={report['tasks']} notes={report['notes']} "
             f"meals={report['meals']} workouts={report['workouts']} "
             f"templates={report['workout_templates']} focus={report['focus_sessions']} "
-            f"snapshots={report['stats_snapshots']}"
+            f"snapshots={report['stats_snapshots']} password={password}"
         )
 
 
