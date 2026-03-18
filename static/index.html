@@ -1847,6 +1847,26 @@
               </button>
             </div>
 
+            <!-- Task/Project Linking (Optional) -->
+            <div class="focus-linking-section">
+              <h4><i class="fas fa-link"></i> Link to Task/Project (Optional)</h4>
+              <p class="focus-linking-desc">Link this session to a task or project to track time spent</p>
+              <div class="focus-linking-row">
+                <div class="focus-linking-col">
+                  <label for="focus-link-project">Project</label>
+                  <select id="focus-link-project" class="focus-input" onchange="focusLoadTaskOptions()">
+                    <option value="">-- Select Project (optional) --</option>
+                  </select>
+                </div>
+                <div class="focus-linking-col">
+                  <label for="focus-link-task">Task</label>
+                  <select id="focus-link-task" class="focus-input">
+                    <option value="">-- Select Task (optional) --</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
             <!-- Pomodoro Cycle Indicator -->
             <div class="focus-cycle-indicator" id="focus-cycle-indicator">
               <span class="focus-cycle-label">Session <span id="focus-current-session">1</span> of <span id="focus-total-sessions">4</span></span>
@@ -2052,8 +2072,11 @@
           <!-- Header -->
           <div class="goals-header">
             <div class="goals-title-section">
-              <h1>Personal Goals</h1>
-              <p class="subtitle">Track your personal improvement journey</p>
+              <div class="goals-header-icon"><i class="fas fa-flag-checkered"></i></div>
+              <div>
+                <h1>Personal Goals</h1>
+                <p class="subtitle">Track your personal improvement journey</p>
+              </div>
             </div>
             <button id="goals-add-btn" class="btn btn-primary">+ Add Goal</button>
           </div>

@@ -347,6 +347,61 @@
   flex-wrap: wrap;
 }
 
+/* Task/Project Linking Section */
+.focus-linking-section {
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 20px;
+}
+.focus-linking-section h4 {
+  margin: 0 0 8px 0;
+  font-size: 0.95rem;
+  color: #1f2937;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.focus-linking-desc {
+  margin: 0 0 14px 0;
+  font-size: 0.8rem;
+  color: #6b7280;
+}
+.focus-linking-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.focus-linking-col {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.focus-linking-col label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #374151;
+}
+.focus-linking-col select {
+  padding: 10px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  background: white;
+  font-size: 0.85rem;
+  color: #1f2937;
+  cursor: pointer;
+}
+.focus-linking-col select:focus {
+  outline: none;
+  border-color: #6366f1;
+  box-shadow: 0 0 0 3px rgba(99,102,241,0.1);
+}
+.focus-linking-col select:disabled {
+  background: #f3f4f6;
+  color: #9ca3af;
+}
+
 /* Cycle Indicator */
 .focus-cycle-indicator {
   text-align: center;
@@ -878,6 +933,26 @@ body.theme-dark .focus-audio-volume { color: #6b7280; }
 body.theme-dark .focus-audio-volume input[type="range"] { background: #2e2e40; }
 body.theme-dark .focus-whitelist-item { color: #d1d5db; }
 body.theme-dark .focus-whitelist-desc { color: #9ca3af; }
+body.theme-dark .focus-linking-section {
+  background: #1a1a2e;
+  border-color: #2e2e40;
+}
+body.theme-dark .focus-linking-section h4 { color: #e5e7eb; }
+body.theme-dark .focus-linking-desc { color: #9ca3af; }
+body.theme-dark .focus-linking-col label { color: #cbd5e1; }
+body.theme-dark .focus-linking-col select {
+  background: #2e2e40;
+  border-color: #3b3b52;
+  color: #e5e7eb;
+}
+body.theme-dark .focus-linking-col select:focus {
+  border-color: #6366f1;
+  box-shadow: 0 0 0 3px rgba(99,102,241,0.2);
+}
+body.theme-dark .focus-linking-col select:disabled {
+  background: #1e1e2e;
+  color: #6b7280;
+}
 body.theme-dark .focus-session-item {
   background: #1a1a2e;
   border-color: #2e2e40;

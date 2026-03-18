@@ -34,43 +34,48 @@
   <div class="goal-card" data-goal-id="">
     <!-- Card with blur overlay -->
     <div class="card-container">
-      <div class="card-blur-wrapper">
-        <!-- Background image or AI generated image -->
-        <div class="card-background">
-          <img src="" alt="goal card" class="card-image" />
-        </div>
-
-        <!-- Blur overlay with segments -->
-        <div class="card-blur-overlay">
-          <div class="blur-segments">
-            <!-- Milestone segments: 25%, 50%, 75%, 100% -->
-            <div class="blur-segment" data-segment="0"></div>
-            <div class="blur-segment" data-segment="1"></div>
-            <div class="blur-segment" data-segment="2"></div>
-            <div class="blur-segment" data-segment="3"></div>
-          </div>
-        </div>
-
-        <!-- Content overlay -->
-        <div class="card-content">
-          <h3 class="goal-title"></h3>
-          <p class="goal-category"></p>
-          
-          <!-- Progress on card -->
-          <div class="card-progress">
-            <div class="progress-bar">
-              <div class="progress-fill"></div>
+      <div class="cr-scene" id="scene-{{goalId}}">
+        <div class="cr-card-3d" id="card3d-{{goalId}}">
+          <div class="cr-card-face">
+            <!-- Main canvas for goal image -->
+            <canvas id="mainCanvas-{{goalId}}" class="cr-main-canvas" width="280" height="360"></canvas>
+            
+            <!-- Holographic shimmer effect -->
+            <div class="cr-holo" id="holo-{{goalId}}"></div>
+            
+            <!-- White shine sweep -->
+            <div class="cr-shine" id="shine-{{goalId}}"></div>
+            
+            <!-- Gold border pulse -->
+            <div class="cr-gold-border" id="gold-border-{{goalId}}"></div>
+            
+            <!-- 3-Star badge -->
+            <div class="star-badge" id="stars-{{goalId}}">
+              <span>⭐</span>
+              <span>⭐</span>
+              <span>⭐</span>
             </div>
-            <span class="progress-text">0%</span>
-          </div>
-
-          <!-- Time limit if exists -->
-          <div class="goal-deadline">
-            <span class="deadline-label">Due:</span>
-            <span class="deadline-date"></span>
+            
+            <!-- Card info overlay -->
+            <div class="cr-card-info">
+              <h3 class="goal-title"></h3>
+              <p class="goal-category"></p>
+              <div class="card-progress">
+                <div class="progress-bar">
+                  <div class="progress-fill"></div>
+                </div>
+                <span class="progress-text">0%</span>
+              </div>
+            </div>
           </div>
         </div>
       </div>
+      
+      <!-- Particle canvas (overlay) -->
+      <canvas id="pCanvas-{{goalId}}" class="cr-particles" width="280" height="360"></canvas>
+      
+      <!-- Snippet collection row -->
+      <div class="cr-snippet-row" id="snippetRow-{{goalId}}"></div>
 
       <!-- Card Actions -->
       <div class="card-actions">

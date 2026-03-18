@@ -3,6 +3,490 @@
  * Manages goal creation, updating, sharing, and progressive blur reveal system
  */
 
+// ==================== CLASH ROYALE 3D CARD SYSTEM ====================
+// State tracking for all goal cards (independent per card instance)
+const goalCardStates = new Map();
+
+const crCardSystem = {
+  // Constants
+  COLS: 2,
+  ROWS: 2,
+  TOTAL: 4,
+  CARD_W: 280,
+  CARD_H: 360,
+  SNIPPET_W: 54,
+  SNIPPET_H: 64,
+  
+  // Initialize canvas and game state for a goal
+  initGoalCanvas: function(goalId, imageUrl, currentProgress) {
+    if (goalCardStates.has(goalId)) {
+      return; // Already initialized
+    }
+
+    // Create state container
+    const state = {
+      goalId,
+      sourceImg: null,
+      revealed: false,
+      collected: 0,
+      snippetOrder: [],
+      isAnimating: false,
+      isUnlocked: currentProgress >= 100,
+      autoRotate: { x: 0, y: 0, vx: 0, vy: 0 },
+      targetRotate: { x: 0, y: 0 },
+      dragActive: false,
+      lastMouseX: 0,
+      lastMouseY: 0,
+      tiltT: 0,
+      raqId: null,
+      snippetCanvases: new Map(),
+    };
+
+    goalCardStates.set(goalId, state);
+
+    // Load image
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      state.sourceImg = img;
+      this.drawFoggyCard(goalId);
+      
+      // Initialize snippets for current progress
+      const totalQuads = 4;
+      for (let i = 0; i < totalQuads; i++) {
+        if (currentProgress >= ((i + 1) * 25)) {
+          state.collected++;
+        }
+      }
+      
+      // Start auto-tilt loop
+      this.startAutoTilt(goalId);
+    };
+    img.onerror = () => {
+      console.error('Failed to load goal image:', imageUrl);
+      state.sourceImg = null;
+    };
+    img.src = imageUrl;
+  },
+
+  /**
+   * Draw the current card state with quads
+   */
+  drawFoggyCard: function(goalId) {
+    const state = goalCardStates.get(goalId);
+    if (!state || !state.sourceImg) return;
+
+    const canvas = document.getElementById(`mainCanvas-${goalId}`);
+    if (!canvas) return;
+
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, this.CARD_W, this.CARD_H);
+
+    const quadW = this.CARD_W / this.COLS;
+    const quadH = this.CARD_H / this.ROWS;
+
+    // Draw all quads
+    for (let i = 0; i < this.TOTAL; i++) {
+      const row = Math.floor(i / this.COLS);
+      const col = i % this.COLS;
+      const sx = col * quadW;
+      const sy = row * quadH;
+      const dx = sx;
+      const dy = sy;
+
+      // Draw quad from source image
+      ctx.drawImage(
+        state.sourceImg,
+        sx, sy, quadW, quadH, // Source
+        dx, dy, quadW, quadH  // Destination
+      );
+
+      // Apply reveal effect if collected
+      if (state.collected > i) {
+        // Fully revealed - bright
+        ctx.globalAlpha = 1;
+      } else {
+        // Unrevealed - foggy/dimmed
+        ctx.globalAlpha = 0.4;
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+        ctx.fillRect(dx, dy, quadW, quadH);
+      }
+    }
+    ctx.globalAlpha = 1;
+  },
+
+  /**
+   * Collect a snippet (quad) - called from progress update
+   */
+  collectSnippet: function(goalId) {
+    const state = goalCardStates.get(goalId);
+    if (!state || state.collected >= this.TOTAL) return;
+
+    state.collected++;
+    state.isAnimating = true;
+
+    // Animate reveal
+    const targetIdx = state.collected - 1;
+    this.revealQuadAnimated(goalId, targetIdx);
+
+    // Check for full unlock
+    if (state.collected >= this.TOTAL) {
+      setTimeout(() => {
+        this.triggerGoldUnlock(goalId);
+      }, 700);
+    }
+  },
+
+  /**
+   * Reveal a quad with animation
+   */
+  revealQuadAnimated: function(goalId, quadIdx) {
+    const state = goalCardStates.get(goalId);
+    if (!state) return;
+
+    const canvas = document.getElementById(`mainCanvas-${goalId}`);
+    if (!canvas) return;
+
+    const ctx = canvas.getContext('2d');
+    const quadW = this.CARD_W / this.COLS;
+    const quadH = this.CARD_H / this.ROWS;
+    const row = Math.floor(quadIdx / this.COLS);
+    const col = quadIdx % this.COLS;
+    const sx = col * quadW;
+    const sy = row * quadH;
+    const dx = sx;
+    const dy = sy;
+
+    // Animate fade-in for this quad over 16 frames
+    let frame = 0;
+    const totalFrames = 16;
+    const animationFrame = () => {
+      frame++;
+      const progress = frame / totalFrames;
+
+      // Redraw entire card
+      ctx.clearRect(0, 0, this.CARD_W, this.CARD_H);
+
+      // Draw all quads
+      for (let i = 0; i < this.TOTAL; i++) {
+        const r = Math.floor(i / this.COLS);
+        const c = i % this.COLS;
+        const ssx = c * quadW;
+        const ssy = r * quadH;
+        const ddx = ssx;
+        const ddy = ssy;
+
+        if (i < quadIdx) {
+          // Already revealed - draw normally
+          ctx.globalAlpha = 1;
+          ctx.drawImage(state.sourceImg, ssx, ssy, quadW, quadH, ddx, ddy, quadW, quadH);
+        } else if (i === quadIdx) {
+          // Currently revealing - animated
+          ctx.globalAlpha = progress;
+          ctx.drawImage(state.sourceImg, ssx, ssy, quadW, quadH, ddx, ddy, quadW, quadH);
+          ctx.globalAlpha = 1;
+        } else {
+          // Not yet revealed - dimmed
+          ctx.globalAlpha = 1;
+          ctx.drawImage(state.sourceImg, ssx, ssy, quadW, quadH, ddx, ddy, quadW, quadH);
+          ctx.globalAlpha = 0.4;
+          ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+          ctx.fillRect(ddx, ddy, quadW, quadH);
+          ctx.globalAlpha = 1;
+        }
+      }
+
+      if (frame < totalFrames) {
+        requestAnimationFrame(animationFrame);
+      }
+    };
+
+    animationFrame();
+  },
+
+  /**
+   * Trigger the full gold unlock sequence
+   */
+  triggerGoldUnlock: function(goalId) {
+    const state = goalCardStates.get(goalId);
+    if (!state) return;
+
+    state.isUnlocked = true;
+
+    const holo = document.getElementById(`holo-${goalId}`);
+    const shine = document.getElementById(`shine-${goalId}`);
+    const goldBorder = document.getElementById(`gold-border-${goalId}`);
+    const stars = document.getElementById(`stars-${goalId}`);
+    const card3d = document.getElementById(`card3d-${goalId}`);
+
+    if (!card3d) return;
+
+    // Phase 1: 3D Flip (150ms delay, 400ms duration)
+    setTimeout(() => {
+      card3d.style.transform = 'rotateY(360deg)';
+      card3d.style.transition = 'transform 0.4s ease-out';
+    }, 150);
+
+    // Phase 2: Holographic effect (550ms - starts at 150+400)
+    setTimeout(() => {
+      if (holo) {
+        holo.classList.add('active');
+      }
+    }, 550);
+
+    // Phase 3: Shine sweep (750ms)
+    setTimeout(() => {
+      if (shine) {
+        shine.classList.add('active');
+      }
+    }, 750);
+
+    // Phase 4: Gold border pulse (950ms)
+    setTimeout(() => {
+      if (goldBorder) {
+        goldBorder.classList.add('active');
+      }
+    }, 950);
+
+    // Phase 5: Star burst (1250ms)
+    setTimeout(() => {
+      if (stars) {
+        stars.classList.add('active');
+      }
+      this.fireParticles(goalId);
+    }, 1250);
+
+    // Phase 6: Flip reset + auto-tilt (1900ms)
+    setTimeout(() => {
+      card3d.style.transform = 'rotateY(0deg)';
+      card3d.style.transition = 'transform 0.3s ease-out';
+      state.isAnimating = false;
+    }, 1900);
+  },
+
+  /**
+   * Start auto-tilt animation loop
+   */
+  startAutoTilt: function(goalId) {
+    const state = goalCardStates.get(goalId);
+    if (!state) return;
+
+    state.tiltT = 0;
+    this.tiltLoop(goalId);
+  },
+
+  /**
+   * Continuous tilt animation loop
+   */
+  tiltLoop: function(goalId) {
+    const state = goalCardStates.get(goalId);
+    if (!state) return;
+
+    const card3d = document.getElementById(`card3d-${goalId}`);
+    if (!card3d) return;
+
+    state.tiltT += 0.016; // ~60fps
+
+    // If unlocked, manage target rotation
+    if (state.isUnlocked && !state.isAnimating) {
+      // If not dragging, apply auto-tilt
+      if (!state.dragActive) {
+        state.targetRotate.x = Math.sin(state.tiltT * 0.7) * 8;
+        state.targetRotate.y = Math.sin(state.tiltT) * 18;
+      }
+      // If dragging, targets are already set by mouse handler
+    }
+
+    // Lerp toward targets
+    const lerpSpeed = 0.1;
+    state.autoRotate.x += (state.targetRotate.x - state.autoRotate.x) * lerpSpeed;
+    state.autoRotate.y += (state.targetRotate.y - state.autoRotate.y) * lerpSpeed;
+
+    // Apply transforms
+    card3d.style.transform = `rotateX(${state.autoRotate.x}deg) rotateY(${state.autoRotate.y}deg)`;
+
+    // Update holo position based on tilt
+    const holo = document.getElementById(`holo-${goalId}`);
+    if (holo && state.isUnlocked) {
+      const offset = state.autoRotate.y * 0.5;
+      holo.style.backgroundPosition = `${50 + offset}% ${50}%`;
+    }
+
+    state.raqId = requestAnimationFrame(() => this.tiltLoop(goalId));
+  },
+
+  /**
+   * Fire particle burst effect
+   */
+  fireParticles: function(goalId) {
+    const pCanvas = document.getElementById(`pCanvas-${goalId}`);
+    if (!pCanvas) return;
+
+    const ctx = pCanvas.getContext('2d');
+    const particles = [];
+    const particleCount = 30;
+
+    // Create particles
+    for (let i = 0; i < particleCount; i++) {
+      particles.push({
+        x: this.CARD_W / 2,
+        y: this.CARD_H / 2,
+        vx: (Math.random() - 0.5) * 8,
+        vy: (Math.random() - 0.5) * 8 - 2,
+        life: 1,
+        decay: Math.random() * 0.05 + 0.02,
+        color: ['#FFD700', '#FFA500', '#FF69B4'][Math.floor(Math.random() * 3)],
+        size: Math.random() * 4 + 2,
+      });
+    }
+
+    const animateParticles = () => {
+      ctx.clearRect(0, 0, this.CARD_W, this.CARD_H);
+
+      let hasAlive = false;
+      particles.forEach(p => {
+        p.life -= p.decay;
+        if (p.life > 0) {
+          hasAlive = true;
+          p.x += p.vx;
+          p.y += p.vy;
+          p.vy += 0.3; // gravity
+
+          ctx.globalAlpha = p.life;
+          ctx.fillStyle = p.color;
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      });
+      ctx.globalAlpha = 1;
+
+      if (hasAlive) {
+        requestAnimationFrame(animateParticles);
+      }
+    };
+
+    animateParticles();
+  },
+
+  /**
+   * Build snippet display slots
+   */
+  buildSnippetSlots: function(goalId) {
+    const snippetRow = document.getElementById(`snippetRow-${goalId}`);
+    if (!snippetRow) return;
+
+    snippetRow.innerHTML = '';
+
+    for (let i = 0; i < this.TOTAL; i++) {
+      const slot = document.createElement('div');
+      slot.className = 'cr-snippet-slot';
+      slot.id = `snippet-${goalId}-${i}`;
+
+      const canvas = document.createElement('canvas');
+      canvas.width = this.SNIPPET_W;
+      canvas.height = this.SNIPPET_H;
+      canvas.style.width = '100%';
+      canvas.style.height = '100%';
+
+      const label = document.createElement('div');
+      label.className = 'label';
+      label.textContent = `${i + 1}/4`;
+
+      slot.appendChild(canvas);
+      slot.appendChild(label);
+
+      // Add shimmer effect
+      const shimmer = document.createElement('div');
+      shimmer.className = 'shimmer';
+      slot.appendChild(shimmer);
+
+      snippetRow.appendChild(slot);
+    }
+
+    this.preloadThumbs(goalId);
+    this.setupCardInteraction(goalId);
+  },
+
+  /**
+   * Setup mouse interaction for card tilt override
+   */
+  setupCardInteraction: function(goalId) {
+    const state = goalCardStates.get(goalId);
+    if (!state) return;
+
+    const scene = document.getElementById(`scene-${goalId}`);
+    if (!scene) return;
+
+    scene.addEventListener('mouseenter', () => {
+      state.dragActive = true;
+    });
+
+    scene.addEventListener('mouseleave', () => {
+      state.dragActive = false;
+      // Reset tilt on mouse leave
+      state.targetRotate.x = 0;
+      state.targetRotate.y = 0;
+    });
+
+    scene.addEventListener('mousemove', (e) => {
+      if (!state.dragActive) return;
+
+      const rect = scene.getBoundingClientRect();
+      const x = e.clientX - rect.left - rect.width / 2;
+      const y = e.clientY - rect.top - rect.height / 2;
+
+      // Calculate tilt based on mouse position
+      const maxTilt = 15;
+      state.targetRotate.x = (y / rect.height) * maxTilt;
+      state.targetRotate.y = -(x / rect.width) * maxTilt;
+    });
+  },
+
+  /**
+   * Pre-render snippet thumbnails
+   */
+  preloadThumbs: function(goalId) {
+    const state = goalCardStates.get(goalId);
+    if (!state || !state.sourceImg) return;
+
+    const quadW = this.CARD_W / this.COLS;
+    const quadH = this.CARD_H / this.ROWS;
+
+    for (let i = 0; i < this.TOTAL; i++) {
+      const thumbCanvas = document.createElement('canvas');
+      thumbCanvas.width = this.SNIPPET_W;
+      thumbCanvas.height = this.SNIPPET_H;
+
+      const ctx = thumbCanvas.getContext('2d');
+
+      const row = Math.floor(i / this.COLS);
+      const col = i % this.COLS;
+      const sx = col * quadW;
+      const sy = row * quadH;
+
+      // Draw quad to thumbnail
+      ctx.drawImage(
+        state.sourceImg,
+        sx, sy, quadW, quadH,
+        0, 0, this.SNIPPET_W, this.SNIPPET_H
+      );
+
+      // Render to slot canvas
+      const slotCanvas = document.querySelector(`#snippet-${goalId}-${i} canvas`);
+      if (slotCanvas) {
+        const slotCtx = slotCanvas.getContext('2d');
+        slotCtx.drawImage(thumbCanvas, 0, 0);
+      }
+
+      state.snippetCanvases.set(i, thumbCanvas);
+    }
+  },
+};
+
+// Key: When progress updates come in, call crCardSystem.collectSnippet(goalId)
+// This will automatically reveal quads and trigger unlock at 100%
+
 const goalsHandler = {
   // State
   goalsState: {
@@ -265,10 +749,25 @@ const goalsHandler = {
     card.dataset.title = goal.title;
     card.dataset.category = goal.category;
 
-    // Background image
+    // Replace template placeholders with actual goal ID
+    const goalId = goal.id;
+    const placeholdersToReplace = [
+      'scene', 'card3d', 'mainCanvas', 'pCanvas', 'holo', 'shine', 'gold-border', 'stars', 'snippetRow'
+    ];
+    
+    placeholdersToReplace.forEach(id => {
+      const elements = clone.querySelectorAll(`#${id}-{{goalId}}`);
+      elements.forEach(el => {
+        el.id = `${id}-${goalId}`;
+      });
+    });
+
+    // Background image (for shared view compatibility)
     const bgImg = clone.querySelector('.card-image');
-    bgImg.src = goal.card_image_url || 'https://via.placeholder.com/800x600/e0e7ff/6366f1?text=Goal';
-    bgImg.alt = goal.title;
+    if (bgImg) {
+      bgImg.src = goal.card_image_url || 'https://via.placeholder.com/800x600/e0e7ff/6366f1?text=Goal';
+      bgImg.alt = goal.title;
+    }
 
     // Content
     clone.querySelector('.goal-title').textContent = goal.title;
@@ -279,20 +778,29 @@ const goalsHandler = {
     progressFill.style.width = goal.current_progress + '%';
     clone.querySelector('.progress-text').textContent = Math.round(goal.current_progress) + '%';
 
-    // Deadline
-    if (goal.time_limit) {
-      const deadline = new Date(goal.time_limit);
-      clone.querySelector('.deadline-date').textContent = deadline.toLocaleDateString();
-    } else {
-      clone.querySelector('.goal-deadline').style.display = 'none';
+    // Deadline (only shown for certain views)
+    const deadlineEl = clone.querySelector('.goal-deadline');
+    if (deadlineEl) {
+      if (goal.time_limit) {
+        const deadline = new Date(goal.time_limit);
+        clone.querySelector('.deadline-date').textContent = deadline.toLocaleDateString();
+      } else {
+        deadlineEl.style.display = 'none';
+      }
     }
 
     // Status badge
     const badge = clone.querySelector('.status-badge');
-    badge.textContent = goal.status === 'completed' ? 'Completed' : goal.status === 'archived' ? 'Archived' : 'Active';
+    if (badge) {
+      badge.textContent = goal.status === 'completed' ? 'Completed' : goal.status === 'archived' ? 'Archived' : 'Active';
+    }
 
-    // Setup blur reveal system
-    this.setupBlurReveal(clone, goal);
+    // Setup CR 3D canvas reveal system
+    const imageUrl = goal.card_image_url || 'https://via.placeholder.com/800x600/e0e7ff/6366f1?text=Goal';
+    Promise.resolve().then(() => {
+      crCardSystem.initGoalCanvas(goalId, imageUrl, goal.current_progress);
+      crCardSystem.buildSnippetSlots(goalId);
+    });
 
     // Action buttons
     clone.querySelector('.edit-btn')?.addEventListener('click', () => this.openEditModal(goal.id));
@@ -311,38 +819,6 @@ const goalsHandler = {
    * BLUR REVEAL SYSTEM - Core feature (Clash Royale style)
    * Unlocks segments based on progress percentage
    */
-  setupBlurReveal: function(cardElement, goal) {
-    const segments = cardElement.querySelectorAll('.blur-segment');
-    const overlay = cardElement.querySelector('.card-blur-overlay');
-    const segmentsContainer = cardElement.querySelector('.blur-segments');
-
-    // Milestone thresholds: 25%, 50%, 75%, 100%
-    const milestoneThresholds = [25, 50, 75, 100];
-    const currentProgress = goal.current_progress;
-
-    // Update segments - Reveal milestone based on progress
-    segments.forEach((segment, index) => {
-      const threshold = milestoneThresholds[index];
-      
-      if (currentProgress >= threshold) {
-        segment.classList.add('unlocked');
-        segment.classList.add('unlocking'); // Trigger animation
-      } else {
-        segment.classList.remove('unlocked');
-        segment.classList.remove('unlocking');
-      }
-    });
-
-    // If fully completed (100%), add special gold effect
-    if (currentProgress >= 100) {
-      overlay.classList.add('completed');
-      segmentsContainer.classList.add('fully-unlocked');
-    } else {
-      overlay.classList.remove('completed');
-      segmentsContainer.classList.remove('fully-unlocked');
-    }
-  },
-
   // Modal Management
   openModal: function(modalId) {
     const modal = document.getElementById(modalId);
@@ -624,6 +1100,16 @@ const goalsHandler = {
 
       if (response.ok) {
         this.closeModal('progress-modal');
+        
+        // Trigger CR snippet reveal if progress moved to next milestone
+        const oldProgress = this.goalsState.goals.find(g => g.id === goalId)?.current_progress || 0;
+        const oldQuads = Math.floor(oldProgress / 25);
+        const newQuads = Math.floor(progress / 25);
+        
+        if (newQuads > oldQuads && newQuads <= 4) {
+          crCardSystem.collectSnippet(goalId);
+        }
+        
         this.loadGoals();
         
         if (progress >= 100) {

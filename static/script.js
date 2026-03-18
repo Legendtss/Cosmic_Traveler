@@ -179,6 +179,7 @@ function showPage(pageName) {
       _focusUpdateDisplay();
       _focusRenderSessions();
       _focusUpdateSummary();
+      focusLoadLinkOptions();
     });
   }
 
@@ -6741,6 +6742,16 @@ function statisticsSummaryCards(enabledModules) {
   );
   const avgDuration = Math.round(totalMinutes / Math.max(weeklyWorkouts, 1));
   const hours = (totalMinutes / 60).toFixed(1);
+
+  // Calculate focus time from sessions
+  const today = new Date().toISOString().slice(0, 10);
+  let todayFocusMinutes = 0;
+  if (window._focus && window._focus.sessions && Array.isArray(window._focus.sessions)) {
+    todayFocusMinutes = window._focus.sessions
+      .filter(s => s.date === today && s.completed)
+      .reduce((sum, s) => sum + (s.durationActual || 0), 0);
+  }
+
   const cards = [];
 
   if (enabledModules.workout) {
@@ -6815,6 +6826,16 @@ function statisticsSummaryCards(enabledModules) {
       noteClass: 'neutral'
     });
   }
+
+  // Always add focus time card
+  cards.push({
+    icon: 'fa-hourglass-end',
+    color: 'indigo',
+    title: 'Time Focused',
+    value: `${todayFocusMinutes} min`,
+    note: 'today\'s focus sessions',
+    noteClass: 'neutral'
+  });
 
   return cards;
 }
@@ -10204,6 +10225,50 @@ function _focusAllowSettingsChange() {
   _focusSaveState();
 }
 
+// ─── Task/Project Linking ──────────────────────────────────
+function focusLoadLinkOptions() {
+  const pSelect = document.getElementById('focus-link-project');
+  const tSelect = document.getElementById('focus-link-task');
+  
+  if (!pSelect || !tSelect) return;
+
+  // Load projects from state
+  const projects = window.appState?.projects || [];
+  pSelect.innerHTML = '<option value="">-- Select Project (optional) --</option>';
+  projects.forEach(p => {
+    const opt = document.createElement('option');
+    opt.value = p.id;
+    opt.textContent = p.name || `Project ${p.id}`;
+    pSelect.appendChild(opt);
+  });
+  
+  focusLoadTaskOptions();
+}
+
+function focusLoadTaskOptions() {
+  const pSelect = document.getElementById('focus-link-project');
+  const tSelect = document.getElementById('focus-link-task');
+  
+  if (!pSelect || !tSelect) return;
+
+  const selectedProjectId = pSelect.value ? parseInt(pSelect.value) : null;
+  const tasks = window.appState?.tasks || [];
+  
+  tSelect.innerHTML = '<option value="">-- Select Task (optional) --</option>';
+  
+  // If project selected, filter tasks by project
+  const filtered = selectedProjectId
+    ? tasks.filter(t => t.project_id === selectedProjectId && t.status !== 'completed')
+    : tasks.filter(t => t.status !== 'completed');
+  
+  filtered.forEach(t => {
+    const opt = document.createElement('option');
+    opt.value = t.id;
+    opt.textContent = t.title || `Task ${t.id}`;
+    tSelect.appendChild(opt);
+  });
+}
+
 // ─── Timer Controls ─────────────────────────────────
 function focusTimerStart() {
   if (_focus.state !== 'idle') return;
@@ -10712,9 +10777,74 @@ function toggleFocusMode() {
   }
 }
 
+// ─── Draggable Timer ────────────────────────────────
+function _initDraggableTimer() {
+  const timerDisplay = document.getElementById('focus-timer-digits');
+  if (!timerDisplay) return;
+
+  const container = timerDisplay.closest('.focus-timer-display');
+  if (!container) return;
+
+  let isDragging = false;
+  let startY = 0;
+  let startMinutes = 0;
+
+  container.addEventListener('mousedown', (e) => {
+    if (_focus.state !== 'idle') return; // Only allow dragging when idle
+    
+    isDragging = true;
+    startY = e.clientY;
+    startMinutes = _focus.mode === 'custom' ? _focus.customMinutes : (_focus.mode === 'pomodoro' ? _focus.pomodoroFocus : 0);
+    container.style.cursor = 'grabbing';
+  });
+
+  document.addEventListener('mousemove', (e) => {
+    if (!isDragging) return;
+
+    const deltaY = e.clientY - startY;
+    const minutesDelta = Math.round(deltaY / 20); // Every 20px = 1 minute
+    let newMinutes = startMinutes - minutesDelta;
+    newMinutes = Math.max(1, Math.min(480, newMinutes)); // Clamp between 1-480
+
+    if (_focus.mode === 'custom') {
+      document.getElementById('focus-custom-minutes').value = newMinutes;
+      _focus.customMinutes = newMinutes;
+      _focus.totalDurationMs = newMinutes * 60 * 1000;
+    } else if (_focus.mode === 'pomodoro') {
+      _focus.pomodoroFocus = newMinutes;
+      _focus.totalDurationMs = newMinutes * 60 * 1000;
+    }
+    
+    _focusUpdateDisplay();
+  });
+
+  document.addEventListener('mouseup', () => {
+    if (!isDragging) return;
+    isDragging = false;
+    container.style.cursor = 'grab';
+  });
+
+  container.style.cursor = 'grab';
+}
+
+function toggleFocusMode() {
+  if (_focus.focusModeActive) {
+    _focusShowExitModal();
+  } else {
+    _focusEnterFocusMode();
+  }
+}
+
 function _focusEnterFocusMode() {
   _focus.focusModeActive = true;
   document.body.classList.add('focus-mode-active');
+
+  // Request fullscreen if available
+  if (document.documentElement.requestFullscreen) {
+    document.documentElement.requestFullscreen().catch(err => {
+      console.warn('Could not enter fullscreen:', err);
+    });
+  }
 
   // Create overlay if needed
   let overlay = document.querySelector('.focus-mode-overlay');
@@ -10732,12 +10862,22 @@ function _focusEnterFocusMode() {
     focusModeBtn.classList.add('focus-btn-danger');
   }
 
-  showToast('Focus Mode ON " distractions hidden', 'info');
+  // Initialize draggable timer
+  _initDraggableTimer();
+
+  showToast('Focus Mode ON - distractions hidden', 'info');
 }
 
 function _focusExitFocusMode() {
   _focus.focusModeActive = false;
   document.body.classList.remove('focus-mode-active');
+
+  // Exit fullscreen
+  if (document.fullscreenElement) {
+    document.exitFullscreen().catch(err => {
+      console.warn('Could not exit fullscreen:', err);
+    });
+  }
 
   const overlay = document.querySelector('.focus-mode-overlay');
   if (overlay) overlay.remove();

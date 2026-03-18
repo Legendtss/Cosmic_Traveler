@@ -39,6 +39,18 @@ body.theme-dark {
   gap: 16px;
 }
 
+.goals-title-section {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.goals-header-icon {
+  font-size: 40px;
+  color: var(--goals-primary);
+  opacity: 0.9;
+}
+
 .goals-title-section h1 {
   font-size: 32px;
   font-weight: 700;
@@ -156,114 +168,275 @@ body.theme-dark {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
 }
 
-/* ===== BLUR REVEAL SYSTEM (Clash Royale Style) ===== */
+/* ===== CLASH ROYALE CARD SYSTEM (3D Canvas-based) ===== */
 
-.card-blur-wrapper {
+.cr-scene {
+  perspective: 900px;
+  position: relative;
+  width: 100%;
+  height: 360px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.cr-card-3d {
+  position: relative;
+  width: 280px;
+  height: 360px;
+  transform-style: preserve-3d;
+  transition: transform 0.08s linear;
+}
+
+.cr-card-face {
   position: relative;
   width: 100%;
   height: 100%;
+  background: #1a1a2e;
+  border-radius: 14px;
   overflow: hidden;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+  backface-visibility: hidden;
 }
 
-/* Background Image */
-.card-background {
-  position: absolute;
-  width: 100%;
-  height: 100%;
-  overflow: hidden;
-  background: linear-gradient(135deg, #e0e7ff, #f0f4ff);
-}
-
-.card-image {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-/* Blur Overlay - The Key to the Progressive Unlock */
-.card-blur-overlay {
+.cr-main-canvas {
   position: absolute;
   top: 0;
   left: 0;
   width: 100%;
   height: 100%;
-  z-index: 10;
-  background: transparent;
-  pointer-events: none;
+  display: block;
+  border-radius: 14px;
 }
 
-/* Blur Segments Grid - 10 segments for 10% each */
-.blur-segments {
-  display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  grid-template-rows: repeat(2, 1fr);
+/* Holographic Shimmer Effect */
+.cr-holo {
+  position: absolute;
+  top: 0;
+  left: 0;
   width: 100%;
   height: 100%;
-  gap: 0;
-}
-
-.blur-segment {
-  background: rgba(255, 255, 255, 0.92);
-  backdrop-filter: blur(14px);
-  border: 1px solid rgba(255, 255, 255, 0.8);
-  position: relative;
-  overflow: hidden;
-  transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
-  cursor: default;
-}
-
-.blur-segment::after {
-  content: '🔒';
-  position: absolute;
-  font-size: 12px;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  opacity: 0.35;
-}
-
-/* Unlocked Segment - Reveal the image */
-.blur-segment.unlocked {
-  background: transparent;
-  backdrop-filter: none;
-  border-color: transparent;
-  z-index: 20;
-  animation: segmentUnlock 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
-}
-
-.blur-segment.unlocked::after {
+  background: linear-gradient(
+    45deg,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.1) 25%,
+    rgba(255, 255, 255, 0) 50%,
+    rgba(255, 215, 0, 0.1) 75%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  background-size: 200% 200%;
+  mix-blend-mode: screen;
   opacity: 0;
+  pointer-events: none;
+  border-radius: 14px;
+  animation: holoShift 3s ease-in-out infinite;
 }
 
-/* Segment Animation on Unlock */
-@keyframes segmentUnlock {
+.cr-holo.active {
+  opacity: 1;
+}
+
+@keyframes holoShift {
+  0%, 100% { background-position: 0% 0%; }
+  50% { background-position: 100% 100%; }
+}
+
+/* White Shine Sweep */
+.cr-shine {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.3),
+    transparent
+  );
+  opacity: 0;
+  pointer-events: none;
+  border-radius: 14px;
+}
+
+.cr-shine.active {
+  animation: shineSweep 0.8s ease-in-out;
+}
+
+@keyframes shineSweep {
+  0% { transform: translateX(-100%); opacity: 0; }
+  50% { opacity: 1; }
+  100% { transform: translateX(100%); opacity: 0; }
+}
+
+/* Gold Border Pulse */
+.cr-gold-border {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  border-radius: 14px;
+  opacity: 0;
+  box-shadow: inset 0 0 0 2px rgba(255, 215, 0, 0);
+}
+
+.cr-gold-border.active {
+  animation: borderPulse 0.6s ease-in-out 3;
+}
+
+@keyframes borderPulse {
+  0%, 100% {
+    box-shadow: inset 0 0 0 2px rgba(255, 215, 0, 0),
+                0 0 20px rgba(255, 215, 0, 0);
+  }
+  50% {
+    box-shadow: inset 0 0 0 2px rgba(255, 215, 0, 0.8),
+                0 0 40px rgba(255, 215, 0, 0.6);
+  }
+}
+
+/* 3-Star Badge */
+.star-badge {
+  position: absolute;
+  bottom: 20px;
+  right: 20px;
+  display: flex;
+  gap: 4px;
+  opacity: 0;
+  pointer-events: none;
+  z-index: 10;
+}
+
+.star-badge span {
+  font-size: 20px;
+  animation: starPop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
+}
+
+.star-badge span:nth-child(1) { animation-delay: 0s; }
+.star-badge span:nth-child(2) { animation-delay: 0.1s; }
+.star-badge span:nth-child(3) { animation-delay: 0.2s; }
+
+.star-badge.active {
+  opacity: 1;
+}
+
+@keyframes starPop {
   0% {
-    transform: scale(0.85);
+    transform: scale(0) rotate(-45deg);
     opacity: 0;
   }
   100% {
-    transform: scale(1);
+    transform: scale(1) rotate(0deg);
     opacity: 1;
   }
 }
 
-.blur-segment.unlocking {
-  animation: segmentUnlock 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+/* Card Info */
+.cr-card-info {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 16px;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.8), transparent);
+  color: white;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
-/* Gold Shine Animation for Completed Cards */
-@keyframes goldShine {
-  0%, 100% {
+/* Snippet System */
+.cr-snippet-row {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  margin-top: 16px;
+  flex-wrap: wrap;
+}
+
+.cr-snippet-slot {
+  position: relative;
+  width: 54px;
+  height: 64px;
+  background: var(--goals-card-bg);
+  border: 2px solid var(--goals-border);
+  border-radius: 8px;
+  overflow: hidden;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.cr-snippet-slot:hover {
+  transform: scale(1.05);
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+}
+
+.cr-snippet-slot canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.cr-snippet-slot .shimmer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.4),
+    transparent
+  );
+  animation: slotShimmer 2s ease-in-out infinite;
+}
+
+@keyframes slotShimmer {
+  0%, 100% { transform: translateX(-100%); }
+  50% { transform: translateX(100%); }
+}
+
+.cr-snippet-slot .label {
+  position: absolute;
+  top: 2px;
+  right: 4px;
+  font-size: 10px;
+  background: rgba(99, 102, 241, 0.8);
+  color: white;
+  padding: 2px 4px;
+  border-radius: 3px;
+  font-weight: 600;
+}
+
+/* Particle Canvas */
+.cr-particles {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+  z-index: 20;
+}
+
+/* Animations */
+@keyframes flyUp {
+  0% {
+    transform: translateY(0) scale(1);
     opacity: 1;
   }
-  50% {
-    opacity: 0.8;
+  100% {
+    transform: translateY(-200px) scale(0.5);
+    opacity: 0;
   }
 }
 
-.card-blur-overlay.completed {
-  animation: goldShine 1.5s ease-in-out infinite;
-  background: linear-gradient(90deg, rgba(255, 215, 0, 0.3), rgba(255, 193, 7, 0.3));
+.snippet-flying {
+  animation: flyUp 0.8s ease-in-out forwards;
 }
 
 /* ===== CARD CONTENT (Text & Info) ===== */

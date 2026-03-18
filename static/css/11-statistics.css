@@ -78,6 +78,11 @@
   color: #a855f7;
 }
 
+.statistics-icon-badge.indigo {
+  background: #e0e7ff;
+  color: #6366f1;
+}
+
 .statistics-summary-title {
   color: #475569;
   font-size: 0.9rem;
