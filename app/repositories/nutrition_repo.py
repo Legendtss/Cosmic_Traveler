@@ -19,6 +19,22 @@ from ..db import get_db
 from ..utils import now_iso
 
 
+def _sanitize_float(value, default=0.0):
+    try:
+        val = float(value)
+    except (TypeError, ValueError):
+        val = float(default)
+    return max(0.0, val)
+
+
+def _sanitize_int(value, default=0):
+    try:
+        val = int(value)
+    except (TypeError, ValueError):
+        val = int(default)
+    return max(0, val)
+
+
 class NutritionRepository:
     """Data-access object for the nutrition_entries table."""
 
@@ -48,6 +64,9 @@ class NutritionRepository:
                carbs=0.0, fats=0.0, notes="", date=None, time=None):
         db = get_db()
         created_at = now_iso()
+        clean_name = (name or "").strip()
+        if not clean_name:
+            raise ValueError("Meal name is required")
         cursor = db.execute(
             """
             INSERT INTO nutrition_entries
@@ -55,8 +74,20 @@ class NutritionRepository:
              notes, date, time, created_at, updated_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            (user_id, name, meal_type, calories, protein, carbs, fats,
-             notes, date, time, created_at, created_at),
+            (
+                user_id,
+                clean_name,
+                meal_type,
+                _sanitize_int(calories),
+                _sanitize_float(protein),
+                _sanitize_float(carbs),
+                _sanitize_float(fats),
+                notes or "",
+                date,
+                time,
+                created_at,
+                created_at,
+            ),
         )
         db.commit()
         return cursor.lastrowid
@@ -65,6 +96,9 @@ class NutritionRepository:
     def update(meal_id, user_id, *, name, meal_type, calories, protein,
                carbs, fats, notes, date, time):
         db = get_db()
+        clean_name = (name or "").strip()
+        if not clean_name:
+            raise ValueError("Meal name is required")
         db.execute(
             """
             UPDATE nutrition_entries
@@ -72,8 +106,20 @@ class NutritionRepository:
                 fats = ?, notes = ?, date = ?, time = ?, updated_at = ?
             WHERE id = ? AND user_id = ?
             """,
-            (name, meal_type, calories, protein, carbs, fats, notes,
-             date, time, now_iso(), meal_id, user_id),
+            (
+                clean_name,
+                meal_type,
+                _sanitize_int(calories),
+                _sanitize_float(protein),
+                _sanitize_float(carbs),
+                _sanitize_float(fats),
+                notes or "",
+                date,
+                time,
+                now_iso(),
+                meal_id,
+                user_id,
+            ),
         )
         db.commit()
 
@@ -100,24 +146,40 @@ class NutritionRepository:
             List of inserted row IDs.
         """
         db = get_db()
+        if not isinstance(entries, list):
+            raise ValueError("entries must be a list")
         created_at = now_iso()
         ids = []
-        for e in entries:
-            cursor = db.execute(
-                """
-                INSERT INTO nutrition_entries
-                (user_id, name, meal_type, calories, protein, carbs, fats,
-                 notes, date, time, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                (
-                    user_id, e["name"], e.get("meal_type", "other"),
-                    e.get("calories", 0), e.get("protein", 0.0),
-                    e.get("carbs", 0.0), e.get("fats", 0.0),
-                    e.get("notes", ""), e.get("date"), e.get("time"),
-                    created_at, created_at,
-                ),
-            )
-            ids.append(cursor.lastrowid)
-        db.commit()
-        return ids
+        try:
+            for e in entries:
+                meal_name = str(e.get("name", "")).strip() if isinstance(e, dict) else ""
+                if not meal_name:
+                    raise ValueError("Each bulk meal entry must include a non-empty name")
+                cursor = db.execute(
+                    """
+                    INSERT INTO nutrition_entries
+                    (user_id, name, meal_type, calories, protein, carbs, fats,
+                     notes, date, time, created_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        user_id,
+                        meal_name,
+                        e.get("meal_type", "other"),
+                        _sanitize_int(e.get("calories", 0)),
+                        _sanitize_float(e.get("protein", 0.0)),
+                        _sanitize_float(e.get("carbs", 0.0)),
+                        _sanitize_float(e.get("fats", 0.0)),
+                        e.get("notes", ""),
+                        e.get("date"),
+                        e.get("time"),
+                        created_at,
+                        created_at,
+                    ),
+                )
+                ids.append(cursor.lastrowid)
+            db.commit()
+            return ids
+        except Exception:
+            db.rollback()
+            raise

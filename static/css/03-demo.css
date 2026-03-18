@@ -95,7 +95,7 @@
   position: fixed;
   inset: 0;
   background: rgba(8, 18, 32, 0.45);
-  z-index: 1200;
+  z-index: var(--z-modal);
   display: none;
   align-items: center;
   justify-content: center;
@@ -171,5 +171,6 @@ body.theme-dark .layout-customize-form label {
 body.theme-dark .layout-customize-card > p {
   color: #9eb4cd;
 }
+
 
 

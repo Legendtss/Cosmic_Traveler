@@ -21,6 +21,8 @@ import os
 import re
 import sqlite3
 import threading
+import atexit
+from contextlib import contextmanager
 
 from flask import current_app, g
 
@@ -41,6 +43,70 @@ except Exception as e:
 
 _POSTGRES_POOL_KEY = "postgres_db_pool"
 _POSTGRES_POOL_LOCK = threading.Lock()
+
+
+def _configure_sqlite_connection(conn):
+    """Apply safe SQLite runtime settings for better concurrency."""
+    conn.execute("PRAGMA foreign_keys = ON")
+    try:
+        conn.execute("PRAGMA journal_mode = WAL")
+    except Exception:
+        # Some environments/filesystems may not support WAL.
+        pass
+    conn.execute("PRAGMA busy_timeout = 5000")
+
+
+def _postgres_table_exists_raw(cur, table_name):
+    cur.execute(
+        """
+        SELECT 1
+        FROM information_schema.tables
+        WHERE table_schema = 'public' AND table_name = %s
+        LIMIT 1
+        """,
+        (table_name,),
+    )
+    return bool(cur.fetchone())
+
+
+def _repair_postgres_serial_defaults(raw_conn):
+    """Repair missing nextval defaults without dropping existing data.
+
+    Earlier PostgreSQL bootstrap paths could create integer PK columns without
+    sequence defaults. This function repairs those columns in-place.
+    """
+    cur = raw_conn.cursor()
+    try:
+        for table in sorted(PostgreSQLConnectionWrapper._SERIAL_TABLES):
+            if not _postgres_table_exists_raw(cur, table):
+                continue
+
+            cur.execute(
+                """
+                SELECT column_default
+                FROM information_schema.columns
+                WHERE table_schema = 'public'
+                  AND table_name = %s
+                  AND column_name = 'id'
+                """,
+                (table,),
+            )
+            row = cur.fetchone()
+            default_expr = row[0] if row else None
+            if default_expr and "nextval" in str(default_expr):
+                continue
+
+            seq_name = f"{table}_id_seq"
+            cur.execute(f'CREATE SEQUENCE IF NOT EXISTS "{seq_name}"')
+            cur.execute(f'ALTER SEQUENCE "{seq_name}" OWNED BY "{table}".id')
+            cur.execute(
+                f"SELECT setval('{seq_name}', COALESCE((SELECT MAX(id) FROM \"{table}\"), 0) + 1, false)"
+            )
+            cur.execute(
+                f"ALTER TABLE \"{table}\" ALTER COLUMN id SET DEFAULT nextval('{seq_name}'::regclass)"
+            )
+    finally:
+        cur.close()
 
 
 class PostgreSQLConnectionWrapper:
@@ -227,6 +293,7 @@ def _return_postgres_connection(pool, conn):
 
 def _checkout_postgres_connection(pool):
     raw_conn = pool.getconn()
+    raw_conn.autocommit = False
     return PostgreSQLConnectionWrapper(
         raw_conn,
         release_callback=lambda psycopg2_conn: _return_postgres_connection(pool, psycopg2_conn),
@@ -257,7 +324,7 @@ def get_db():
             os.makedirs(os.path.dirname(db_file), exist_ok=True)
             conn = sqlite3.connect(db_file)
             conn.row_factory = sqlite3.Row  # Return rows as Row objects (dict-like)
-            conn.execute("PRAGMA foreign_keys = ON")
+            _configure_sqlite_connection(conn)
             g.db = conn
     
     return g.db
@@ -273,15 +340,42 @@ def close_db(_error):
 def register_db(app):
     """Register database teardown handler."""
     app.teardown_appcontext(close_db)
+    if app.config.get("DB_CONFIG", {}).get("type") == "postgresql":
+        cleanup_key = "_postgres_pool_cleanup_registered"
+        if not app.extensions.get(cleanup_key):
+            def _close_pool_on_exit():
+                pool = app.extensions.get(_POSTGRES_POOL_KEY)
+                if pool is not None:
+                    try:
+                        pool.closeall()
+                    except Exception:
+                        pass
+
+            atexit.register(_close_pool_on_exit)
+            app.extensions[cleanup_key] = True
+
+
+@contextmanager
+def db_transaction(conn=None):
+    """Transactional context manager for both SQLite and PostgreSQL wrappers."""
+    managed_conn = conn or get_db()
+    try:
+        yield managed_conn
+        managed_conn.commit()
+    except Exception:
+        try:
+            managed_conn.rollback()
+        except Exception:
+            pass
+        raise
 
 
 def init_schema(conn):
     """Initialize database schema.
 
     For SQLite: execute schema script directly via executescript()
-    For PostgreSQL: use dedicated PostgreSQL-compatible schema file.
-      Detects tables created by a broken SQLite-schema migration (no SERIAL/
-      sequences) and drops them so they can be recreated properly.
+    For PostgreSQL: use dedicated PostgreSQL-compatible schema file and repair
+      missing id sequence defaults in-place (no destructive table drops).
     """
     config = _db_config()
 
@@ -296,31 +390,8 @@ def init_schema(conn):
         raw_conn = conn._conn
         cur = raw_conn.cursor()
         try:
-            # Detect broken schema: if users.id has no nextval() default it was
-            # created by the old SQLite schema (no SERIAL auto-increment).
-            cur.execute("""
-                SELECT column_default
-                FROM information_schema.columns
-                WHERE table_schema = 'public'
-                  AND table_name   = 'users'
-                  AND column_name  = 'id'
-            """)
-            row = cur.fetchone()
-            schema_broken = (row is None) or (row[0] is None) or ('nextval' not in str(row[0]))
-
-            if schema_broken:
-                print("[DB] Broken/missing schema detected — dropping all tables for clean rebuild...")
-                # Drop in reverse-dependency order; CASCADE handles any strays.
-                for tbl in [
-                    'focus_sessions', 'notes', 'stats_snapshots', 'user_progress',
-                    'nutrition_entries', 'project_subtasks', 'tasks', 'workout_templates', 'workouts',
-                    'projects', 'login_attempts', 'sessions', 'users',
-                ]:
-                    cur.execute(f'DROP TABLE IF EXISTS {tbl} CASCADE')
-                raw_conn.commit()
-                print("[DB] Dropped broken tables — creating fresh schema")
-
             cur.execute(schema_sql)
+            _repair_postgres_serial_defaults(raw_conn)
             raw_conn.commit()
             print("[DB] PostgreSQL schema initialized successfully")
         except Exception as e:
@@ -574,6 +645,18 @@ def ensure_auth_columns(conn):
         conn.execute("""
             CREATE INDEX IF NOT EXISTS idx_login_attempts_locked_until ON login_attempts(locked_until)
         """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS password_reset_tokens (
+              token_hash TEXT PRIMARY KEY,
+              user_id INTEGER NOT NULL,
+              created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+              expires_at TEXT NOT NULL,
+              used INTEGER NOT NULL DEFAULT 0 CHECK (used IN (0,1)),
+              FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+            )
+        """)
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_password_reset_user ON password_reset_tokens(user_id)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_password_reset_expires ON password_reset_tokens(expires_at)")
     else:
         # SQLite: PRAGMA table_info
         cols = conn.execute("PRAGMA table_info(users)").fetchall()
@@ -622,6 +705,18 @@ def ensure_auth_columns(conn):
             )
         """)
         conn.execute("CREATE INDEX IF NOT EXISTS idx_login_attempts_locked_until ON login_attempts(locked_until)")
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS password_reset_tokens (
+              token_hash TEXT PRIMARY KEY,
+              user_id INTEGER NOT NULL,
+              created_at TEXT NOT NULL DEFAULT (CURRENT_TIMESTAMP),
+              expires_at TEXT NOT NULL,
+              used INTEGER NOT NULL DEFAULT 0 CHECK (used IN (0,1)),
+              FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+            )
+        """)
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_password_reset_user ON password_reset_tokens(user_id)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_password_reset_expires ON password_reset_tokens(expires_at)")
 
 
 def ensure_focus_sessions_columns(conn):
@@ -668,6 +763,34 @@ def ensure_focus_sessions_columns(conn):
             
         if "project_id" not in names:
             conn.execute("ALTER TABLE focus_sessions ADD COLUMN project_id INTEGER REFERENCES projects(id) ON DELETE SET NULL")
+
+
+def ensure_goals_columns(conn):
+    """Add missing columns to goals table if needed."""
+    config = _db_config()
+    if not table_exists(conn, "goals"):
+        return
+
+    if config["type"] == "postgresql":
+        cols = conn.execute(
+            """
+            SELECT column_name FROM information_schema.columns
+            WHERE table_name='goals'
+            """
+        ).fetchall()
+        names = {row["column_name"] for row in cols}
+
+        if "snippets_collected" not in names:
+            conn.execute("ALTER TABLE goals ADD COLUMN snippets_collected INTEGER NOT NULL DEFAULT 0")
+            conn.execute("ALTER TABLE goals ADD CONSTRAINT goals_snippets_collected_check CHECK (snippets_collected >= 0 AND snippets_collected <= 4)")
+            conn.execute("UPDATE goals SET snippets_collected = LEAST(4, GREATEST(0, FLOOR((current_progress / 100.0) * 4)))")
+    else:
+        cols = conn.execute("PRAGMA table_info(goals)").fetchall()
+        names = {row["name"] for row in cols}
+
+        if "snippets_collected" not in names:
+            conn.execute("ALTER TABLE goals ADD COLUMN snippets_collected INTEGER NOT NULL DEFAULT 0")
+            conn.execute("UPDATE goals SET snippets_collected = MIN(4, MAX(0, CAST((current_progress / 100.0) * 4 AS INTEGER)))")
 
 
 def ensure_notes_task_link_triggers(conn):
@@ -920,6 +1043,7 @@ def init_app_data(app):
                     ensure_workout_templates_table(conn)
                     ensure_auth_columns(conn)
                     ensure_focus_sessions_columns(conn)
+                    ensure_goals_columns(conn)
                     ensure_notes_task_link_triggers(conn)
                 conn.commit()
                 app.logger.info("[DB] PostgreSQL initialization complete")
@@ -944,7 +1068,7 @@ def init_app_data(app):
         os.makedirs(os.path.dirname(db_file), exist_ok=True)
         conn = sqlite3.connect(db_file)
         conn.row_factory = sqlite3.Row
-        conn.execute("PRAGMA foreign_keys = ON")
+        _configure_sqlite_connection(conn)
         
         try:
             with app.app_context():
@@ -960,6 +1084,7 @@ def init_app_data(app):
                 ensure_workout_templates_table(conn)
                 ensure_auth_columns(conn)
                 ensure_focus_sessions_columns(conn)
+                ensure_goals_columns(conn)
                 if should_migrate_json(conn):
                     migrate_json_to_sqlite(conn)
             conn.commit()
@@ -971,3 +1096,5 @@ def init_app_data(app):
     except Exception as e:
         print(f"[DB] Error initializing SQLite: {e}")
         raise e
+
+

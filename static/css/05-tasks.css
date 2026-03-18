@@ -814,7 +814,7 @@
 .task-edit-modal {
   position: fixed;
   inset: 0;
-  z-index: 1400;
+  z-index: var(--z-modal);
   display: none;
   align-items: center;
   justify-content: center;
@@ -1064,4 +1064,5 @@ body.task-edit-modal-open .dash-floating-timer {
 
 
 .task-focus-time { color: var(--accent-primary, #6366f1); font-weight: 500; font-size: 0.85rem; display: inline-flex; align-items: center; gap: 4px; }
+
 

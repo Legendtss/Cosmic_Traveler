@@ -1,31 +1,18 @@
 /**
- * ============================================================================
- * features/statistics/statistics.service.js — Statistics Mutations
- * ============================================================================
- *
- * Operations for recomputing and rendering statistics.
- * Delegates to existing globals.
- *
- * Exposed on window.StatisticsService.
+ * features/statistics/statistics.service.js
  */
 (function () {
   'use strict';
 
+  var _kit = window.FeatureServiceKit || null;
+  function _invoke(name, args, fallback) {
+    if (_kit) return _kit.invoke(name, args, { feature: 'StatisticsService', fallback: fallback });
+    var fn = window[name];
+    return typeof fn === 'function' ? fn.apply(window, args || []) : fallback;
+  }
+
   window.StatisticsService = {
-
-    /**
-     * Refresh all statistics data for the active user.
-     */
-    refresh: function () {
-      if (typeof updateStatisticsForActiveUser === 'function') updateStatisticsForActiveUser();
-    },
-
-    /**
-     * Render the full statistics page.
-     */
-    render: function () {
-      if (typeof renderStatistics === 'function') renderStatistics();
-    }
+    refresh: function () { _invoke('updateStatisticsForActiveUser', []); },
+    render: function () { _invoke('renderStatistics', []); }
   };
-
 })();

@@ -694,7 +694,7 @@
   inset: 0;
   background: rgba(0,0,0,0.6);
   backdrop-filter: blur(6px);
-  z-index: 9998;
+  z-index: var(--z-focus-overlay);
   animation: focusFadeIn 0.3s ease;
 }
 .focus-mode-overlay.active { display: block; }
@@ -741,7 +741,7 @@ body.focus-mode-active .focus-shell {
 body.focus-mode-active .focus-timer-card {
   position: fixed !important;
   inset: 0 !important;
-  z-index: 9999 !important;
+  z-index: var(--z-focus-fullscreen) !important;
   margin: 0 !important;
   border-radius: 0 !important;
   border: none !important;
@@ -780,7 +780,7 @@ body.focus-mode-active .focus-header-actions {
   position: fixed !important;
   top: 20px !important;
   right: 20px !important;
-  z-index: 10000 !important;
+  z-index: calc(var(--z-focus-fullscreen) + 5) !important;
 }
 
 body.focus-mode-active .focus-btn[onclick="toggleFocusMode()"] {
@@ -795,7 +795,7 @@ body.focus-mode-active .focus-btn[onclick="toggleFocusMode()"] i::before {
   display: none;
   position: fixed;
   inset: 0;
-  z-index: 1000000;
+  z-index: var(--z-focus-exit-modal);
   background: rgba(0,0,0,0.5);
   backdrop-filter: blur(4px);
   align-items: center;
@@ -1038,3 +1038,4 @@ body.theme-dark .focus-link-card select {
   border-color: #3f3f5a;
   color: #fff;
 }
+

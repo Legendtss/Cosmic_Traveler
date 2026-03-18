@@ -44,6 +44,18 @@ CREATE TABLE IF NOT EXISTS login_attempts (
 
 CREATE INDEX IF NOT EXISTS idx_login_attempts_locked_until ON login_attempts(locked_until);
 
+CREATE TABLE IF NOT EXISTS password_reset_tokens (
+  token_hash TEXT PRIMARY KEY,
+  user_id INTEGER NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (CURRENT_TIMESTAMP),
+  expires_at TEXT NOT NULL,
+  used INTEGER NOT NULL DEFAULT 0 CHECK (used IN (0,1)),
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_password_reset_user ON password_reset_tokens(user_id);
+CREATE INDEX IF NOT EXISTS idx_password_reset_expires ON password_reset_tokens(expires_at);
+
 CREATE TABLE IF NOT EXISTS projects (
   id INTEGER PRIMARY KEY,
   user_id INTEGER NOT NULL,
@@ -205,6 +217,7 @@ CREATE TABLE IF NOT EXISTS goals (
   category TEXT NOT NULL DEFAULT 'personal',
   target_progress REAL NOT NULL DEFAULT 100 CHECK (target_progress > 0 AND target_progress <= 100),
   current_progress REAL NOT NULL DEFAULT 0 CHECK (current_progress >= 0 AND current_progress <= 100),
+  snippets_collected INTEGER NOT NULL DEFAULT 0 CHECK (snippets_collected >= 0 AND snippets_collected <= 4),
   time_limit TEXT,
   notes TEXT NOT NULL DEFAULT '',
   card_image_url TEXT,

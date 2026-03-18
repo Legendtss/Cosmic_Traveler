@@ -20,7 +20,7 @@
   justify-content: center;
   font-size: 1.5rem;
   box-shadow: 0 6px 24px rgba(99, 102, 241, 0.4);
-  z-index: 9999;
+  z-index: var(--z-chat-fab);
   transition: transform 0.25s, box-shadow 0.25s;
 }
 
@@ -52,7 +52,7 @@
   background: #fff;
   border-radius: 20px;
   box-shadow: 0 12px 48px rgba(0, 0, 0, 0.15);
-  z-index: 9998;
+  z-index: var(--z-chat-panel);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -644,5 +644,6 @@ body.theme-dark .mentor-body {
 body.theme-dark .mentor-body strong {
   color: #fb923c;
 }
+
 
 

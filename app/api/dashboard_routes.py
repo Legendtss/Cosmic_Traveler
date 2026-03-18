@@ -18,7 +18,9 @@ from flask import Blueprint, current_app, jsonify, send_from_directory
 
 from ..db import get_db
 from ..mappers import map_meal, map_task, map_workout
+from ..repositories.nutrition_repo import NutritionRepository
 from ..repositories.task_repo import TaskRepository
+from ..repositories.workout_repo import WorkoutRepository
 from ..utils import today_str
 from .helpers import default_user_id
 
@@ -53,18 +55,9 @@ def get_data_summary():
     uid = default_user_id()
     TaskRepository.materialize_recurring_for_date(uid, date_filter)
 
-    task_rows = db.execute(
-        "SELECT * FROM tasks WHERE user_id = ? AND date = ? ORDER BY id DESC",
-        (uid, date_filter),
-    ).fetchall()
-    meal_rows = db.execute(
-        "SELECT * FROM nutrition_entries WHERE user_id = ? AND date = ? ORDER BY id DESC",
-        (uid, date_filter),
-    ).fetchall()
-    workout_rows = db.execute(
-        "SELECT * FROM workouts WHERE user_id = ? AND date = ? ORDER BY id DESC",
-        (uid, date_filter),
-    ).fetchall()
+    task_rows = TaskRepository.get_all(uid, date_filter)
+    meal_rows = NutritionRepository.get_all(uid, date_filter)
+    workout_rows = WorkoutRepository.get_all(uid, date_filter)
 
     tasks = [map_task(r) for r in task_rows]
     meals = [map_meal(r) for r in meal_rows]

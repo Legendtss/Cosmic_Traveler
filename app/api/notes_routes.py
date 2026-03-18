@@ -19,7 +19,6 @@ import json
 
 from flask import Blueprint, jsonify, request
 
-from ..db import get_db
 from ..repositories.notes_repo import NoteRepository
 from .helpers import default_user_id, normalize_tags
 
@@ -59,18 +58,10 @@ def create_note():
     if source_type == "manual":
         source_id = None
     else:
-        # Require valid ownership when linking note -> task.
         try:
             source_id = int(source_id)
         except (TypeError, ValueError):
             return jsonify({"error": "Valid source_id is required for task-linked notes"}), 400
-        db = get_db()
-        linked_task = db.execute(
-            "SELECT id FROM tasks WHERE id = ? AND user_id = ?",
-            (source_id, uid),
-        ).fetchone()
-        if not linked_task:
-            return jsonify({"error": "Linked task not found"}), 400
     tags = normalize_tags(data.get("tags"))
 
     try:

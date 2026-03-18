@@ -7532,6 +7532,10 @@ function loadThemePreference() {
   }
   if (stored === 'dark' || stored === 'light') {
     profileState.theme = stored;
+  } else {
+    const prefersDark = typeof window.matchMedia === 'function'
+      && window.matchMedia('(prefers-color-scheme: dark)').matches;
+    profileState.theme = prefersDark ? 'dark' : 'light';
   }
   applyTheme(profileState.theme);
 }
@@ -9853,69 +9857,6 @@ function _focusInjectGradient() {
 }
 
 // ─── Init ────────────────────────────────────────────
-let _focusProjects = [];
-let _focusTasks = [];
-
-async function focusLoadLinkOptions() {
-  try {
-    const [pRes, tRes] = await Promise.all([
-      fetch('/api/projects'),
-      fetch('/api/tasks')
-    ]);
-    if (pRes.ok) _focusProjects = await pRes.json();
-    if (tRes.ok) {
-      const ts = await tRes.json();
-      _focusTasks = ts.tasks || ts || []; 
-      if (!Array.isArray(_focusTasks) && typeof _focusTasks === 'object') {
-         for (let key in _focusTasks) {
-            if (Array.isArray(_focusTasks[key])) {
-                _focusTasks = _focusTasks[key];
-                break;
-            }
-         }
-      }
-    }
-    
-    const pSelect = document.getElementById('focus-link-project');
-    const tSelect = document.getElementById('focus-link-task');
-    if (!pSelect || !tSelect) return;
-
-    pSelect.innerHTML = '<option value="">None</option>' + _focusProjects.map(p => {
-        return `<option value="${p.id}">${escapeHtml(p.name)}</option>`;
-    }).join('');
-    
-    tSelect.innerHTML = '<option value="">None</option>' + _focusTasks.map(t => {
-        return `<option value="${t.id}" data-pid="${t.project_id || ''}">${escapeHtml(t.title)}</option>`;
-    }).join('');
-  } catch(e) {
-    console.error('Failed to load focus link options:', e);
-  }
-}
-
-window.focusLoadTaskOptions = function(projectId) {
-  const tSelect = document.getElementById('focus-link-task');
-  if (!tSelect) return;
-  
-  if (!projectId) {
-    tSelect.innerHTML = '<option value="">None</option>' + _focusTasks.map(t => {
-        return `<option value="${t.id}" data-pid="${t.project_id || ''}">${escapeHtml(t.title)}</option>`;
-    }).join('');
-  } else {
-    const filtered = _focusTasks.filter(t => parseInt(t.project_id) === parseInt(projectId));
-    tSelect.innerHTML = '<option value="">None (Whole Project)</option>' + filtered.map(t => {
-        return `<option value="${t.id}" data-pid="${t.project_id || ''}">${escapeHtml(t.title)}</option>`;
-    }).join('');
-  }
-}
-
-document.addEventListener('DOMContentLoaded', () => {
-    document.body.addEventListener('change', (e) => {
-        if (e.target.id === 'focus-link-project') {
-             window.focusLoadTaskOptions(e.target.value);
-        }
-    });
-});
-
 function initFocusModule() {
   focusLoadLinkOptions();
   _focusInjectGradient();
@@ -10768,17 +10709,11 @@ function setFocusVolume(val) {
   }
 }
 
-// ─── Focus Mode (UI Lock) ───────────────────────────
-function toggleFocusMode() {
-  if (_focus.focusModeActive) {
-    _focusShowExitModal();
-  } else {
-    _focusEnterFocusMode();
-  }
-}
-
 // ─── Draggable Timer ────────────────────────────────
+let _focusDraggableTimerBound = false;
+
 function _initDraggableTimer() {
+  if (_focusDraggableTimerBound) return;
   const timerDisplay = document.getElementById('focus-timer-digits');
   if (!timerDisplay) return;
 
@@ -10825,6 +10760,7 @@ function _initDraggableTimer() {
   });
 
   container.style.cursor = 'grab';
+  _focusDraggableTimerBound = true;
 }
 
 function toggleFocusMode() {

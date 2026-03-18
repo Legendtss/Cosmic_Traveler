@@ -2103,36 +2103,32 @@
         <template id="goal-card-template">
           <div class="goal-card" data-goal-id="">
             <div class="card-container">
-              <div class="card-blur-wrapper">
-                <div class="card-background">
-                  <img src="" alt="goal card" class="card-image" />
-                </div>
-                <div class="card-blur-overlay">
-                  <div class="blur-segments">
-                    <div class="blur-segment" data-segment="0"></div>
-                    <div class="blur-segment" data-segment="1"></div>
-                    <div class="blur-segment" data-segment="2"></div>
-                    <div class="blur-segment" data-segment="3"></div>
+              <div class="cr-scene" id="scene-{{goalId}}">
+                <div class="cr-card-3d" id="card3d-{{goalId}}">
+                  <div class="cr-card-face">
+                    <canvas class="cr-main-canvas" id="mainCanvas-{{goalId}}" width="280" height="360"></canvas>
+                    <div class="cr-holo" id="holo-{{goalId}}"></div>
+                    <div class="cr-shine" id="shine-{{goalId}}"></div>
+                    <div class="cr-gold-border" id="goldBorder-{{goalId}}"></div>
+                    <div class="star-badge" id="starBadge-{{goalId}}"><span>&#11088;</span><span>&#11088;</span><span>&#11088;</span></div>
+                    <div class="cr-card-info">
+                      <h3 class="goal-title"></h3>
+                      <p class="goal-category"></p>
+                      <div class="card-progress">
+                        <div class="progress-bar"><div class="progress-fill"></div></div>
+                        <span class="progress-text">0%</span>
+                      </div>
+                    </div>
                   </div>
                 </div>
-                <div class="card-content">
-                  <h3 class="goal-title"></h3>
-                  <p class="goal-category"></p>
-                  <div class="card-progress">
-                    <div class="progress-bar"><div class="progress-fill"></div></div>
-                    <span class="progress-text">0%</span>
-                  </div>
-                  <div class="goal-deadline">
-                    <span class="deadline-label">Due:</span>
-                    <span class="deadline-date"></span>
-                  </div>
-                </div>
+                <canvas class="cr-particles" id="pCanvas-{{goalId}}" width="280" height="360"></canvas>
               </div>
+              <div class="cr-snippet-row" id="snippetRow-{{goalId}}"></div>
               <div class="card-actions">
-                <button class="action-btn edit-btn" title="Edit goal">✏️</button>
-                <button class="action-btn share-btn" title="Share goal">🔗</button>
-                <button class="action-btn download-btn" title="Download card">⬇️</button>
-                <button class="action-btn delete-btn" title="Delete goal">🗑️</button>
+                <button class="action-btn edit-btn" title="Edit goal"><i class="fas fa-pen"></i></button>
+                <button class="action-btn share-btn" title="Share goal"><i class="fas fa-link"></i></button>
+                <button class="action-btn download-btn" title="Download card"><i class="fas fa-download"></i></button>
+                <button class="action-btn delete-btn" title="Delete goal"><i class="fas fa-trash"></i></button>
               </div>
               <div class="status-badge"></div>
             </div>
@@ -2497,6 +2493,7 @@
   <script src="state/apiClient.js"></script>
   <script src="state/hydration.js"></script>
   <script src="state/userState.js"></script>
+  <script src="features/shared/service-kit.js"></script>
 
   <!-- ── Feature Modules: Tasks ────────────────────────────── -->
   <script src="features/tasks/tasks.selectors.js"></script>

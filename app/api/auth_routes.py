@@ -20,33 +20,41 @@ Depends on:
 """
 
 import ipaddress
+import hashlib
+import os
 import re
+import secrets
 import time
+from datetime import datetime, timedelta, timezone
 
 from flask import Blueprint, jsonify, make_response, request
 
 from ..auth import (
     SESSION_COOKIE_NAME,
-    SESSION_LIFETIME_DAYS,
+    SESSION_LIFETIME_SECONDS,
     create_session,
     delete_session,
     get_current_user_id,
     hash_password,
+    revoke_all_sessions,
     verify_password,
 )
+from ..config import is_production_env
 from ..db import get_db
+from ..middleware import rate_limit
 from ..repositories.task_repo import TaskRepository
 from ..utils import now_iso, today_str
 
 auth_bp = Blueprint("auth", __name__)
 
-# Simple email regex — not exhaustive but catches obvious mistakes
-_EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+# Practical email regex (not RFC-perfect, but stricter than bare @ checks).
+_EMAIL_RE = re.compile(r"^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$")
 
 # ── Brute-force protection ────────────────────────────────────
 _MAX_ATTEMPTS = 5
 _LOCKOUT_SECONDS = 300  # 5 minutes
 _ATTEMPT_WINDOW = 900   # 15 minutes
+_RESET_TOKEN_LIFETIME_MINUTES = 30
 
 
 def _get_client_ip():
@@ -160,7 +168,29 @@ def _clear_attempts(identifier: str):
     db.commit()
 
 
+def _validate_password_strength(password: str) -> str | None:
+    if len(password or "") < 10:
+        return "Password must be at least 10 characters."
+    if not re.search(r"[A-Z]", password):
+        return "Password must include at least one uppercase letter."
+    if not re.search(r"[a-z]", password):
+        return "Password must include at least one lowercase letter."
+    if not re.search(r"\d", password):
+        return "Password must include at least one number."
+    return None
+
+
+def _hash_reset_token(token: str) -> str:
+    return hashlib.sha256(token.encode()).hexdigest()
+
+
+def _cleanup_expired_reset_tokens(db):
+    db.execute("DELETE FROM password_reset_tokens WHERE expires_at < ?", (datetime.now(timezone.utc).isoformat(),))
+    db.commit()
+
+
 @auth_bp.route("/api/auth/signup", methods=["POST"])
+@rate_limit(max_requests=10, window_seconds=60)
 def signup():
     data = request.get_json(silent=True) or {}
     email = (data.get("email") or "").strip().lower()
@@ -171,8 +201,9 @@ def signup():
     errors = []
     if not email or not _EMAIL_RE.match(email):
         errors.append("Valid email is required.")
-    if len(password) < 6:
-        errors.append("Password must be at least 6 characters.")
+    pwd_err = _validate_password_strength(password)
+    if pwd_err:
+        errors.append(pwd_err)
     if not display_name:
         errors.append("Display name is required.")
     if errors:
@@ -282,6 +313,123 @@ def logout():
     return resp
 
 
+@auth_bp.route("/api/auth/logout-all", methods=["POST"])
+def logout_all():
+    """Revoke all active sessions for current user and issue a fresh session."""
+    uid = get_current_user_id()
+    revoke_all_sessions(uid)
+    token = create_session(uid)
+    resp = make_response(jsonify({"ok": True}))
+    _set_session_cookie(resp, token)
+    return resp
+
+
+@auth_bp.route("/api/auth/password", methods=["PUT"])
+@rate_limit(max_requests=10, window_seconds=300)
+def change_password():
+    """Authenticated password change endpoint."""
+    uid = get_current_user_id()
+    data = request.get_json(silent=True) or {}
+    current_password = data.get("currentPassword") or ""
+    new_password = data.get("newPassword") or ""
+    revoke_others = bool(data.get("revokeOtherSessions", True))
+
+    db = get_db()
+    user = db.execute("SELECT id, password_hash FROM users WHERE id = ?", (uid,)).fetchone()
+    if not user:
+        return jsonify({"ok": False, "errors": ["User not found."]}), 404
+    if not verify_password(user["password_hash"], current_password):
+        return jsonify({"ok": False, "errors": ["Current password is incorrect."]}), 400
+
+    pwd_err = _validate_password_strength(new_password)
+    if pwd_err:
+        return jsonify({"ok": False, "errors": [pwd_err]}), 400
+    if verify_password(user["password_hash"], new_password):
+        return jsonify({"ok": False, "errors": ["New password must be different from current password."]}), 400
+
+    db.execute(
+        "UPDATE users SET password_hash = ?, updated_at = ? WHERE id = ?",
+        (hash_password(new_password), now_iso(), uid),
+    )
+    db.commit()
+
+    if revoke_others:
+        revoke_all_sessions(uid)
+    token = create_session(uid)
+    resp = make_response(jsonify({"ok": True}))
+    _set_session_cookie(resp, token)
+    return resp
+
+
+@auth_bp.route("/api/auth/password-reset/request", methods=["POST"])
+@rate_limit(max_requests=5, window_seconds=300)
+def request_password_reset():
+    """Generate a short-lived password reset token for an email (non-enumerating response)."""
+    data = request.get_json(silent=True) or {}
+    email = (data.get("email") or "").strip().lower()
+    db = get_db()
+    _cleanup_expired_reset_tokens(db)
+    user = db.execute("SELECT id FROM users WHERE email = ?", (email,)).fetchone()
+
+    response = {"ok": True, "message": "If an account exists, a reset token has been generated."}
+    if not user:
+        return jsonify(response), 200
+
+    token = secrets.token_urlsafe(32)
+    token_hash = _hash_reset_token(token)
+    expires = (datetime.now(timezone.utc) + timedelta(minutes=_RESET_TOKEN_LIFETIME_MINUTES)).isoformat()
+    db.execute("DELETE FROM password_reset_tokens WHERE user_id = ?", (user["id"],))
+    db.execute(
+        """
+        INSERT INTO password_reset_tokens (token_hash, user_id, created_at, expires_at, used)
+        VALUES (?, ?, ?, ?, 0)
+        """,
+        (token_hash, user["id"], now_iso(), expires),
+    )
+    db.commit()
+
+    # In production, return generic message only. In non-production, include token for local testing.
+    is_production = bool(os.environ.get("RENDER")) or bool(os.environ.get("RAILWAY_ENVIRONMENT")) or bool(os.environ.get("PRODUCTION"))
+    if not is_production:
+        response["resetToken"] = token
+        response["expiresInMinutes"] = _RESET_TOKEN_LIFETIME_MINUTES
+    return jsonify(response), 200
+
+
+@auth_bp.route("/api/auth/password-reset/confirm", methods=["POST"])
+@rate_limit(max_requests=10, window_seconds=300)
+def confirm_password_reset():
+    data = request.get_json(silent=True) or {}
+    token = (data.get("token") or "").strip()
+    new_password = data.get("newPassword") or ""
+    if not token:
+        return jsonify({"ok": False, "errors": ["Reset token is required."]}), 400
+
+    pwd_err = _validate_password_strength(new_password)
+    if pwd_err:
+        return jsonify({"ok": False, "errors": [pwd_err]}), 400
+
+    db = get_db()
+    _cleanup_expired_reset_tokens(db)
+    token_hash = _hash_reset_token(token)
+    row = db.execute(
+        """
+        SELECT token_hash, user_id, expires_at, used
+        FROM password_reset_tokens
+        WHERE token_hash = ?
+        """,
+        (token_hash,),
+    ).fetchone()
+    if not row or row["used"] or row["expires_at"] < datetime.now(timezone.utc).isoformat():
+        return jsonify({"ok": False, "errors": ["Invalid or expired reset token."]}), 400
+
+    db.execute("UPDATE users SET password_hash = ?, updated_at = ? WHERE id = ?", (hash_password(new_password), now_iso(), row["user_id"]))
+    db.execute("UPDATE password_reset_tokens SET used = 1 WHERE token_hash = ?", (token_hash,))
+    db.commit()
+    revoke_all_sessions(row["user_id"])
+    return jsonify({"ok": True, "message": "Password reset successful. Please log in again."}), 200
+
+
 @auth_bp.route("/api/auth/me", methods=["GET"])
 def me():
     """Return current user or 401. Used by frontend to check session on load."""
@@ -346,24 +494,39 @@ def update_profile():
         return jsonify({"ok": False, "errors": errors}), 400
 
     # ── Build update ───────────────────────────────────────
-    allowed = {
-        "display_name": display_name,
-        "level": level,
-        "goal": goal,
-        "weekly_workout_target": weekly_workout_target,
-        "calorie_goal": calorie_goal,
-    }
-    sets = []
-    vals = []
-    for col, val in allowed.items():
-        if val is not None:
-            sets.append(f"{col} = ?")
-            vals.append(val)
-    if sets:
-        sets.append("updated_at = ?")
-        vals.append(now_iso())
-        vals.append(uid)
-        db.execute(f"UPDATE users SET {', '.join(sets)} WHERE id = ?", vals)
+    if any(v is not None for v in (display_name, level, goal, weekly_workout_target, calorie_goal)):
+        current = db.execute(
+            """
+            SELECT display_name, level, goal, weekly_workout_target, calorie_goal
+            FROM users
+            WHERE id = ?
+            """,
+            (uid,),
+        ).fetchone()
+        if not current:
+            return jsonify({"ok": False, "errors": ["User not found."]}), 404
+
+        db.execute(
+            """
+            UPDATE users
+            SET display_name = ?,
+                level = ?,
+                goal = ?,
+                weekly_workout_target = ?,
+                calorie_goal = ?,
+                updated_at = ?
+            WHERE id = ?
+            """,
+            (
+                display_name if display_name is not None else current["display_name"],
+                level if level is not None else current["level"],
+                goal if goal is not None else current["goal"],
+                weekly_workout_target if weekly_workout_target is not None else current["weekly_workout_target"],
+                calorie_goal if calorie_goal is not None else current["calorie_goal"],
+                now_iso(),
+                uid,
+            ),
+        )
         db.commit()
 
     return jsonify({"ok": True, "user": _user_dict(db, uid)})
@@ -377,21 +540,29 @@ def update_onboarding():
     db = get_db()
     now = now_iso()
 
-    sets = ["updated_at = ?"]
-    vals = [now]
+    current = db.execute(
+        "SELECT intro_seen_at, demo_completed_at FROM users WHERE id = ?",
+        (uid,),
+    ).fetchone()
+    if not current:
+        return jsonify({"ok": False, "errors": ["User not found."]}), 404
 
     # Mark intro as seen
-    if data.get("introSeen"):
-        sets.append("intro_seen_at = ?")
-        vals.append(now)
+    intro_seen_at = now if data.get("introSeen") else current["intro_seen_at"]
 
     # Mark demo as completed (or skipped)
-    if data.get("demoCompleted"):
-        sets.append("demo_completed_at = ?")
-        vals.append(now)
+    demo_completed_at = now if data.get("demoCompleted") else current["demo_completed_at"]
 
-    vals.append(uid)
-    db.execute(f"UPDATE users SET {', '.join(sets)} WHERE id = ?", vals)
+    db.execute(
+        """
+        UPDATE users
+        SET intro_seen_at = ?,
+            demo_completed_at = ?,
+            updated_at = ?
+        WHERE id = ?
+        """,
+        (intro_seen_at, demo_completed_at, now, uid),
+    )
     db.commit()
 
     return jsonify({"ok": True, "user": _user_dict(db, uid)})
@@ -537,12 +708,11 @@ def _user_dict(db, user_id):
 
 def _set_session_cookie(resp, token):
     """Set the session cookie on the response with proper attributes."""
-    import os
-    is_production = os.environ.get("RAILWAY_ENVIRONMENT") or os.environ.get("RENDER")
+    is_production = is_production_env()
     resp.set_cookie(
         SESSION_COOKIE_NAME,
         token,
-        max_age=SESSION_LIFETIME_DAYS * 86400,
+        max_age=SESSION_LIFETIME_SECONDS,
         httponly=True,
         samesite="Lax",  # Allow cookies in same-site navigation
         secure=bool(is_production),

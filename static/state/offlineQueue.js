@@ -1,119 +1,244 @@
 /**
- * FILE: state/offlineQueue.js — Client-Side Offline Mutation Queue
- * ──────────────────────────────────────────────────────────────────
- * Responsibilities:
- *   1. Detect online/offline status and show/hide a banner.
- *   2. Patch window.fetch so that same-origin API mutations
- *      (POST / PUT / PATCH / DELETE to /api/*) are:
- *        • Queued in localStorage when the browser is offline.
- *        • Returned as a 202 "queued" response so existing code
- *          that checks `response.ok` doesn't error out.
- *   3. When connectivity is restored, flush the queue in order,
- *      then trigger a data-view refresh.
- *
- * MUST NOT:
- *   - Be loaded before script.js (showToast / loadActiveUserDataViews
- *     are expected to be globals defined there).
- *   - Queue AI endpoints — AI responses are not replayable.
- *   - Queue GET requests — those are handled by the service worker.
- *
- * Initialisation:
- *   Called via  OfflineQueue.init()  in the DOMContentLoaded handler
- *   added by index.html after this file loads.
+ * FILE: state/offlineQueue.js - Client-side offline mutation queue
  */
 (function () {
   'use strict';
 
-  // ── Constants ───────────────────────────────────────────────
   const QUEUE_KEY = 'ft_offline_queue_v1';
-
-  // Paths we intentionally never queue (AI round-trips, auth flows)
+  const MAX_QUEUE_ITEMS = 250;
   const NEVER_QUEUE = ['/api/ai/', '/api/auth/'];
+  const TRANSIENT_STATUS = new Set([408, 425, 429]);
 
-  const OFFLINE_DEBUG = (() => {
+  let _memoryQueue = [];
+  let _warnedPersistenceFailure = false;
+  let _originalFetch;
+  let _banner = null;
+
+  const OFFLINE_DEBUG = (function () {
     try {
       if (typeof window.__FT_DEBUG__ === 'boolean') return window.__FT_DEBUG__;
       const stored = localStorage.getItem('ft_debug');
       if (stored !== null) {
-        return ['1', 'true', 'yes', 'on'].includes(String(stored).trim().toLowerCase());
+        const normalized = String(stored).trim().toLowerCase();
+        return normalized === '1' || normalized === 'true' || normalized === 'yes' || normalized === 'on';
       }
-    } catch (_err) {
-      // fall through
-    }
-
+    } catch (_err) {}
     const host = (window.location && window.location.hostname) || '';
     return host === 'localhost' || host === '127.0.0.1';
   })();
 
-  function _debugLog(...args) {
-    if (OFFLINE_DEBUG) console.log(...args);
+  function _debugLog() {
+    if (OFFLINE_DEBUG) console.log.apply(console, arguments);
   }
 
-  function _debugWarn(...args) {
-    if (OFFLINE_DEBUG) console.warn(...args);
+  function _debugWarn() {
+    if (OFFLINE_DEBUG) console.warn.apply(console, arguments);
   }
 
-  // ── Queue helpers (localStorage) ───────────────────────────
+  function _safeParseJson(raw) {
+    if (!raw || typeof raw !== 'string') return null;
+    try {
+      return JSON.parse(raw);
+    } catch (_err) {
+      return null;
+    }
+  }
+
+  function _normalizeHeaders(headers) {
+    if (!headers) return {};
+    if (typeof Headers !== 'undefined' && headers instanceof Headers) {
+      const out = {};
+      headers.forEach(function (value, key) {
+        out[key] = value;
+      });
+      return out;
+    }
+    if (Array.isArray(headers)) {
+      const fromPairs = {};
+      for (let i = 0; i < headers.length; i++) {
+        const pair = headers[i];
+        if (Array.isArray(pair) && pair.length >= 2) fromPairs[String(pair[0])] = String(pair[1]);
+      }
+      return fromPairs;
+    }
+    if (typeof headers === 'object') return Object.assign({}, headers);
+    return {};
+  }
+
   function _loadQueue() {
     try {
       const raw = localStorage.getItem(QUEUE_KEY);
-      return raw ? JSON.parse(raw) : [];
-    } catch (_) {
-      return [];
+      if (!raw) return _memoryQueue.slice();
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (_err) {
+      return _memoryQueue.slice();
     }
   }
 
   function _saveQueue(queue) {
+    const bounded = Array.isArray(queue) ? queue.slice(-MAX_QUEUE_ITEMS) : [];
     try {
-      localStorage.setItem(QUEUE_KEY, JSON.stringify(queue));
-    } catch (_) {
-      // Quota exceeded — drop oldest item and retry once
+      localStorage.setItem(QUEUE_KEY, JSON.stringify(bounded));
+      _memoryQueue = bounded.slice();
+      _warnedPersistenceFailure = false;
+      return true;
+    } catch (_err) {
       try {
-        const trimmed = queue.slice(-20);
+        const trimmed = bounded.slice(-Math.min(50, MAX_QUEUE_ITEMS));
         localStorage.setItem(QUEUE_KEY, JSON.stringify(trimmed));
-      } catch (_) { /* silent */ }
+        _memoryQueue = trimmed.slice();
+        _warnedPersistenceFailure = false;
+        return true;
+      } catch (_err2) {
+        _memoryQueue = bounded.slice();
+        if (!_warnedPersistenceFailure) {
+          _warnedPersistenceFailure = true;
+          _toast(
+            'Offline queue storage is full. Pending changes are kept in memory for this tab only.',
+            'warning',
+            { title: 'Storage Limit', duration: 6500 }
+          );
+          _debugWarn('[OfflineQueue] localStorage write failed; using in-memory fallback');
+        }
+        return false;
+      }
     }
+  }
+
+  function _extractTaskIdFromUrl(url) {
+    if (typeof url !== 'string') return null;
+    const match = url.match(/^\/api\/tasks\/([^/?#]+)/);
+    return match ? decodeURIComponent(match[1]) : null;
+  }
+
+  function _isTaskCreate(item) {
+    return !!(item && item.method === 'POST' && typeof item.url === 'string' && item.url.indexOf('/api/tasks') === 0 && !/\/api\/tasks\/[^/?#]+/.test(item.url));
+  }
+
+  function _findQueuedTaskCreate(queue, tempTaskId) {
+    if (!tempTaskId) return null;
+    for (let i = queue.length - 1; i >= 0; i--) {
+      const item = queue[i];
+      if (_isTaskCreate(item) && item.meta && item.meta.tempTaskId === tempTaskId) {
+        return item;
+      }
+    }
+    return null;
+  }
+
+  function _coalesceTempTaskMutation(queue, url, options) {
+    const taskId = _extractTaskIdFromUrl(url);
+    if (!taskId || taskId.indexOf('offline_') !== 0) return false;
+    const createItem = _findQueuedTaskCreate(queue, taskId);
+    if (!createItem) return false;
+
+    const method = String(options.method || 'POST').toUpperCase();
+    const createPayload = _safeParseJson(createItem.body) || {};
+    const mutationPayload = _safeParseJson(options.body) || {};
+
+    if (/\/toggle(?:$|\?)/.test(url) && method === 'PATCH') {
+      createPayload.completed = !Boolean(createPayload.completed);
+      createItem.body = JSON.stringify(createPayload);
+      return true;
+    }
+
+    if ((method === 'PUT' || method === 'PATCH') && /^\/api\/tasks\/[^/?#]+(?:$|\?)/.test(url)) {
+      Object.assign(createPayload, mutationPayload);
+      createItem.body = JSON.stringify(createPayload);
+      return true;
+    }
+
+    if (method === 'DELETE' && /^\/api\/tasks\/[^/?#]+(?:$|\?)/.test(url)) {
+      const idx = queue.indexOf(createItem);
+      if (idx !== -1) queue.splice(idx, 1);
+      return true;
+    }
+
+    return false;
   }
 
   function _enqueue(url, options) {
     const queue = _loadQueue();
-    queue.push({
-      id:      `q${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
-      url:     url,
-      method:  (options.method || 'POST').toUpperCase(),
-      body:    options.body  || null,
-      headers: options.headers || {},
-      ts:      new Date().toISOString(),
-    });
+    if (_coalesceTempTaskMutation(queue, url, options)) {
+      _saveQueue(queue);
+      _refreshBadge();
+      return { queued: true, coalesced: true };
+    }
+
+    const method = String(options.method || 'POST').toUpperCase();
+    const queuedItem = {
+      id: 'q' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
+      url: url,
+      method: method,
+      body: options.body || null,
+      headers: _normalizeHeaders(options.headers),
+      ts: new Date().toISOString(),
+      meta: {}
+    };
+
+    if (_isTaskCreate(queuedItem)) {
+      queuedItem.meta.tempTaskId = 'offline_' + Date.now() + Math.random().toString(36).slice(2, 6);
+    }
+
+    queue.push(queuedItem);
     _saveQueue(queue);
     _refreshBadge();
+    return queuedItem;
   }
 
-  // ── Flush queue on reconnect ────────────────────────────────
+  function _replaceQueuedTaskTempId(value, idMap) {
+    if (typeof value !== 'string') return value;
+    let out = value;
+    for (const tempId in idMap) {
+      if (!Object.prototype.hasOwnProperty.call(idMap, tempId)) continue;
+      const realId = String(idMap[tempId]);
+      out = out.replace(new RegExp('/api/tasks/' + tempId + '(?=/|$|\\?)', 'g'), '/api/tasks/' + realId);
+      out = out.replace(new RegExp('"' + tempId + '"', 'g'), '"' + realId + '"');
+    }
+    return out;
+  }
+
+  function _shouldRetryStatus(status) {
+    return status >= 500 || TRANSIENT_STATUS.has(status);
+  }
+
   async function _flush() {
     const queue = _loadQueue();
     if (!queue.length) return 0;
 
     const failures = [];
+    const tempTaskIdMap = {};
     let synced = 0;
 
-    for (const item of queue) {
+    for (let i = 0; i < queue.length; i++) {
+      const item = queue[i];
+      const requestUrl = _replaceQueuedTaskTempId(item.url, tempTaskIdMap);
+      const requestBody = _replaceQueuedTaskTempId(item.body, tempTaskIdMap);
+
       try {
-        const res = await _originalFetch(item.url, {
-          method:      item.method,
+        const res = await _originalFetch(requestUrl, {
+          method: item.method,
           credentials: 'same-origin',
-          headers:     Object.assign({ 'Content-Type': 'application/json' }, item.headers),
-          body:        item.body,
+          headers: Object.assign({ 'Content-Type': 'application/json' }, _normalizeHeaders(item.headers)),
+          body: requestBody
         });
+
         if (res.ok) {
           synced++;
+          if (_isTaskCreate(item) && item.meta && item.meta.tempTaskId) {
+            const payload = await res.clone().json().catch(function () { return null; });
+            if (payload && payload.id != null) {
+              tempTaskIdMap[item.meta.tempTaskId] = payload.id;
+            }
+          }
+        } else if (_shouldRetryStatus(res.status)) {
+          failures.push(item);
+          _debugWarn('[OfflineQueue] Keeping item for retry; status', res.status, item.url);
         } else {
-          // 4xx means the action is permanently invalid (e.g. deleted resource);
-          // drop it so we don't loop forever.
-          _debugWarn('[OfflineQueue] Dropping item - server returned', res.status, item.url);
+          _debugWarn('[OfflineQueue] Dropping item; non-retryable status', res.status, item.url);
         }
       } catch (_networkErr) {
-        // Still offline — keep for next attempt
         failures.push(item);
       }
     }
@@ -123,84 +248,66 @@
     return synced;
   }
 
-  // ── Fetch patch ─────────────────────────────────────────────
-  let _originalFetch;
-
   function _patchFetch() {
     _originalFetch = window.fetch;
 
     window.fetch = async function patchedFetch(url, options) {
       options = options || {};
-      const method = (options.method || 'GET').toUpperCase();
-      const isMutation  = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method);
+      const method = String(options.method || 'GET').toUpperCase();
+      const isMutation = method === 'POST' || method === 'PUT' || method === 'PATCH' || method === 'DELETE';
       const isSameOriginApi = (
         typeof url === 'string' &&
-        url.startsWith('/api/') &&
-        !NEVER_QUEUE.some((prefix) => url.startsWith(prefix))
+        url.indexOf('/api/') === 0 &&
+        !NEVER_QUEUE.some(function (prefix) { return url.indexOf(prefix) === 0; })
       );
 
-      // Only intercept same-origin API mutations
-      if (!isMutation || !isSameOriginApi) {
-        return _originalFetch(url, options);
-      }
+      if (!isMutation || !isSameOriginApi) return _originalFetch(url, options);
 
-      // ── Already offline: queue immediately ─────────────────
       if (!navigator.onLine) {
-        _enqueue(url, options);
+        const queuedItem = _enqueue(url, options);
         _notifyQueued(url);
-        return _buildQueuedResponse(url);
+        return _buildQueuedResponse(url, queuedItem);
       }
 
-      // ── Online: attempt the real call ──────────────────────
       try {
         return await _originalFetch(url, options);
       } catch (err) {
-        // TypeError = network unreachable (server down, no connection)
         if (err instanceof TypeError) {
-          _enqueue(url, options);
+          const queuedItem = _enqueue(url, options);
           _notifyQueued(url);
-          return _buildQueuedResponse(url);
+          return _buildQueuedResponse(url, queuedItem);
         }
-        throw err; // Re-throw unexpected errors unchanged
+        throw err;
       }
     };
   }
 
-  /**
-   * Build a response that `response.ok` callers consider successful.
-   * The body is shaped to avoid crashing code that reads specific fields
-   * (e.g. addTask() reads createdTask.id).
-   */
-  function _buildQueuedResponse(url) {
-    const tempId = `offline_${Date.now()}`;
+  function _buildQueuedResponse(url, queuedItem) {
+    const tempId = (queuedItem && queuedItem.meta && queuedItem.meta.tempTaskId) || ('offline_' + Date.now());
     let body;
 
-    if (url.startsWith('/api/tasks') && !url.includes('/toggle') && !url.match(/\/\d+$/)) {
-      // Task creation — return a minimal task skeleton
+    if (typeof url === 'string' && url.indexOf('/api/tasks') === 0 && !url.includes('/toggle') && !/\/api\/tasks\/[^/?#]+/.test(url)) {
       body = { id: tempId, title: '', completed: false, queued: true };
     } else {
       body = { ok: true, queued: true, id: tempId };
     }
 
     return new Response(JSON.stringify(body), {
-      status:  202,
-      headers: { 'Content-Type': 'application/json', 'X-Queued': '1' },
+      status: 202,
+      headers: { 'Content-Type': 'application/json', 'X-Queued': '1' }
     });
   }
 
-  // ── Banner ──────────────────────────────────────────────────
-  let _banner = null;
-
   function _createBanner() {
     _banner = document.createElement('div');
-    _banner.id        = 'offline-banner';
+    _banner.id = 'offline-banner';
     _banner.className = 'offline-banner';
     _banner.setAttribute('role', 'status');
     _banner.setAttribute('aria-live', 'polite');
     _banner.innerHTML = [
       '<span class="offline-banner-icon"><i class="fas fa-wifi" aria-hidden="true"></i></span>',
-      '<span class="offline-banner-msg">You\'re offline — changes will sync automatically when you reconnect</span>',
-      '<span class="offline-banner-badge" id="offline-queue-badge"></span>',
+      '<span class="offline-banner-msg">You are offline - changes will sync automatically when you reconnect</span>',
+      '<span class="offline-banner-badge" id="offline-queue-badge"></span>'
     ].join('');
     document.body.appendChild(_banner);
   }
@@ -217,11 +324,10 @@
     const badge = document.getElementById('offline-queue-badge');
     if (!badge) return;
     const count = _loadQueue().length;
-    badge.textContent = count > 0 ? `${count} pending` : '';
+    badge.textContent = count > 0 ? String(count) + ' pending' : '';
     badge.classList.toggle('has-items', count > 0);
   }
 
-  // ── Toasts ──────────────────────────────────────────────────
   function _toast(message, type, opts) {
     if (typeof showToast === 'function') {
       showToast(message, type, opts);
@@ -230,65 +336,58 @@
     }
   }
 
+  function _labelForUrl(url) {
+    if (!url || typeof url !== 'string') return 'Change';
+    if (url.indexOf('/tasks') !== -1) return 'Task update';
+    if (url.indexOf('/meals') !== -1) return 'Meal log';
+    if (url.indexOf('/workouts') !== -1) return 'Workout log';
+    if (url.indexOf('/notes') !== -1) return 'Note';
+    if (url.indexOf('/projects') !== -1) return 'Project update';
+    if (url.indexOf('/streaks') !== -1) return 'Streak update';
+    return 'Change';
+  }
+
   function _notifyQueued(url) {
     _refreshBadge();
-    const label = _labelForUrl(url);
     _toast(
-      `"${label}" saved offline — will sync when you reconnect`,
+      '"' + _labelForUrl(url) + '" saved offline - will sync when you reconnect',
       'warning',
       { title: 'Offline', duration: 5500 }
     );
   }
 
-  function _labelForUrl(url) {
-    if (url.includes('/tasks'))     return 'Task update';
-    if (url.includes('/meals'))     return 'Meal log';
-    if (url.includes('/workouts'))  return 'Workout log';
-    if (url.includes('/notes'))     return 'Note';
-    if (url.includes('/projects'))  return 'Project update';
-    if (url.includes('/streaks'))   return 'Streak update';
-    return 'Change';
-  }
-
-  // ── Reconnect handler ───────────────────────────────────────
   async function _handleOnline() {
-    // Small delay to let the network settle before flushing
-    await new Promise((r) => setTimeout(r, 1200));
-
+    await new Promise(function (resolve) { setTimeout(resolve, 1200); });
     const synced = await _flush();
     _hideBanner();
 
     if (synced > 0) {
       _toast(
-        `Synced ${synced} offline ${synced === 1 ? 'change' : 'changes'} successfully`,
+        'Synced ' + synced + ' offline ' + (synced === 1 ? 'change' : 'changes') + ' successfully',
         'success',
         { title: 'Back Online' }
       );
-      // Brief delay so toasts are readable before data refreshes
-      setTimeout(() => {
-        if (typeof loadActiveUserDataViews === 'function') {
-          loadActiveUserDataViews();
-        }
+      setTimeout(function () {
+        if (typeof loadActiveUserDataViews === 'function') loadActiveUserDataViews();
       }, 900);
-    } else {
-      _toast("You're back online", 'info', { duration: 3000 });
+      return;
     }
+
+    _toast('You are back online', 'info', { duration: 3000 });
   }
 
-  // ── Public API ───────────────────────────────────────────────
   function init() {
     _createBanner();
     _patchFetch();
     _refreshBadge();
 
-    // Reflect current status on boot (e.g. user loads page while offline)
     if (!navigator.onLine) _showBanner();
 
-    window.addEventListener('offline', () => {
+    window.addEventListener('offline', function () {
       _showBanner();
     });
 
-    window.addEventListener('online', () => {
+    window.addEventListener('online', function () {
       _handleOnline();
     });
   }

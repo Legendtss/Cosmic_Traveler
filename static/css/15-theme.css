@@ -1,6 +1,6 @@
 /* 15-theme.css — extracted from styles.css */
 
-/* Dark Mode Color Scheme - Red & Black Theme */
+/* Dark Mode Color Scheme - Deep Blue Theme */
 body.theme-dark {
   --bg-primary: #0b1220;
   --bg-surface: #131c2d;
@@ -13,7 +13,7 @@ body.theme-dark {
   --border-strong: rgba(170, 198, 234, 0.56);
   --icon-primary: #d5e4ff;
   --icon-secondary: #abc0df;
-  --icon-bg-light: #ffb87d;
+  --icon-bg-light: #93c5fd;
   --icon-color-dark: #0a0a0a;
   --icon-accent-contrast: #0a0a0a;
   --ui-ink: var(--text-primary);
@@ -328,14 +328,14 @@ body.theme-dark .nutrition-week-card,
 body.theme-dark .nutrition-block,
 body.theme-dark .calendar-detail-card,
 body.theme-dark .calendar-add-card {
-  background: #131110;
-  border-color: #3d2a22;
+  background: var(--bg-surface);
+  border-color: var(--border-subtle);
   box-shadow: 0 20px 36px -26px rgba(0, 0, 0, 0.88);
 }
 
 body.theme-dark .page-section {
-  border-color: #ff4500;
-  box-shadow: inset 0 0 40px rgba(255, 69, 0, 0.04);
+  border-color: var(--ui-focus);
+  box-shadow: inset 0 0 40px rgba(59, 130, 246, 0.08);
 }
 
 body.theme-dark .logo,
@@ -344,7 +344,7 @@ body.theme-dark h2,
 body.theme-dark h3,
 body.theme-dark h4,
 body.theme-dark strong {
-  color: #ff6b4a;
+  color: var(--text-primary);
 }
 
 body.theme-dark p,
@@ -353,18 +353,18 @@ body.theme-dark label,
 body.theme-dark small,
 body.theme-dark .tasks-head-row p,
 body.theme-dark .nutrition-header-row p {
-  color: #c9b8b0;
+  color: var(--text-secondary);
 }
 
 body.theme-dark .profile-menu-panel,
 body.theme-dark .dash-action-picker-panel {
-  background: #151210;
-  border-color: #3f2f25;
+  background: var(--bg-surface);
+  border-color: var(--border-subtle);
 }
 
 body.theme-dark .dash-action-option {
-  background: #1a1410;
-  border-color: #3f2f25;
+  background: var(--bg-card);
+  border-color: var(--border-subtle);
 }
 
 body.theme-dark .dash-action-option i:first-child {
@@ -372,7 +372,7 @@ body.theme-dark .dash-action-option i:first-child {
 }
 
 body.theme-dark .dash-action-option .name {
-  color: #e8dcd8;
+  color: var(--text-primary);
 }
 
 body.theme-dark .dash-action-option.start_timer i:first-child { background: linear-gradient(135deg, #86c8ff, #60b0ff); }
@@ -389,7 +389,7 @@ body.theme-dark .dash-action-option.is-selected {
 
 body.theme-dark .profile-menu-theme {
   border-color: #4a3530;
-  background: #1a1410;
+  background: var(--bg-card);
 }
 
 body.theme-dark .profile-menu-theme-label {
@@ -405,9 +405,9 @@ body.theme-dark .workout-inline-form input,
 body.theme-dark .workout-inline-form select,
 body.theme-dark .calendar-quick-add input,
 body.theme-dark .calendar-quick-add select {
-  background: #0f0908;
-  color: #e8dcd8;
-  border-color: #3f2f25;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  border-color: var(--border-subtle);
   box-shadow: inset 0 1px 3px rgba(255, 69, 0, 0.1);
 }
 
@@ -415,7 +415,7 @@ body.theme-dark input:focus,
 body.theme-dark select:focus,
 body.theme-dark textarea:focus {
   outline: none;
-  border-color: #ff4500;
+  border-color: var(--ui-focus);
   box-shadow: 0 0 0 3px rgba(255, 69, 0, 0.2);
 }
 
@@ -423,21 +423,21 @@ body.theme-dark .tasks-btn-primary,
 body.theme-dark .nutrition-btn-blue,
 body.theme-dark .projects-btn-primary,
 body.theme-dark .workout-btn.blue {
-  background: linear-gradient(135deg, #ff4500, #ff6b4a);
+  background: linear-gradient(135deg, #3b82f6, #60a5fa);
   color: #fff;
 }
 
 body.theme-dark .tasks-btn-soft,
 body.theme-dark .nutrition-btn-soft {
   background: #2a2218;
-  color: #c9b8b0;
-  border-color: #3f2f25;
+  color: var(--text-secondary);
+  border-color: var(--border-subtle);
 }
 
 body.theme-dark .tasks-layout-icon-btn {
   background: #231c18;
   border-color: #4a3530;
-  color: #c9b8b0;
+  color: var(--text-secondary);
 }
 
 body.theme-dark .tasks-layout-icon-btn:hover {
@@ -454,7 +454,7 @@ body.theme-dark .tasks-layout-icon-btn.is-active {
 
 body.theme-dark .tasks-matrix-board {
   background: #161210;
-  border-color: #3f2f25;
+  border-color: var(--border-subtle);
 }
 
 body.theme-dark .tasks-matrix-axis {
@@ -463,8 +463,8 @@ body.theme-dark .tasks-matrix-axis {
 
 body.theme-dark .tasks-matrix-unassigned,
 body.theme-dark .tasks-matrix-quadrant {
-  background: #1a1410;
-  border-color: #3f2f25;
+  background: var(--bg-card);
+  border-color: var(--border-subtle);
 }
 
 body.theme-dark .tasks-matrix-quadrant--urgent_important {
@@ -508,7 +508,7 @@ body.theme-dark .tasks-matrix-quadrant--not_urgent_not_important .tasks-matrix-q
 }
 
 body.theme-dark .tasks-matrix-quadrant.is-drag-over {
-  border-color: #ff6b4a;
+  border-color: var(--text-primary);
   box-shadow: 0 0 0 2px rgba(255, 107, 74, 0.22) inset;
   background: #211814;
 }
@@ -519,16 +519,16 @@ body.theme-dark .tasks-matrix-section .task-card-v2.is-medium,
 body.theme-dark .tasks-matrix-section .task-card-v2.is-low,
 body.theme-dark .tasks-matrix-section .task-card-v2.is-overdue {
   border-left-color: #6b7280;
-  background: #1a1410;
+  background: var(--bg-card);
 }
 
 body.theme-dark .tasks-tag-column {
-  background: #1a1410;
-  border-color: #3f2f25;
+  background: var(--bg-card);
+  border-color: var(--border-subtle);
 }
 
 body.theme-dark .tasks-tag-column-head {
-  color: #e8dcd8;
+  color: var(--text-primary);
 }
 
 body.theme-dark .tasks-tag-column-head span {
@@ -560,7 +560,7 @@ body.theme-dark .statistics-task-metric strong {
 }
 
 body.theme-dark .nutrition-btn-purple {
-  background: linear-gradient(135deg, #ff4500, #ff6b4a);
+  background: linear-gradient(135deg, #3b82f6, #60a5fa);
   color: #fff;
 }
 
@@ -569,7 +569,7 @@ body.theme-dark .nutrition-btn-green {
 }
 
 body.theme-dark .nutrition-ai-header h3 {
-  color: #e8dcd8;
+  color: var(--text-primary);
 }
 
 body.theme-dark .nutrition-ai-header p {
@@ -578,15 +578,15 @@ body.theme-dark .nutrition-ai-header p {
 
 body.theme-dark .nutrition-ai-form input,
 body.theme-dark .nutrition-ai-form select {
-  background: #1a1410;
-  border-color: #3f2f25;
-  color: #e8dcd8;
+  background: var(--bg-card);
+  border-color: var(--border-subtle);
+  color: var(--text-primary);
 }
 
 body.theme-dark .nutrition-ai-form input:focus,
 body.theme-dark .nutrition-ai-form select:focus {
   border-color: #10b981;
-  background: #1e1a15;
+  background: var(--bg-elevated);
 }
 
 body.theme-dark .nutrition-ai-form label {
@@ -612,16 +612,16 @@ body.theme-dark .nutrition-ai-status.success {
 }
 
 body.theme-dark .nutrition-ai-result-table {
-  border-color: #3f2f25;
+  border-color: var(--border-subtle);
 }
 
 body.theme-dark .nutrition-ai-result-table td {
-  color: #d4c4b8;
+  color: var(--text-secondary);
   border-bottom-color: #2a1f18;
 }
 
 body.theme-dark .nutrition-ai-result-table tbody tr:hover {
-  background: #1e1a15;
+  background: var(--bg-elevated);
 }
 
 body.theme-dark .nutrition-ai-result-table tfoot {
@@ -645,7 +645,7 @@ body.theme-dark .nutrition-ai-confirm-header h4 {
 }
 
 body.theme-dark .nutrition-ai-confirm-header p {
-  color: #8b7f73;
+  color: var(--text-muted);
 }
 
 body.theme-dark .ai-cell-input {
@@ -672,9 +672,9 @@ body.theme-dark .ai-conf-low {
 }
 
 body.theme-dark .ai-qty-input {
-  background: #1a1410;
-  border-color: #3f2f25;
-  color: #d4c4b8;
+  background: var(--bg-card);
+  border-color: var(--border-subtle);
+  color: var(--text-secondary);
 }
 
 body.theme-dark .ai-qty-input:focus {
@@ -697,7 +697,7 @@ body.theme-dark .ai-total-item {
 }
 
 body.theme-dark .ai-total-item span {
-  color: #8b7f73;
+  color: var(--text-muted);
 }
 
 body.theme-dark .ai-total-item strong {
@@ -718,22 +718,22 @@ body.theme-dark .ai-clarify-item i {
 /* ---- Dark theme: AI Chat Widget ---- */
 
 body.theme-dark .ai-chat-panel {
-  background: #1a1410;
+  background: var(--bg-card);
   box-shadow: 0 12px 48px rgba(0, 0, 0, 0.5);
 }
 
 body.theme-dark .ai-chat-messages {
-  background: #120e0a;
+  background: var(--bg-primary);
 }
 
 body.theme-dark .ai-msg-bot .ai-msg-bubble {
-  background: #1e1a15;
-  border-color: #3f2f25;
-  color: #d4c4b8;
+  background: var(--bg-elevated);
+  border-color: var(--border-subtle);
+  color: var(--text-secondary);
 }
 
 body.theme-dark .ai-chat-table th {
-  color: #8b7f73;
+  color: var(--text-muted);
 }
 
 body.theme-dark .ai-chat-table td {
@@ -741,32 +741,32 @@ body.theme-dark .ai-chat-table td {
 }
 
 body.theme-dark .ai-chat-table-total td {
-  border-top-color: #3f2f25;
+  border-top-color: var(--border-subtle);
 }
 
 body.theme-dark .ai-chat-confirm-bar {
-  background: #1e1a15;
-  border-top-color: #3f2f25;
+  background: var(--bg-elevated);
+  border-top-color: var(--border-subtle);
 }
 
 body.theme-dark .ai-chat-input-wrap {
-  background: #1a1410;
-  border-top-color: #3f2f25;
+  background: var(--bg-card);
+  border-top-color: var(--border-subtle);
 }
 
 body.theme-dark .ai-chat-mode-bar {
-  background: #1e1a15;
-  border-bottom-color: #3f2f25;
+  background: var(--bg-elevated);
+  border-bottom-color: var(--border-subtle);
 }
 
 body.theme-dark .ai-chat-mode-bar label {
-  color: #8b7f73;
+  color: var(--text-muted);
 }
 
 body.theme-dark .ai-mode-select {
-  background: #120e0a;
-  border-color: #3f2f25;
-  color: #d4c4b8;
+  background: var(--bg-primary);
+  border-color: var(--border-subtle);
+  color: var(--text-secondary);
 }
 
 body.theme-dark .ai-mode-select:focus {
@@ -776,7 +776,7 @@ body.theme-dark .ai-mode-select:focus {
 
 body.theme-dark .ai-chat-mode-indicator {
   background: linear-gradient(90deg, rgba(99, 102, 241, 0.08), rgba(139, 92, 246, 0.08));
-  border-bottom-color: #3f2f25;
+  border-bottom-color: var(--border-subtle);
 }
 
 body.theme-dark .ai-chat-mode-indicator span {
@@ -803,9 +803,9 @@ body.theme-dark .ai-chat-mode-indicator[data-mode="task"] span {
 }
 
 body.theme-dark .ai-chat-input-wrap input {
-  background: #120e0a;
-  border-color: #3f2f25;
-  color: #d4c4b8;
+  background: var(--bg-primary);
+  border-color: var(--border-subtle);
+  color: var(--text-secondary);
 }
 
 body.theme-dark .ai-chat-input-wrap input:focus {
@@ -823,9 +823,9 @@ body.theme-dark .ai-avatar-fab {
 
 /* Dark theme: inline edit inputs */
 body.theme-dark .ai-edit-input {
-  background: #120e0a;
-  border-color: #3f2f25;
-  color: #d4c4b8;
+  background: var(--bg-primary);
+  border-color: var(--border-subtle);
+  color: var(--text-secondary);
 }
 
 body.theme-dark .ai-edit-input:focus {
@@ -834,9 +834,9 @@ body.theme-dark .ai-edit-input:focus {
 }
 
 body.theme-dark .ai-edit-select {
-  background: #120e0a;
-  border-color: #3f2f25;
-  color: #d4c4b8;
+  background: var(--bg-primary);
+  border-color: var(--border-subtle);
+  color: var(--text-secondary);
 }
 
 body.theme-dark .ai-edit-select:focus {
@@ -864,8 +864,8 @@ body.theme-dark .ai-edit-project-form label {
 
 
 body.theme-dark .tasks-progress-panel {
-  background: linear-gradient(110deg, #ff4500, #ff2d00);
-  border: 1px solid #ff6b4a;
+  background: linear-gradient(110deg, #3b82f6, #2563eb);
+  border: 1px solid #60a5fa;
 }
 
 body.theme-dark .dash-action {
@@ -930,11 +930,11 @@ body.theme-dark .dash-stat-icon.orange {
 
 body.theme-dark .dash-stat-card {
   background: rgba(25, 20, 18, 0.9);
-  border-color: #3f2f25;
+  border-color: var(--border-subtle);
 }
 
 body.theme-dark .dash-stat-card:hover {
-  border-color: #ff6b4a;
+  border-color: var(--text-primary);
   background: rgba(30, 25, 23, 0.95);
 }
 
@@ -942,13 +942,13 @@ body.theme-dark .task-card-v2,
 body.theme-dark .workout-routine-item,
 body.theme-dark .nutrition-saved-item,
 body.theme-dark .nutrition-history-item {
-  background: #1a1410;
-  border-color: #3f2f25;
+  background: var(--bg-card);
+  border-color: var(--border-subtle);
 }
 
 body.theme-dark .nutrition-saved-tab {
   background: #231c18;
-  border-color: #3f2f25;
+  border-color: var(--border-subtle);
   color: #e5d4ca;
 }
 
@@ -967,7 +967,7 @@ body.theme-dark .nutrition-saved-tab.is-active {
 
 body.theme-dark .task-card-v2:hover,
 body.theme-dark .workout-routine-item:hover {
-  border-color: #ff6b4a;
+  border-color: var(--text-primary);
 }
 
 body.theme-dark .task-card-v2.is-low {
@@ -1001,29 +1001,29 @@ body.theme-dark .task-card-v2.is-high:hover {
 }
 
 body.theme-dark .nutrition-today-card {
-  background: linear-gradient(180deg, #1a1410 0%, #151210 100%);
-  border-color: #ff4500;
+  background: linear-gradient(180deg, var(--bg-card) 0%, var(--bg-surface) 100%);
+  border-color: var(--ui-focus);
   box-shadow: inset 0 0 20px rgba(255, 69, 0, 0.08);
 }
 
 body.theme-dark .nutrition-week-card,
 body.theme-dark .nutrition-block {
-  background: #1a1410;
-  border-color: #3f2f25;
+  background: var(--bg-card);
+  border-color: var(--border-subtle);
 }
 
 body.theme-dark .nutrition-goals-panel {
-  background: linear-gradient(145deg, #ff4500, #ff2d00);
-  border-color: #ff6b4a;
+  background: linear-gradient(145deg, #3b82f6, #2563eb);
+  border-color: var(--text-primary);
 }
 
 body.theme-dark .streaks-panel {
-  background: #1a1410;
-  border-color: #3f2f25;
+  background: var(--bg-card);
+  border-color: var(--border-subtle);
 }
 
 body.theme-dark .streaks-stat-card {
-  border-color: #ff6b4a;
+  border-color: var(--text-primary);
   box-shadow: 0 14px 24px -18px rgba(255, 69, 0, 0.5);
 }
 
@@ -1049,11 +1049,11 @@ body.theme-dark .dash-streak-icon-wrap {
 }
 
 body.theme-dark .streaks-level-ring {
-  background: conic-gradient(#ff4500 calc(var(--pct) * 1%), #3f2f25 0);
+  background: conic-gradient(#3b82f6 calc(var(--pct) * 1%), var(--border-subtle) 0);
 }
 
 body.theme-dark #streaks-level-bar {
-  background: #ff4500;
+  background: #3b82f6;
 }
 
 body.theme-dark .statistics-icon-badge {
@@ -1062,19 +1062,19 @@ body.theme-dark .statistics-icon-badge {
 
 body.theme-dark .statistics-icon-badge.blue {
   background: rgba(255, 69, 0, 0.2);
-  color: #ff6b4a;
+  color: var(--text-primary);
 }
 
 body.theme-dark .workspace-header,
 body.theme-dark .global-topbar {
   background: rgba(21, 18, 16, 0.95);
-  border-color: #3f2f25;
+  border-color: var(--border-subtle);
 }
 
 body.theme-dark .profile-hero {
-  background: linear-gradient(135deg, #ff4500, #ff2d00);
+  background: linear-gradient(135deg, #3b82f6, #2563eb);
   border-color: rgba(255, 107, 74, 0.3);
-  color: #e8dcd8;
+  color: var(--text-primary);
 }
 
 body.theme-dark .profile-hero h4 {
@@ -1082,7 +1082,7 @@ body.theme-dark .profile-hero h4 {
 }
 
 body.theme-dark .profile-hero p {
-  color: #e8dcd8;
+  color: var(--text-primary);
 }
 
 body.theme-dark .profile-hero-stats strong {
@@ -1090,12 +1090,12 @@ body.theme-dark .profile-hero-stats strong {
 }
 
 body.theme-dark .profile-hero-stats span {
-  color: #c9b8b0;
+  color: var(--text-secondary);
 }
 
 body.theme-dark .profile-menu-meta strong,
 body.theme-dark .profile-menu-head strong {
-  color: #ff6b4a;
+  color: var(--text-primary);
 }
 
 body.theme-dark .profile-menu-meta small,
@@ -1104,32 +1104,32 @@ body.theme-dark .profile-menu-head small {
 }
 
 body.theme-dark .profile-menu-item {
-  color: #e8dcd8;
+  color: var(--text-primary);
 }
 
 body.theme-dark .profile-menu-item:hover {
   background: rgba(255, 69, 0, 0.1);
-  color: #ff6b4a;
+  color: var(--text-primary);
 }
 
 body.theme-dark .calendar-day {
-  background: #0f0908;
-  border-color: #3f2f25;
-  color: #e8dcd8;
+  background: var(--bg-primary);
+  border-color: var(--border-subtle);
+  color: var(--text-primary);
 }
 
 body.theme-dark .calendar-day:hover {
-  border-color: #ff6b4a;
+  border-color: var(--text-primary);
 }
 
 body.theme-dark .calendar-day.has-tasks {
   background: rgba(255, 69, 0, 0.1);
-  border-color: #ff4500;
+  border-color: var(--ui-focus);
 }
 
 body.theme-dark .calendar-day.is-selected {
-  border-color: #ff4500;
-  box-shadow: 0 0 0 1px #ff4500 inset;
+  border-color: var(--ui-focus);
+  box-shadow: 0 0 0 1px #3b82f6 inset;
 }
 
 body.theme-dark .calendar-day.today {
@@ -1170,7 +1170,7 @@ body.theme-dark .fas,
 body.theme-dark .far,
 body.theme-dark .fal,
 body.theme-dark .fad {
-  color: #ff6b4a !important;
+  color: #60a5fa !important;
 }
 
 body.theme-dark .dash-stat-icon.orange i,
@@ -1180,11 +1180,11 @@ body.theme-dark .dash-streak-icon-wrap i {
 
 /* Dark mode sidebar nav items */
 body.theme-dark .sidebar .nav-item {
-  color: #e8dcd8;
+  color: var(--text-primary);
 }
 
 body.theme-dark .sidebar .nav-item {
-  color: #e8dcd8;
+  color: var(--text-primary);
 }
 
 body.theme-dark .sidebar .nav-item i {
@@ -1192,16 +1192,16 @@ body.theme-dark .sidebar .nav-item i {
 }
 
 body.theme-dark .sidebar .nav-item.active {
-  color: #ff6b4a;
+  color: var(--text-primary);
   background: rgba(255, 69, 0, 0.1);
 }
 
 body.theme-dark .sidebar .nav-item.active i {
-  color: #ff4500;
+  color: #3b82f6;
 }
 
 body.theme-dark .sidebar .nav-item::after {
-  background: linear-gradient(180deg, #ff4500, #ff6b4a);
+  background: linear-gradient(180deg, #3b82f6, #60a5fa);
 }
 
 body.theme-dark .streak-mini-title i {
@@ -1213,15 +1213,15 @@ body.theme-dark .dash-activity-icon,
 body.theme-dark .streaks-activity-icon,
 body.theme-dark .calendar-task-item {
   background: rgba(255, 69, 0, 0.15);
-  border-color: #3f2f25;
+  border-color: var(--border-subtle);
 }
 
 body.theme-dark .dash-activity-item,
 body.theme-dark .streaks-activity-item,
 body.theme-dark .nutrition-history-item {
-  background: #1a1410;
-  border-color: #3f2f25;
-  color: #e8dcd8;
+  background: var(--bg-card);
+  border-color: var(--border-subtle);
+  color: var(--text-primary);
 }
 
 body.theme-dark .dash-activity-main strong,
@@ -1231,14 +1231,14 @@ body.theme-dark .streaks-activity-main strong {
 
 body.theme-dark .dash-activity-main,
 body.theme-dark .streaks-activity-main {
-  color: #c9b8b0;
+  color: var(--text-secondary);
 }
 
 /* Dark mode time and meta text */
 body.theme-dark .dash-activity-item time,
 body.theme-dark .task-main-meta,
 body.theme-dark .task-main-left h4 {
-  color: #e8dcd8;
+  color: var(--text-primary);
 }
 
 body.theme-dark .task-main-meta {
@@ -1294,7 +1294,7 @@ body.theme-dark .dash-priority.low {
 
 /* Dark mode dots and indicators */
 body.theme-dark .dot.blue {
-  background: #ff6b4a;
+  background: #60a5fa;
 }
 
 body.theme-dark .dot.green {
@@ -1316,7 +1316,7 @@ body.theme-dark .streaks-chain-note {
 
 body.theme-dark .statistics-bar,
 body.theme-dark .statistics-bar.blue {
-  background: linear-gradient(180deg, #ff6b4a, #ff4500);
+  background: linear-gradient(180deg, #60a5fa, #3b82f6);
 }
 
 body.theme-dark .statistics-bar.green {
@@ -1325,7 +1325,7 @@ body.theme-dark .statistics-bar.green {
 
 body.theme-dark .statistics-bar-label,
 body.theme-dark .statistics-bar-value {
-  color: #e8dcd8;
+  color: var(--text-primary);
 }
 
 /* Dark mode task card visibility */
@@ -1334,8 +1334,8 @@ body.theme-dark .task-card-v2:hover {
 }
 
 body.theme-dark .task-main-check {
-  border-color: #3f2f25;
-  background: #0f0908;
+  border-color: var(--border-subtle);
+  background: var(--bg-primary);
 }
 
 body.theme-dark .task-note-btn {
@@ -1343,7 +1343,7 @@ body.theme-dark .task-note-btn {
 }
 
 body.theme-dark .task-expand-btn {
-  color: #c9b8b0;
+  color: var(--text-secondary);
 }
 
 body.theme-dark .task-settings-btn {
@@ -1377,11 +1377,11 @@ body.theme-dark .task-edit-input {
 
 /* Dark mode calendar elements */
 body.theme-dark .day-count {
-  color: #ff6b4a;
+  color: var(--text-primary);
 }
 
 body.theme-dark .calendar-task-title {
-  color: #e8dcd8;
+  color: var(--text-primary);
 }
 
 body.theme-dark .calendar-task-time {
@@ -1391,7 +1391,7 @@ body.theme-dark .calendar-task-time {
 /* Dark mode project and workout cards */
 body.theme-dark .project-task-title,
 body.theme-dark .workout-routine-title {
-  color: #ff6b4a;
+  color: var(--text-primary);
 }
 
 body.theme-dark .project-task-meta,
@@ -1401,11 +1401,11 @@ body.theme-dark .workout-routine-meta {
 
 /* Dark mode nutrition elements */
 body.theme-dark .nutrition-today-grid strong {
-  color: #ff6b4a;
+  color: var(--text-primary);
 }
 
 body.theme-dark #nutrition-today-calories {
-  color: #ff6b4a;
+  color: var(--text-primary);
 }
 
 body.theme-dark #nutrition-today-protein,
@@ -1425,32 +1425,32 @@ body.theme-dark .task-editor-label {
 body.theme-dark .streaks-points-legend label,
 body.theme-dark .streaks-bonus h4,
 body.theme-dark .streaks-bonus ul {
-  color: #e8dcd8;
+  color: var(--text-primary);
 }
 
 body.theme-dark .streaks-bonus li {
-  color: #c9b8b0;
+  color: var(--text-secondary);
 }
 
 /* Dark mode mini stats */
 body.theme-dark .mini-stat-label,
 body.theme-dark .mini-stat-value {
-  color: #e8dcd8;
+  color: var(--text-primary);
 }
 
 /* Dark mode task editor */
 body.theme-dark .task-editor-grid input,
 body.theme-dark .task-editor-grid select,
 body.theme-dark .task-notes-input {
-  background: #0f0908;
-  color: #e8dcd8;
-  border-color: #3f2f25;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  border-color: var(--border-subtle);
 }
 
 /* Dark mode status and chips */
 body.theme-dark .workout-routine-chip {
   background: rgba(255, 69, 0, 0.15);
-  border-color: #ff6b4a;
+  border-color: var(--text-primary);
   color: #ff8866;
 }
 
@@ -1463,7 +1463,7 @@ body.theme-dark .workout-routine-chip.done {
 /* Dark mode tooltip and helper text */
 body.theme-dark .tasks-empty-state,
 body.theme-dark .calendar-empty {
-  border-color: #3f2f25;
+  border-color: var(--border-subtle);
   background: rgba(25, 20, 18, 0.5);
   color: #b8a8a0;
 }
@@ -1474,12 +1474,12 @@ body.theme-dark .streaks-panel h3,
 body.theme-dark .projects-panel h3,
 body.theme-dark .workout-panel h3,
 body.theme-dark .calendar-head h3 {
-  color: #ff6b4a;
+  color: var(--text-primary);
 }
 
 /* Additional dark mode fixes for better contrast */
 body.theme-dark .global-topbar-title h2 {
-  color: #ff6b4a;
+  color: var(--text-primary);
 }
 
 body.theme-dark .global-topbar-title p {
@@ -1488,7 +1488,7 @@ body.theme-dark .global-topbar-title p {
 
 /* Dark mode nav text */
 body.theme-dark .nav-item {
-  color: #e8dcd8;
+  color: var(--text-primary);
 }
 
 /* Dark mode all headings */
@@ -1496,33 +1496,33 @@ body.theme-dark .statistics-head h2,
 body.theme-dark .profile-head h2,
 body.theme-dark .calendar-title-row h2,
 body.theme-dark .streaks-head h1 {
-  color: #ff6b4a;
+  color: var(--text-primary);
 }
 
 body.theme-dark .statistics-head p,
 body.theme-dark .profile-head p,
 body.theme-dark .calendar-title-row p,
 body.theme-dark .streaks-head p {
-  color: #c9b8b0;
+  color: var(--text-secondary);
 }
 
 /* Dark mode progress bars */
 body.theme-dark .dash-progress-bar {
-  background: #3f2f25;
+  background: var(--border-subtle);
 }
 
 body.theme-dark .dash-progress-bar > div.blue {
-  background: linear-gradient(90deg, #ff4500, #ff6b4a);
+  background: linear-gradient(90deg, #3b82f6, #60a5fa);
 }
 
 body.theme-dark .streaks-bar {
-  background: #3f2f25;
+  background: var(--border-subtle);
 }
 
 /* Dark mode list items */
 body.theme-dark .task-subtask-row span,
 body.theme-dark .project-subtask-left span {
-  color: #e8dcd8;
+  color: var(--text-primary);
 }
 
 body.theme-dark .task-card-v2.is-overdue {
@@ -1544,14 +1544,14 @@ body.theme-dark .nutrition-week-stat p {
 
 body.theme-dark .nutrition-history-time,
 body.theme-dark .nutrition-history-food {
-  color: #e8dcd8;
+  color: var(--text-primary);
 }
 
 /* Dark mode project specific elements */
 body.theme-dark .project-head-left,
 body.theme-dark .project-total-time span,
 body.theme-dark .project-total-time strong {
-  color: #e8dcd8;
+  color: var(--text-primary);
 }
 
 /* Dark mode calendar specific */
@@ -1566,13 +1566,13 @@ body.theme-dark .statistics-summary-note {
 
 body.theme-dark .statistics-legend-item,
 body.theme-dark .statistics-legend-left {
-  background: #1a1410;
-  border-color: #3f2f25;
-  color: #e8dcd8;
+  background: var(--bg-card);
+  border-color: var(--border-subtle);
+  color: var(--text-primary);
 }
 
 body.theme-dark .statistics-legend-value {
-  color: #ff6b4a;
+  color: var(--text-primary);
 }
 
 /* Dark mode due dates */
@@ -1587,27 +1587,27 @@ body.theme-dark .is-overdue {
 /* Dark mode mini pill elements */
 body.theme-dark .dash-timer-pill {
   background: #2a2218;
-  border-color: #ff6b4a;
+  border-color: var(--text-primary);
   color: #ff8866;
 }
 
 body.theme-dark .dash-timer-pill.running {
   background: rgba(255, 69, 0, 0.15);
-  border-color: #ff4500;
+  border-color: var(--ui-focus);
   color: #ff8866;
 }
 
 /* Dark mode workout battery */
 body.theme-dark .workout-battery {
-  border-color: #3f2f25;
-  background: #0f0908;
+  border-color: var(--border-subtle);
+  background: var(--bg-primary);
 }
 
 /* Dark mode profile quick list */
 body.theme-dark .profile-quick-list > div {
-  background: #1a1410;
-  border-color: #3f2f25;
-  color: #e8dcd8;
+  background: var(--bg-card);
+  border-color: var(--border-subtle);
+  color: var(--text-primary);
 }
 
 body.theme-dark .profile-quick-list span {
@@ -1615,20 +1615,20 @@ body.theme-dark .profile-quick-list span {
 }
 
 body.theme-dark .profile-quick-list strong {
-  color: #ff6b4a;
+  color: var(--text-primary);
 }
 
 /* Dark mode checkbox and form controls */
 body.theme-dark .task-main-check,
 body.theme-dark .project-task-check {
-  background: #0f0908;
-  border-color: #3f2f25;
+  background: var(--bg-primary);
+  border-color: var(--border-subtle);
 }
 
 body.theme-dark .task-subtask-check,
 body.theme-dark .project-subtask-left button {
-  background: #0f0908;
-  border-color: #3f2f25;
+  background: var(--bg-primary);
+  border-color: var(--border-subtle);
 }
 
 /* Dark mode delete and action buttons */
@@ -1646,14 +1646,14 @@ body.theme-dark .task-delete-btn-v2 {
 
 /* Dark mode streak achievement tiles */
 body.theme-dark .streaks-achievement {
-  background: #1a1410;
-  border-color: #ff6b4a;
-  color: #e8dcd8;
+  background: var(--bg-card);
+  border-color: var(--text-primary);
+  color: var(--text-primary);
 }
 
 body.theme-dark .streaks-achievement h4,
 body.theme-dark .streaks-achievement p {
-  color: #e8dcd8;
+  color: var(--text-primary);
 }
 
 body.theme-dark .streaks-achievement span {
@@ -1856,7 +1856,7 @@ body.theme-dark .profile-menu-avatar svg {
     bottom: 0;
     width: 280px;
     max-width: 82vw;
-    z-index: 1100;
+    z-index: var(--z-sidebar-drawer);
     transform: translateX(-100%);
     transition: transform 0.32s cubic-bezier(.4,0,.2,1);
     border-radius: 0 24px 24px 0;
@@ -2560,5 +2560,9 @@ body.theme-dark .focus-btn-secondary,
 body.theme-dark .notes-filter-btn {
   transition: all 0.2s ease;
 }
+
+
+
+
 
 

@@ -44,6 +44,9 @@ class WorkoutTemplateRepository:
     def create(user_id, *, name, workout_type="other", duration=0,
                calories_burned=0, exercises=None, notes="", intensity="medium"):
         db = get_db()
+        clean_name = (name or "").strip()
+        if not clean_name:
+            raise ValueError("Template name is required")
         if exercises is None:
             exercises = []
         if not isinstance(exercises, list):
@@ -59,7 +62,7 @@ class WorkoutTemplateRepository:
             """,
             (
                 user_id,
-                name,
+                clean_name,
                 workout_type,
                 max(0, safe_int(duration, 0)),
                 max(0, safe_int(calories_burned, 0)),
@@ -80,6 +83,9 @@ class WorkoutTemplateRepository:
     def update(template_id, user_id, *, name, workout_type, duration,
                calories_burned, exercises, notes, intensity):
         db = get_db()
+        clean_name = (name or "").strip()
+        if not clean_name:
+            raise ValueError("Template name is required")
         if not isinstance(exercises, list):
             exercises = []
 
@@ -91,7 +97,7 @@ class WorkoutTemplateRepository:
             WHERE id = ? AND user_id = ?
             """,
             (
-                name,
+                clean_name,
                 workout_type,
                 max(0, safe_int(duration, 0)),
                 max(0, safe_int(calories_burned, 0)),

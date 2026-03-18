@@ -1,41 +1,27 @@
 /**
- * ============================================================================
- * features/profile/profile.service.js — Profile Mutations
- * ============================================================================
- *
- * Write-side operations for profile/settings.
- * Delegates to existing globals.
- *
- * Exposed on window.ProfileService.
+ * features/profile/profile.service.js
  */
 (function () {
   'use strict';
 
+  var _kit = window.FeatureServiceKit || null;
+  function _invoke(name, args, fallback) {
+    if (_kit) return _kit.invoke(name, args, { feature: 'ProfileService', fallback: fallback });
+    var fn = window[name];
+    return typeof fn === 'function' ? fn.apply(window, args || []) : fallback;
+  }
+
   window.ProfileService = {
-
-    /**
-     * Persist the current profile state.
-     */
     save: function () {
-      if (typeof persistProfileState === 'function') persistProfileState();
+      _invoke('persistProfileState', []);
       if (typeof syncToAppState === 'function') syncToAppState('profile');
     },
-
-    /**
-     * Apply a theme change.
-     * @param {string} theme — 'light'|'dark'
-     */
     setTheme: function (theme) {
-      if (typeof applyTheme === 'function') applyTheme(theme);
+      _invoke('applyTheme', [theme]);
       if (typeof syncToAppState === 'function') syncToAppState('profile');
     },
-
-    /**
-     * Sync nutrition goals derived from profile data.
-     */
     syncNutritionGoals: function () {
-      if (typeof syncNutritionGoalWithProfile === 'function') syncNutritionGoalWithProfile();
+      _invoke('syncNutritionGoalWithProfile', []);
     }
   };
-
 })();

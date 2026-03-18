@@ -59,6 +59,18 @@ body {
   --ui-shadow-soft: 0 14px 28px -22px rgba(16, 44, 72, 0.52);
   --ui-shadow-strong: 0 24px 42px -28px rgba(12, 36, 62, 0.64);
   --ui-focus: #3b82f6;
+  --z-base: 1;
+  --z-topbar: 30;
+  --z-sidebar-overlay: 1090;
+  --z-sidebar-drawer: 1100;
+  --z-mobile-hamburger: 1110;
+  --z-modal: 1400;
+  --z-chat-panel: 1450;
+  --z-chat-fab: 1460;
+  --z-focus-overlay: 1470;
+  --z-focus-fullscreen: 1480;
+  --z-focus-exit-modal: 1490;
 }
+
 
 

@@ -349,7 +349,7 @@
   backdrop-filter: blur(8px);
   position: sticky;
   top: 10px;
-  z-index: 30;
+  z-index: var(--z-topbar);
 }
 
 .global-topbar-title h2 {
@@ -560,7 +560,7 @@
   position: fixed;
   top: 14px;
   left: 14px;
-  z-index: 1110;
+  z-index: var(--z-mobile-hamburger);
   width: 44px;
   height: 44px;
   border: none;
@@ -598,10 +598,11 @@ body.theme-dark .mobile-hamburger span { background: #f1e8e0; }
   display: none;
   position: fixed;
   inset: 0;
-  z-index: 1098;
+  z-index: var(--z-sidebar-overlay);
   background: rgba(0, 0, 0, 0.45);
   -webkit-tap-highlight-color: transparent;
 }
 .sidebar-overlay.is-visible { display: block; }
+
 
 

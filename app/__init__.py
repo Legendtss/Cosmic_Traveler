@@ -34,7 +34,7 @@ from .api.notes_routes import notes_bp
 from .api.projects_routes import projects_bp
 from .api.goals_routes import goals_bp
 from .api.auth_routes import auth_bp
-from .config import Config
+from .config import Config, is_production_env, validate_startup_config
 from .db import init_app_data, register_db
 from .middleware import setup_middleware
 
@@ -62,9 +62,6 @@ def _normalize_origin(value):
 def _validate_ai_key_policy(config_class, *, is_production, logger):
     """Validate AI-related key policy and fail fast in production when unsafe."""
     allow_gemini_fallback = _is_truthy_env(os.environ.get("ALLOW_GEMINI_FALLBACK_IN_PRODUCTION"))
-    # Default to allowing USDA demo fallback unless strict mode is explicitly enabled.
-    # Some deployments do not apply blueprint env overrides immediately.
-    allow_demo_usda = _is_truthy_env(os.environ.get("ALLOW_DEMO_USDA_IN_PRODUCTION", "1"))
 
     errors = []
 
@@ -76,16 +73,15 @@ def _validate_ai_key_policy(config_class, *, is_production, logger):
             )
         logger.warning("GEMINI_API_KEY not set — AI chat will use local fallback only.")
 
-    if config_class.USDA_API_KEY == "DEMO_KEY":
-        if is_production and not allow_demo_usda:
-            errors.append(
-                "USDA_API_KEY must not be DEMO_KEY in production. "
-                "Set USDA_API_KEY or explicitly set ALLOW_DEMO_USDA_IN_PRODUCTION=1."
-            )
-        logger.warning("USDA_API_KEY is DEMO_KEY — nutrition search may be rate-limited.")
-
     if errors:
         raise RuntimeError("Production configuration invalid:\n- " + "\n- ".join(errors))
+
+
+def _validate_bootstrap_config(config_class):
+    """Validate critical startup configuration before Flask app is instantiated."""
+    errors = validate_startup_config(config_class, environ=os.environ)
+    if errors:
+        raise RuntimeError("Invalid startup configuration:\n- " + "\n- ".join(errors))
 
 
 def _seed_showcase_users_if_enabled(app, logger):
@@ -97,11 +93,7 @@ def _seed_showcase_users_if_enabled(app, logger):
     """
     seed_env_value = os.environ.get("SEED_SHOWCASE_USERS_ON_STARTUP")
     if seed_env_value is None:
-        enabled = bool(
-            os.environ.get("RENDER")
-            or os.environ.get("RAILWAY_ENVIRONMENT")
-            or os.environ.get("PRODUCTION")
-        )
+        enabled = is_production_env()
     else:
         enabled = _is_truthy_env(seed_env_value)
 
@@ -126,11 +118,7 @@ def _seed_showcase_users_if_enabled(app, logger):
 def _get_cors_config():
     """Build CORS configuration based on environment."""
     # Check if running in production (Render, Railway, etc.)
-    is_production = bool(
-        os.environ.get("RENDER") or
-        os.environ.get("RAILWAY_ENVIRONMENT") or
-        os.environ.get("PRODUCTION")
-    )
+    is_production = is_production_env()
     
     # Allow custom origins via env var (comma-separated)
     custom_origins = os.environ.get("CORS_ORIGINS", "").strip()
@@ -150,7 +138,6 @@ def _get_cors_config():
         for candidate in (
             os.environ.get("APP_ORIGIN"),
             os.environ.get("RENDER_EXTERNAL_URL"),
-            os.environ.get("RENDER_EXTERNAL_HOSTNAME"),
         ):
             normalized = _normalize_origin(candidate)
             if normalized and normalized not in origins:
@@ -177,6 +164,9 @@ def _get_cors_config():
 
 
 def create_app(config_class=Config):
+    is_production = is_production_env()
+    _validate_bootstrap_config(config_class)
+
     app = Flask(
         __name__,
         static_folder=str(config_class.STATIC_DIR),
@@ -184,17 +174,8 @@ def create_app(config_class=Config):
     )
     app.config.from_object(config_class)
 
-    is_production = bool(
-        os.environ.get("RENDER") or
-        os.environ.get("RAILWAY_ENVIRONMENT") or
-        os.environ.get("PRODUCTION")
-    )
-
     # Zero cache in dev for instant reload; 1 hour in production
     app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 3600 if is_production else 0
-
-    if is_production and app.config.get("SECRET_KEY") == "dev-secret-change-in-production":
-        raise RuntimeError("SECRET_KEY must be set in production.")
 
     _log = logging.getLogger(__name__)
     _validate_ai_key_policy(config_class, is_production=is_production, logger=_log)

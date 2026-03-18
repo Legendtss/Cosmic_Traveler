@@ -57,7 +57,7 @@
 │  Google Gemini (gemma-3-4b-it / gemini-2.5-flash)                   │
 │  └── AI chat, mentor messages, analytics                            │
 │                                                                     │
-│  USDA FoodData Central                                              │
+│  Gemini nutrition estimation                                              │
 │  └── Food detection, nutrition search                               │
 └─────────────────────────────────────────────────────────────────────┘
 ```
@@ -157,7 +157,7 @@ Most domains still render through the bridge in script.js, but Notes now subscri
 | `utils.py` | 25 | Pure helpers: `now_iso()`, `today_str()`, `safe_int()`, `safe_float()` |
 | `mappers.py` | 91 | Row→dict mappers for tasks, meals, workouts |
 | `ai_avatar.py` | 1,037 | Gemini-powered conversational AI |
-| `nutrition_ai.py` | 740 | USDA food detection + macro calculation |
+| `nutrition_ai.py` | 740 | Gemini-powered food detection + macro estimation |
 | `points_engine.py` | 422 | Points, streaks, XP, level, achievements |
 
 ### Repositories (app/repositories/)
@@ -268,3 +268,4 @@ DEFAULT_USER_ID still exists only for bootstrap and migration defaults in app/db
 3. Continue moving rendering ownership out of script.js one domain at a time, with Focus and Tasks now the highest-value next slices
 4. **ES Module migration**: Convert IIFE/window.* to `export`/`import` with `type="module"`
 5. Harden auth/session boundaries further by removing remaining bootstrap fallbacks and tightening per-route authorization checks
+

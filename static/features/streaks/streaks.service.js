@@ -1,46 +1,28 @@
 /**
- * ============================================================================
- * features/streaks/streaks.service.js — Streaks Mutations
- * ============================================================================
- *
- * Write-side operations for streaks & points.
- * Delegates to existing globals.
- *
- * Exposed on window.StreaksService.
+ * features/streaks/streaks.service.js
  */
 (function () {
   'use strict';
 
-  var _lastEvalTs = 0;
-  var COOLDOWN_MS = 2000;
+  var _kit = window.FeatureServiceKit || null;
+  var _dedup = _kit ? _kit.createDedup({ namespace: 'streaks', windowMs: 2000 }) : function () { return false; };
+
+  function _invoke(name, args, fallback) {
+    if (_kit) return _kit.invoke(name, args, { feature: 'StreaksService', fallback: fallback });
+    var fn = window[name];
+    return typeof fn === 'function' ? fn.apply(window, args || []) : fallback;
+  }
 
   window.StreaksService = {
-
-    /**
-     * Evaluate today's streak & points (with cooldown guard).
-     * @returns {Promise<Object|null>}
-     */
     evaluate: async function () {
-      var now = Date.now();
-      if ((now - _lastEvalTs) < COOLDOWN_MS) return null;
-      _lastEvalTs = now;
-
-      if (typeof evaluateStreaksAndPoints === 'function') {
-        var result = await evaluateStreaksAndPoints();
-        if (result && typeof syncStreakResult === 'function') {
-          syncStreakResult(result);
-        }
-        return result;
-      }
-      return null;
+      if (_dedup('evaluate')) return null;
+      var result = await _invoke('evaluateStreaksAndPoints', [], null);
+      if (result) _invoke('syncStreakResult', [result]);
+      return result;
     },
 
-    /**
-     * Force a full UI refresh of the streaks panel.
-     */
     refreshUI: function () {
-      if (typeof refreshStreaksAfterChange === 'function') refreshStreaksAfterChange();
+      _invoke('refreshStreaksAfterChange', []);
     }
   };
-
 })();

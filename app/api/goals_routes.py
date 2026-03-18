@@ -2,13 +2,12 @@
 Goals API Routes
 Handles all goal-related endpoints
 """
-from flask import Blueprint, request, jsonify, send_file
+from flask import Blueprint, current_app, request, jsonify, send_file
 from app.repositories.goals_repo import GoalsRepository
 from app.auth import get_current_user_id
-from app.db import get_db
-import os
 import io
 import base64
+import logging
 from datetime import datetime
 
 # Try to import image processing library
@@ -27,19 +26,38 @@ except (ImportError, AttributeError):
 
 
 goals_bp = Blueprint('goals', __name__, url_prefix='/api/goals')
+logger = logging.getLogger(__name__)
 
-# Configure Gemini API if available
-GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
-if GEMINI_API_KEY and HAS_GENAI:
-    try:
-        genai.configure(api_key=GEMINI_API_KEY)
-    except Exception:
-        GEMINI_API_KEY = None
+_GENAI_CONFIGURED_KEY = None
 
 
 def get_user_id():
     """Get user ID from session cookie - will abort with 401 if not authenticated"""
     return get_current_user_id()
+
+
+def _safe_error(message='Internal server error'):
+    """Return a generic error payload without leaking internal details."""
+    return jsonify({'error': message}), 500
+
+
+def _ensure_genai_configured():
+    """Configure Gemini lazily from centralized app config."""
+    global _GENAI_CONFIGURED_KEY  # pylint: disable=global-statement
+    if not HAS_GENAI:
+        return False
+    api_key = (current_app.config.get('GEMINI_API_KEY') or '').strip()
+    if not api_key:
+        return False
+    if _GENAI_CONFIGURED_KEY == api_key:
+        return True
+    try:
+        genai.configure(api_key=api_key)
+        _GENAI_CONFIGURED_KEY = api_key
+        return True
+    except Exception:
+        logger.exception("Gemini configuration failed")
+        return False
 
 
 @goals_bp.route('', methods=['GET'])
@@ -83,7 +101,7 @@ def create_goal():
     if not user_id:
         return jsonify({'error': 'Unauthorized'}), 401
     
-    data = request.get_json()
+    data = request.get_json(silent=True) or {}
     
     required_fields = ['title', 'category']
     if not all(field in data for field in required_fields):
@@ -119,8 +137,9 @@ def create_goal():
             'message': 'Goal created successfully'
         }), 201
     
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    except Exception:
+        logger.exception("Goal creation failed")
+        return _safe_error('Failed to create goal')
 
 
 @goals_bp.route('/<int:goal_id>', methods=['PUT'])
@@ -134,14 +153,16 @@ def update_goal(goal_id):
     if not goal:
         return jsonify({'error': 'Goal not found'}), 404
     
-    data = request.get_json()
+    data = request.get_json(silent=True) or {}
     
     # Handle progress update specially
+    progress_result = None
     if 'current_progress' in data:
         try:
-            GoalsRepository.update_progress(goal_id, user_id, float(data['current_progress']))
-        except Exception as e:
-            return jsonify({'error': str(e)}), 500
+            progress_result = GoalsRepository.update_progress(goal_id, user_id, float(data['current_progress']))
+        except Exception:
+            logger.exception("Goal progress update failed for goal_id=%s", goal_id)
+            return _safe_error('Failed to update goal progress')
     
     # Update other fields
     update_fields = {k: v for k, v in data.items() 
@@ -150,14 +171,16 @@ def update_goal(goal_id):
     if update_fields:
         try:
             GoalsRepository.update_goal(goal_id, user_id, **update_fields)
-        except Exception as e:
-            return jsonify({'error': str(e)}), 500
+        except Exception:
+            logger.exception("Goal update failed for goal_id=%s", goal_id)
+            return _safe_error('Failed to update goal')
     
     goal = GoalsRepository.get_goal_by_id(goal_id, user_id)
     
     return jsonify({
         'success': True,
         'goal': goal,
+        'snippets_collected': progress_result.get('snippets_collected') if isinstance(progress_result, dict) else goal.get('snippets_collected'),
         'message': 'Goal updated successfully'
     }), 200
 
@@ -179,8 +202,9 @@ def delete_goal(goal_id):
             'success': True,
             'message': 'Goal deleted successfully'
         }), 200
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    except Exception:
+        logger.exception("Goal delete failed for goal_id=%s", goal_id)
+        return _safe_error('Failed to delete goal')
 
 
 @goals_bp.route('/<int:goal_id>/share', methods=['POST'])
@@ -209,8 +233,9 @@ def share_goal(goal_id):
             }), 200
         else:
             return jsonify({'error': 'Failed to generate share token'}), 500
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    except Exception:
+        logger.exception("Goal share token generation failed for goal_id=%s", goal_id)
+        return _safe_error('Failed to generate share token')
 
 
 @goals_bp.route('/<int:goal_id>/share', methods=['DELETE'])
@@ -231,8 +256,9 @@ def revoke_share(goal_id):
             'success': True,
             'message': 'Share link revoked'
         }), 200
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    except Exception:
+        logger.exception("Goal share revoke failed for goal_id=%s", goal_id)
+        return _safe_error('Failed to revoke share link')
 
 
 @goals_bp.route('/shared/<share_token>', methods=['GET'])
@@ -244,7 +270,10 @@ def get_shared_goal(share_token):
         return jsonify({'error': 'Goal not found or not shared'}), 404
     
     # Calculate unlock segments (4 milestones: 25%, 50%, 75%, 100%)
-    unlocked = GoalsRepository.get_unlock_segments(goal['current_progress'], num_segments=4)
+    unlocked_from_progress = GoalsRepository.get_unlock_segments(goal['current_progress'], num_segments=4)
+    snippets_collected = max(0, min(4, int(goal.get('snippets_collected') or 0)))
+    unlocked_count = max(len(unlocked_from_progress), snippets_collected)
+    unlocked = list(range(unlocked_count))
     
     return jsonify({
         'success': True,
@@ -265,7 +294,7 @@ def upload_or_generate_image(goal_id):
     if not goal:
         return jsonify({'error': 'Goal not found'}), 404
     
-    data = request.get_json()
+    data = request.get_json(silent=True) or {}
     
     try:
         if 'image_file' in request.files:
@@ -287,12 +316,15 @@ def upload_or_generate_image(goal_id):
                 'card_image_url': image_url
             }), 200
         
-        elif 'ai_prompt' in data and GEMINI_API_KEY and HAS_GENAI:
+        elif 'ai_prompt' in data and _ensure_genai_configured():
             # Generate image with Gemini
-            prompt = data['ai_prompt']
+            prompt = str(data.get('ai_prompt') or '').strip()[:500]
+            if not prompt:
+                return jsonify({'error': 'AI prompt is required'}), 400
             
             try:
-                model = genai.GenerativeModel('gemini-pro-vision')
+                model_name = current_app.config.get('GEMINI_MODEL', 'gemini-2.5-flash')
+                model = genai.GenerativeModel(model_name)
                 response = model.generate_content([
                     f"Create a professional achievement card design for a goal: {goal['title']}. {prompt}"
                 ])
@@ -310,10 +342,11 @@ def upload_or_generate_image(goal_id):
                     'message': 'Image generation initiated',
                     'ai_prompt': prompt
                 }), 200
-            except Exception as e:
-                return jsonify({'error': f'Image generation failed: {str(e)}'}), 500
+            except Exception:
+                logger.exception("Goal AI image generation failed for goal_id=%s", goal_id)
+                return jsonify({'error': 'Image generation failed'}), 500
         
-        elif 'ai_prompt' in data and not HAS_GENAI:
+        elif 'ai_prompt' in data and not _ensure_genai_configured():
             # Genai not available but try to store the prompt anyway
             prompt = data['ai_prompt']
             GoalsRepository.update_goal(
@@ -331,8 +364,9 @@ def upload_or_generate_image(goal_id):
         else:
             return jsonify({'error': 'No image data provided'}), 400
     
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    except Exception:
+        logger.exception("Goal image upload/generation failed for goal_id=%s", goal_id)
+        return jsonify({'error': 'Image processing failed'}), 500
 
 
 @goals_bp.route('/<int:goal_id>/download', methods=['GET'])
@@ -367,8 +401,9 @@ def download_card(goal_id):
             download_name=filename
         )
     
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    except Exception:
+        logger.exception("Goal card download failed for goal_id=%s", goal_id)
+        return _safe_error('Failed to generate download')
 
 
 def generate_card_image(goal: dict):

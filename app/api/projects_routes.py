@@ -127,6 +127,52 @@ def get_project(project_id):
     })
 
 
+@projects_bp.route("/api/projects/<int:project_id>", methods=["PUT"])
+@rate_limit(max_requests=20, window_seconds=60)
+def update_project(project_id):
+    """Update a project's details."""
+    user_id = default_user_id()
+    existing = ProjectRepository.get_by_id(project_id, user_id)
+    if not existing:
+        return jsonify({"error": "Project not found"}), 404
+
+    data = request.get_json(silent=True) or {}
+    name = (data.get("name", existing["name"]) or "").strip()
+    if not name:
+        return jsonify({"error": "Project name is required"}), 400
+
+    updated = ProjectRepository.update(
+        project_id,
+        user_id,
+        name=name,
+        description=data.get("description", existing["description"] or ""),
+        due_date=data.get("dueDate", existing["due_date"]),
+        status=data.get("status", existing["status"]),
+    )
+    if not updated:
+        return jsonify({"error": "Project not found"}), 404
+
+    subtasks = ProjectRepository.get_subtasks(project_id, user_id)
+    return jsonify({
+        "id": updated["id"],
+        "name": updated["name"],
+        "description": updated["description"],
+        "status": updated["status"],
+        "dueDate": updated["due_date"],
+        "createdAt": updated["created_at"],
+        "updatedAt": updated["updated_at"],
+        "subtasks": [
+            {
+                "id": s["id"],
+                "title": s["title"],
+                "completed": bool(s["completed"]),
+                "sortOrder": s["sort_order"],
+            }
+            for s in subtasks
+        ],
+    })
+
+
 @projects_bp.route("/api/projects/<int:project_id>", methods=["DELETE"])
 @rate_limit(max_requests=20, window_seconds=60)
 def delete_project(project_id):

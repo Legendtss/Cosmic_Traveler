@@ -52,6 +52,9 @@ class WorkoutRepository:
                calories_burned=0, exercises=None, notes="",
                intensity="medium", date=None, time=None):
         db = get_db()
+        clean_name = (name or "").strip()
+        if not clean_name:
+            raise ValueError("Workout name is required")
         if exercises is None:
             exercises = []
         if not isinstance(exercises, list):
@@ -66,7 +69,7 @@ class WorkoutRepository:
             """,
             (
                 user_id,
-                name,
+                clean_name,
                 workout_type,
                 max(0, safe_int(duration, 0)),
                 max(0, safe_int(calories_burned, 0)),
@@ -88,6 +91,9 @@ class WorkoutRepository:
     def update(workout_id, user_id, *, name, workout_type, duration,
                calories_burned, exercises, notes, intensity, date, time):
         db = get_db()
+        clean_name = (name or "").strip()
+        if not clean_name:
+            raise ValueError("Workout name is required")
         if not isinstance(exercises, list):
             exercises = []
         db.execute(
@@ -99,7 +105,7 @@ class WorkoutRepository:
             WHERE id = ? AND user_id = ?
             """,
             (
-                name,
+                clean_name,
                 workout_type,
                 max(0, safe_int(duration, 0)),
                 max(0, safe_int(calories_burned, 0)),

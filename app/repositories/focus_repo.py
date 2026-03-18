@@ -21,6 +21,33 @@ from ..utils import now_iso, safe_int, today_str
 
 class FocusRepository:
     """Data-access object for the focus_sessions table."""
+    _UNSET = object()
+
+    @staticmethod
+    def _resolve_links(db, user_id, *, task_id=None, project_id=None):
+        """Validate optional task/project links and enforce ownership."""
+        valid_task_id = None
+        valid_project_id = None
+
+        if task_id:
+            task_row = db.execute(
+                "SELECT id, project_id FROM tasks WHERE id = ? AND user_id = ?",
+                (task_id, user_id),
+            ).fetchone()
+            if task_row:
+                task_data = dict(task_row)
+                valid_task_id = task_data.get("id")
+                valid_project_id = task_data.get("project_id")
+
+        if valid_task_id is None and project_id:
+            project_row = db.execute(
+                "SELECT id FROM projects WHERE id = ? AND user_id = ?",
+                (project_id, user_id),
+            ).fetchone()
+            if project_row:
+                valid_project_id = dict(project_row).get("id")
+
+        return valid_task_id, valid_project_id
 
     @staticmethod
     def get_all(user_id, date_filter=None):
@@ -31,8 +58,8 @@ class FocusRepository:
                    t.title as task_title, 
                    p.name as project_name
             FROM focus_sessions f
-            LEFT JOIN tasks t ON f.task_id = t.id
-            LEFT JOIN projects p ON f.project_id = p.id
+            LEFT JOIN tasks t ON f.task_id = t.id AND t.user_id = f.user_id
+            LEFT JOIN projects p ON f.project_id = p.id AND p.user_id = f.user_id
             WHERE f.user_id = ?
         """
         params = [user_id]
@@ -60,6 +87,14 @@ class FocusRepository:
         """Create a focus session."""
         db = get_db()
         now = now_iso()
+
+        valid_task_id, valid_project_id = FocusRepository._resolve_links(
+            db,
+            user_id,
+            task_id=task_id,
+            project_id=project_id,
+        )
+
         cursor = db.execute(
             """
             INSERT INTO focus_sessions
@@ -76,8 +111,8 @@ class FocusRepository:
                 date or today_str(),
                 started_at or now,
                 ended_at if completed else None,
-                task_id if task_id else None,
-                project_id if project_id else None,
+                valid_task_id,
+                valid_project_id,
                 now,
                 now,
             ),
@@ -89,14 +124,33 @@ class FocusRepository:
 
     @staticmethod
     def update(session_id, user_id, *, mode, duration_planned, duration_actual,
-               completed, label, date, started_at, ended_at):
+               completed, label, date, started_at, ended_at,
+               task_id=_UNSET, project_id=_UNSET):
         """Update a focus session."""
         db = get_db()
+        existing = db.execute(
+            "SELECT task_id, project_id FROM focus_sessions WHERE id = ? AND user_id = ?",
+            (session_id, user_id),
+        ).fetchone()
+        if not existing:
+            return None
+
+        existing_data = dict(existing)
+        requested_task_id = existing_data.get("task_id") if task_id is FocusRepository._UNSET else task_id
+        requested_project_id = existing_data.get("project_id") if project_id is FocusRepository._UNSET else project_id
+
+        valid_task_id, valid_project_id = FocusRepository._resolve_links(
+            db,
+            user_id,
+            task_id=requested_task_id,
+            project_id=requested_project_id,
+        )
+
         db.execute(
             """
             UPDATE focus_sessions
             SET mode = ?, duration_planned = ?, duration_actual = ?, completed = ?,
-                label = ?, date = ?, started_at = ?, ended_at = ?, updated_at = ?
+                label = ?, date = ?, started_at = ?, ended_at = ?, task_id = ?, project_id = ?, updated_at = ?
             WHERE id = ? AND user_id = ?
             """,
             (
@@ -108,6 +162,8 @@ class FocusRepository:
                 date,
                 started_at,
                 ended_at if completed else None,
+                valid_task_id,
+                valid_project_id,
                 now_iso(),
                 session_id,
                 user_id,

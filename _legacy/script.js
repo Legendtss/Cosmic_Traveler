@@ -3426,7 +3426,7 @@ async function deleteMealEntry(mealId) {
 }
 
 // ---------------------------------------------------------------------------
-// AI Meal Logger — 2-Step Confirmation Flow (USDA-powered)
+// AI Meal Logger — 2-Step Confirmation Flow (Gemini-powered)
 // ---------------------------------------------------------------------------
 
 let aiMealPanelOpen = false;
@@ -3479,7 +3479,7 @@ async function submitAIDetect() {
   // Show loading
   statusEl.className = 'nutrition-ai-status loading';
   statusEl.classList.remove('nutrition-collapsed');
-  statusEl.innerHTML = '<span class="ai-spinner"></span> Detecting foods via USDA database...';
+  statusEl.innerHTML = '<span class="ai-spinner"></span> Detecting foods via Gemini...';
   if (detectBtn) detectBtn.disabled = true;
 
   try {
@@ -3537,7 +3537,7 @@ function renderAIConfirmation(data) {
     <thead>
       <tr>
         <th>Your Input</th>
-        <th>USDA Match</th>
+        <th>AI Match</th>
         <th>Confidence</th>
         <th>Qty (g)</th>
         <th>Calories</th>
@@ -3635,7 +3635,7 @@ function updateAITotals() {
         <div class="ai-total-item"><span>Carbs</span><strong>${Math.round(totals.carbs * 10) / 10}g</strong></div>
         <div class="ai-total-item"><span>Fats</span><strong>${Math.round(totals.fats * 10) / 10}g</strong></div>
       </div>
-      <p class="ai-result-note"><i class="fas fa-database"></i> Data sourced from USDA FoodData Central</p>`;
+      <p class="ai-result-note"><i class="fas fa-database"></i> Data sourced from Gemini nutrition estimation</p>`;
   }
 }
 

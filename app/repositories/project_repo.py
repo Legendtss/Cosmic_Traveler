@@ -77,6 +77,35 @@ class ProjectRepository:
         return project_row, subtask_rows
 
     @staticmethod
+    def update(project_id, user_id, *, name, description="", due_date=None, status=None):
+        """Update mutable project fields for an owned project."""
+        db = get_db()
+        row = db.execute(
+            "SELECT id, status FROM projects WHERE id = ? AND user_id = ?",
+            (project_id, user_id),
+        ).fetchone()
+        if not row:
+            return None
+
+        status_val = (status or row["status"] or "active").strip().lower()
+        if status_val not in ("active", "completed", "archived"):
+            status_val = row["status"]
+
+        db.execute(
+            """
+            UPDATE projects
+            SET name = ?, description = ?, due_date = ?, status = ?, updated_at = ?
+            WHERE id = ? AND user_id = ?
+            """,
+            (name, description, due_date, status_val, now_iso(), project_id, user_id),
+        )
+        db.commit()
+        return db.execute(
+            "SELECT * FROM projects WHERE id = ? AND user_id = ?",
+            (project_id, user_id),
+        ).fetchone()
+
+    @staticmethod
     def get_subtasks(project_id, user_id):
         db = get_db()
         return db.execute(

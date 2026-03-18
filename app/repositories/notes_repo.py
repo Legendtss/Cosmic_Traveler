@@ -20,6 +20,12 @@ from ..db import get_db
 from ..utils import now_iso
 
 
+def _escape_like(value):
+    """Escape SQL LIKE wildcards and backslashes for literal matching."""
+    text = str(value or "")
+    return text.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
 def _map_note(row):
     """Convert a DB row to a JSON-safe note dict."""
     tags = []
@@ -38,6 +44,7 @@ def _map_note(row):
         "source_type": row["source_type"],
         "source_id": row["source_id"],
         "tags": tags,
+        "linked_task_title": row["linked_task_title"] if "linked_task_title" in row.keys() else None,
         "created_at": row["created_at"],
         "updated_at": row["updated_at"],
     }
@@ -51,58 +58,52 @@ class NoteRepository:
     @staticmethod
     def get_all(user_id, *, source_type=None, search=None, tag=None):
         db = get_db()
-        query = "SELECT * FROM notes WHERE user_id = ?"
+        query = """
+            SELECT n.*, t.title AS linked_task_title
+            FROM notes n
+            LEFT JOIN tasks t
+              ON n.source_type = 'task'
+             AND n.source_id = t.id
+             AND t.user_id = n.user_id
+            WHERE n.user_id = ?
+        """
         params = [user_id]
 
         if source_type in ("manual", "task"):
-            query += " AND source_type = ?"
+            query += " AND n.source_type = ?"
             params.append(source_type)
 
         if search:
-            query += " AND (title LIKE ? OR content LIKE ?)"
-            like = f"%{search}%"
+            query += " AND (n.title LIKE ? ESCAPE '\\' OR n.content LIKE ? ESCAPE '\\')"
+            like = f"%{_escape_like(search)}%"
             params.extend([like, like])
 
         if tag:
-            query += " AND tags_json LIKE ?"
-            params.append(f'%"{tag}"%')
+            query += " AND n.tags_json LIKE ? ESCAPE '\\'"
+            params.append(f'%"{_escape_like(tag)}"%')
 
-        query += " ORDER BY updated_at DESC"
+        query += " ORDER BY n.updated_at DESC"
         rows = db.execute(query, params).fetchall()
-
-        notes = []
-        for r in rows:
-            note = _map_note(r)
-            if note["source_type"] == "task" and note["source_id"]:
-                task_row = db.execute(
-                    "SELECT title FROM tasks WHERE id = ? AND user_id = ?",
-                    (note["source_id"], user_id),
-                ).fetchone()
-                note["linked_task_title"] = task_row["title"] if task_row else None
-            else:
-                note["linked_task_title"] = None
-            notes.append(note)
-        return notes
+        return [_map_note(r) for r in rows]
 
     @staticmethod
     def get_by_id(note_id, user_id):
         db = get_db()
         row = db.execute(
-            "SELECT * FROM notes WHERE id = ? AND user_id = ?",
+            """
+            SELECT n.*, t.title AS linked_task_title
+            FROM notes n
+            LEFT JOIN tasks t
+              ON n.source_type = 'task'
+             AND n.source_id = t.id
+             AND t.user_id = n.user_id
+            WHERE n.id = ? AND n.user_id = ?
+            """,
             (note_id, user_id),
         ).fetchone()
         if not row:
             return None
-        note = _map_note(row)
-        if note["source_type"] == "task" and note["source_id"]:
-            task_row = db.execute(
-                "SELECT title FROM tasks WHERE id = ? AND user_id = ?",
-                (note["source_id"], user_id),
-            ).fetchone()
-            note["linked_task_title"] = task_row["title"] if task_row else None
-        else:
-            note["linked_task_title"] = None
-        return note
+        return _map_note(row)
 
     @staticmethod
     def create(user_id, *, title, content="", source_type="manual",

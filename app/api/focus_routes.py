@@ -2,7 +2,7 @@
 FILE: app/api/focus_routes.py
 
 Responsibility:
-  Focus/Study session CRUD: GET/POST /api/focus/sessions,
+  Focus/Study session CRUD: GET/POST/PUT /api/focus/sessions,
   DELETE /api/focus/sessions/<id>, GET /api/focus/summary.
 
 MUST NOT:
@@ -80,6 +80,39 @@ def delete_focus_session(session_id):
     user_id = default_user_id()
     FocusRepository.delete(session_id, user_id)
     return jsonify({"status": "deleted"})
+
+
+@focus_bp.route("/api/focus/sessions/<int:session_id>", methods=["PUT"])
+def update_focus_session(session_id):
+    user_id = default_user_id()
+    existing = FocusRepository.get_by_id(session_id, user_id)
+    if not existing:
+        return jsonify({"error": "Session not found"}), 404
+
+    data = request.get_json(silent=True) or {}
+    mode = data.get("mode", existing["mode"])
+    if mode not in ("pomodoro", "custom", "stopwatch"):
+        mode = existing["mode"]
+
+    update_kwargs = {
+        "mode": mode,
+        "duration_planned": data.get("durationPlanned", existing["duration_planned"]),
+        "duration_actual": data.get("durationActual", existing["duration_actual"]),
+        "completed": bool(data.get("completed", existing["completed"])),
+        "label": data.get("label", existing["label"]),
+        "date": data.get("date", existing["date"]),
+        "started_at": data.get("startedAt", existing["started_at"]),
+        "ended_at": data.get("endedAt", existing["ended_at"]),
+    }
+    if "taskId" in data:
+        update_kwargs["task_id"] = data.get("taskId")
+    if "projectId" in data:
+        update_kwargs["project_id"] = data.get("projectId")
+
+    row = FocusRepository.update(session_id, user_id, **update_kwargs)
+    if not row:
+        return jsonify({"error": "Session not found"}), 404
+    return jsonify({"status": "updated", "id": row["id"]}), 200
 
 
 @focus_bp.route("/api/focus/summary", methods=["GET"])

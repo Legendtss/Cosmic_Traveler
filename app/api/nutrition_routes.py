@@ -2,7 +2,7 @@
 FILE: app/api/nutrition_routes.py
 
 Responsibility:
-  Meals CRUD, AI-powered food detection (USDA 2-step flow),
+  Meals CRUD, AI-powered food detection (Gemini 2-step flow),
   food search endpoint.
 
 MUST NOT:
@@ -108,7 +108,7 @@ def delete_meal(meal_id):
 
 
 # ---------------------------------------------------------------------------
-# AI Nutrition Agent (USDA-powered) — 2-Step Confirmation Flow
+# AI Nutrition Agent (Gemini-powered) — 2-Step Confirmation Flow
 # ---------------------------------------------------------------------------
 
 @nutrition_bp.route("/api/nutrition/ai-detect", methods=["POST"])
@@ -154,7 +154,7 @@ def ai_log_meal():
             "protein": max(0.0, round(food.get("protein", 0), 1)),
             "carbs": max(0.0, round(food.get("carbs", 0), 1)),
             "fats": max(0.0, round(food.get("fats", 0), 1)),
-            "notes": f"AI-logged | USDA FDC#{food.get('fdc_id', 'N/A')} ({food.get('data_type', '')})",
+            "notes": f"AI-logged | {food.get('data_type', 'Gemini Estimate')}",
             "date": log_date,
             "time": log_time,
         })
@@ -165,7 +165,7 @@ def ai_log_meal():
 
 
 @nutrition_bp.route("/api/nutrition/search", methods=["GET"])
-def search_usda_foods():
+def search_food_library():
     default_user_id()  # Require auth
     query = (request.args.get("q") or "").strip()
     if not query:

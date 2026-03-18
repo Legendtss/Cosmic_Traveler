@@ -139,9 +139,6 @@ Production deployments require:
 
 - `SECRET_KEY` (non-default)
 - `GEMINI_API_KEY` (or explicit override: `ALLOW_GEMINI_FALLBACK_IN_PRODUCTION=1`)
-- `USDA_API_KEY` is recommended for reliable nutrition lookups.
-    Demo fallback is allowed by default. To enforce strict USDA key policy, set
-    `ALLOW_DEMO_USDA_IN_PRODUCTION=0`.
 
 On Render, these are declared in `render.yaml` so missing values are surfaced early.
 

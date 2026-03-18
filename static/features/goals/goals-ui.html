@@ -32,60 +32,34 @@
 <!-- GOAL CARD TEMPLATE -->
 <template id="goal-card-template">
   <div class="goal-card" data-goal-id="">
-    <!-- Card with blur overlay -->
     <div class="card-container">
       <div class="cr-scene" id="scene-{{goalId}}">
         <div class="cr-card-3d" id="card3d-{{goalId}}">
           <div class="cr-card-face">
-            <!-- Main canvas for goal image -->
-            <canvas id="mainCanvas-{{goalId}}" class="cr-main-canvas" width="280" height="360"></canvas>
-            
-            <!-- Holographic shimmer effect -->
+            <canvas class="cr-main-canvas" id="mainCanvas-{{goalId}}" width="280" height="360"></canvas>
             <div class="cr-holo" id="holo-{{goalId}}"></div>
-            
-            <!-- White shine sweep -->
             <div class="cr-shine" id="shine-{{goalId}}"></div>
-            
-            <!-- Gold border pulse -->
-            <div class="cr-gold-border" id="gold-border-{{goalId}}"></div>
-            
-            <!-- 3-Star badge -->
-            <div class="star-badge" id="stars-{{goalId}}">
-              <span>⭐</span>
-              <span>⭐</span>
-              <span>⭐</span>
-            </div>
-            
-            <!-- Card info overlay -->
+            <div class="cr-gold-border" id="goldBorder-{{goalId}}"></div>
+            <div class="star-badge" id="starBadge-{{goalId}}"><span>&#11088;</span><span>&#11088;</span><span>&#11088;</span></div>
             <div class="cr-card-info">
               <h3 class="goal-title"></h3>
               <p class="goal-category"></p>
               <div class="card-progress">
-                <div class="progress-bar">
-                  <div class="progress-fill"></div>
-                </div>
+                <div class="progress-bar"><div class="progress-fill"></div></div>
                 <span class="progress-text">0%</span>
               </div>
             </div>
           </div>
         </div>
+        <canvas class="cr-particles" id="pCanvas-{{goalId}}" width="280" height="360"></canvas>
       </div>
-      
-      <!-- Particle canvas (overlay) -->
-      <canvas id="pCanvas-{{goalId}}" class="cr-particles" width="280" height="360"></canvas>
-      
-      <!-- Snippet collection row -->
       <div class="cr-snippet-row" id="snippetRow-{{goalId}}"></div>
-
-      <!-- Card Actions -->
       <div class="card-actions">
-        <button class="action-btn edit-btn" title="Edit goal">✏️</button>
-        <button class="action-btn share-btn" title="Share goal">🔗</button>
-        <button class="action-btn download-btn" title="Download card">⬇️</button>
-        <button class="action-btn delete-btn" title="Delete goal">🗑️</button>
+        <button class="action-btn edit-btn" title="Edit goal"><i class="fas fa-pen"></i></button>
+        <button class="action-btn share-btn" title="Share goal"><i class="fas fa-link"></i></button>
+        <button class="action-btn download-btn" title="Download card"><i class="fas fa-download"></i></button>
+        <button class="action-btn delete-btn" title="Delete goal"><i class="fas fa-trash"></i></button>
       </div>
-
-      <!-- Status Badge -->
       <div class="status-badge"></div>
     </div>
   </div>

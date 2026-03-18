@@ -147,6 +147,19 @@ def update_task(task_id):
         # Promoting to recurring template detaches this task from parent series.
         recurrence_parent_id = None
 
+    project_id = row["project_id"] if "project_id" in row.keys() else None
+    if "project_id" in req_data:
+        candidate = req_data.get("project_id")
+        if candidate in (None, "", "null"):
+            project_id = None
+        else:
+            try:
+                project_id = int(candidate)
+            except (TypeError, ValueError):
+                return jsonify({"error": "project_id must be a valid project id"}), 400
+            if not ProjectRepository.get_by_id(project_id, uid):
+                return jsonify({"error": "Project not found"}), 404
+
     if priority not in ("low", "medium", "high"):
         priority = row["priority"]
 
@@ -167,6 +180,7 @@ def update_task(task_id):
         note_saved_to_notes=note_saved_val,
         recurrence=recurrence,
         recurrence_parent_id=recurrence_parent_id,
+        project_id=project_id,
     )
 
     # Sync linked note: create if newly checked, update if already exists

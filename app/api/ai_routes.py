@@ -105,7 +105,7 @@ def mentor_context():
 
 @ai_bp.route("/api/ai/chat", methods=["POST"])
 def ai_avatar_chat():
-    default_user_id()  # Require auth
+    user_id = default_user_id()  # Require auth
     req_data = request.get_json(silent=True) or {}
     message = (req_data.get("message") or "").strip()
     if not message:
@@ -113,11 +113,12 @@ def ai_avatar_chat():
 
     context = req_data.get("context", {})
     context["today"] = today_str()
+    context["user_id"] = user_id
     mode = (req_data.get("mode") or "general").strip().lower()
 
     result = process_avatar_message(message, context, mode=mode)
     if isinstance(result, dict) and result.get("error"):
-        return jsonify(result), 502
+        return jsonify({"status": "manual_fallback", "message": "AI service is temporarily unavailable."}), 502
     return jsonify(result), 200
 
 

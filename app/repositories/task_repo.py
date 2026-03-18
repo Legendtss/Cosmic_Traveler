@@ -23,6 +23,7 @@ from ..db import get_db
 from ..utils import now_iso, safe_int
 
 VALID_RECURRENCE = frozenset({"none", "daily", "weekly", "weekdays"})
+_UNSET = object()
 
 
 def _parse_ymd(value):
@@ -42,6 +43,38 @@ def _should_materialize(recurrence, anchor_date, target_date):
     if recurrence == "weekly":
         return target_date.weekday() == anchor_date.weekday()
     return False
+
+
+def _normalize_owned_project_id(db, user_id, project_id):
+    """Return a project ID only if it belongs to the user; otherwise None."""
+    if project_id in (None, "", "null"):
+        return None
+    try:
+        project_id = int(project_id)
+    except (TypeError, ValueError):
+        return None
+    row = db.execute(
+        "SELECT id FROM projects WHERE id = ? AND user_id = ?",
+        (project_id, user_id),
+    ).fetchone()
+    return project_id if row else None
+
+
+def _normalize_owned_parent_id(db, user_id, parent_id, *, task_id=None):
+    """Return recurrence parent only if it belongs to the user and is valid."""
+    if parent_id in (None, "", "null"):
+        return None
+    try:
+        parent_id = int(parent_id)
+    except (TypeError, ValueError):
+        return None
+    if task_id is not None and parent_id == task_id:
+        return None
+    row = db.execute(
+        "SELECT id FROM tasks WHERE id = ? AND user_id = ?",
+        (parent_id, user_id),
+    ).fetchone()
+    return parent_id if row else None
 
 
 class TaskRepository:
@@ -128,11 +161,15 @@ class TaskRepository:
         db = get_db()
         q_base = """
             SELECT t.*, 
-                   COALESCE(SUM(f.duration_actual), 0) as focus_time_spent
+                   COALESCE(f.total_focus, 0) as focus_time_spent
             FROM tasks t
-            LEFT JOIN focus_sessions f ON t.id = f.task_id AND f.completed = 1
+            LEFT JOIN (
+                SELECT task_id, user_id, SUM(duration_actual) AS total_focus
+                FROM focus_sessions
+                WHERE completed = 1
+                GROUP BY task_id, user_id
+            ) f ON t.id = f.task_id AND f.user_id = t.user_id
             WHERE t.user_id = ? {date_cond}
-            GROUP BY t.id
             ORDER BY t.id DESC
         """
         if date_filter:
@@ -159,11 +196,15 @@ class TaskRepository:
         return db.execute(
             """
             SELECT t.*, 
-                   COALESCE(SUM(f.duration_actual), 0) as focus_time_spent
+                   COALESCE(f.total_focus, 0) as focus_time_spent
             FROM tasks t
-            LEFT JOIN focus_sessions f ON t.id = f.task_id AND f.completed = 1
+            LEFT JOIN (
+                SELECT task_id, user_id, SUM(duration_actual) AS total_focus
+                FROM focus_sessions
+                WHERE completed = 1
+                GROUP BY task_id, user_id
+            ) f ON t.id = f.task_id AND f.user_id = t.user_id
             WHERE t.id = ? AND t.user_id = ?
-            GROUP BY t.id
             """,
             (task_id, user_id),
         ).fetchone()
@@ -176,6 +217,10 @@ class TaskRepository:
         db = get_db()
         created_at = now_iso()
         recurrence_value = recurrence if recurrence in VALID_RECURRENCE else "none"
+        valid_project_id = _normalize_owned_project_id(db, user_id, project_id)
+        valid_parent_id = _normalize_owned_parent_id(db, user_id, recurrence_parent_id)
+        if recurrence_value != "none":
+            valid_parent_id = None
         cursor = db.execute(
             """
             INSERT INTO tasks
@@ -186,11 +231,11 @@ class TaskRepository:
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
-                user_id, project_id, title, description, tags_json,
+                user_id, valid_project_id, title, description, tags_json,
                 category, priority, 0, date, 0,
                 note_content, 1 if note_saved_to_notes and note_content else 0,
                 recurrence_value,
-                recurrence_parent_id,
+                valid_parent_id,
                 created_at, created_at,
             ),
         )
@@ -201,24 +246,41 @@ class TaskRepository:
     def update(task_id, user_id, *, title, description, tags_json, category,
                priority, completed, date, time_spent,
                note_content, note_saved_to_notes, recurrence,
-               recurrence_parent_id):
+               recurrence_parent_id, project_id=_UNSET):
         db = get_db()
         now = now_iso()
         recurrence_value = recurrence if recurrence in VALID_RECURRENCE else "none"
+        row = db.execute(
+            "SELECT project_id FROM tasks WHERE id = ? AND user_id = ?",
+            (task_id, user_id),
+        ).fetchone()
+        if not row:
+            return now
+        existing_project_id = row["project_id"]
+        target_project_id = existing_project_id if project_id is _UNSET else project_id
+        valid_project_id = _normalize_owned_project_id(db, user_id, target_project_id)
+        valid_parent_id = _normalize_owned_parent_id(
+            db,
+            user_id,
+            recurrence_parent_id,
+            task_id=task_id,
+        )
+        if recurrence_value != "none":
+            valid_parent_id = None
         db.execute(
             """
             UPDATE tasks
-            SET title = ?, description = ?, tags_json = ?, category = ?,
+            SET project_id = ?, title = ?, description = ?, tags_json = ?, category = ?,
                 priority = ?, completed = ?, date = ?, time_spent = ?,
                 note_content = ?, note_saved_to_notes = ?, recurrence = ?, recurrence_parent_id = ?, updated_at = ?
             WHERE id = ? AND user_id = ?
             """,
             (
-                title, description, tags_json, category,
+                valid_project_id, title, description, tags_json, category,
                 priority, 1 if completed else 0, date,
                 max(0, safe_int(time_spent, 0)),
                 note_content, 1 if note_saved_to_notes else 0,
-                recurrence_value, recurrence_parent_id, now,
+                recurrence_value, valid_parent_id, now,
                 task_id, user_id,
             ),
         )

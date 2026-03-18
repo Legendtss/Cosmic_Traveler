@@ -29,6 +29,7 @@
   'use strict';
 
   var _listeners = {};
+  var MAX_LISTENERS_PER_EVENT = 200;
 
   window.EventBus = {
     /**
@@ -38,7 +39,24 @@
      * @returns {Function} unsubscribe handle
      */
     subscribe: function subscribe(event, callback) {
+      if (typeof callback !== 'function') {
+        console.warn('[EventBus] subscribe ignored for "' + event + '" (callback is not a function)');
+        return function noop() {};
+      }
       if (!_listeners[event]) _listeners[event] = [];
+      // Avoid duplicate registrations of the same callback, a common source
+      // of long-session leaks when init hooks run multiple times.
+      if (_listeners[event].indexOf(callback) !== -1) {
+        return function unsubscribe() {
+          _listeners[event] = (_listeners[event] || []).filter(function (cb) {
+            return cb !== callback;
+          });
+        };
+      }
+      if (_listeners[event].length >= MAX_LISTENERS_PER_EVENT) {
+        console.warn('[EventBus] listener cap reached for "' + event + '" (' + MAX_LISTENERS_PER_EVENT + ')');
+        return function noop() {};
+      }
       _listeners[event].push(callback);
       return function unsubscribe() {
         _listeners[event] = (_listeners[event] || []).filter(function (cb) {
@@ -55,9 +73,11 @@
     publish: function publish(event, data) {
       var cbs = _listeners[event];
       if (!cbs || !cbs.length) return;
-      for (var i = 0; i < cbs.length; i++) {
+      // Snapshot before iterating to avoid mutation side effects.
+      var snapshot = cbs.slice();
+      for (var i = 0; i < snapshot.length; i++) {
         try {
-          cbs[i](data);
+          snapshot[i](data);
         } catch (err) {
           console.error('[EventBus] Error in subscriber for "' + event + '":', err);
         }
@@ -89,6 +109,18 @@
       } else {
         _listeners = {};
       }
+    },
+
+    /**
+     * Introspection helper for diagnostics and leak detection.
+     * @param {string} [event]
+     * @returns {number}
+     */
+    listenerCount: function listenerCount(event) {
+      if (event) return (_listeners[event] || []).length;
+      return Object.keys(_listeners).reduce(function (sum, key) {
+        return sum + ((_listeners[key] || []).length);
+      }, 0);
     }
   };
 

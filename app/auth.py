@@ -17,7 +17,8 @@ Depends on:
 """
 
 import hashlib
-import random
+import logging
+import os
 import secrets
 from datetime import datetime, timedelta, timezone
 from functools import wraps
@@ -30,7 +31,11 @@ from .utils import now_iso
 
 # ── Session config ────────────────────────────────────────────
 SESSION_COOKIE_NAME = "ft_session"
-SESSION_LIFETIME_DAYS = 90
+SESSION_LIFETIME_HOURS = max(1, int(os.environ.get("SESSION_LIFETIME_HOURS", "8")))
+SESSION_LIFETIME_SECONDS = SESSION_LIFETIME_HOURS * 3600
+_CLEANUP_INTERVAL_SECONDS = max(60, int(os.environ.get("SESSION_CLEANUP_INTERVAL_SECONDS", "300")))
+_last_cleanup_ts = 0.0
+_log = logging.getLogger(__name__)
 
 
 # ── Token hashing (DB stores hash, not plaintext) ─────────────
@@ -45,10 +50,13 @@ def _generate_token() -> str:
     return secrets.token_hex(32)  # 64 chars, 256 bits of entropy
 
 
-def _cleanup_expired_sessions(sample_rate: float = 0.10) -> None:
-    """Best-effort periodic cleanup of expired sessions."""
-    if random.random() > sample_rate:
+def _cleanup_expired_sessions() -> None:
+    """Best-effort periodic cleanup of expired sessions with time-based gating."""
+    global _last_cleanup_ts
+    now_ts = datetime.now(timezone.utc).timestamp()
+    if (now_ts - _last_cleanup_ts) < _CLEANUP_INTERVAL_SECONDS:
         return
+    _last_cleanup_ts = now_ts
     db = get_db()
     db.execute(
         "DELETE FROM sessions WHERE expires_at < ?",
@@ -83,7 +91,7 @@ def create_session(user_id: int) -> str:
     _cleanup_expired_sessions()
     token = _generate_token()  # Plaintext token for client
     token_hash = _hash_token(token)  # Hash for DB storage
-    expires = (datetime.now(timezone.utc) + timedelta(days=SESSION_LIFETIME_DAYS)).isoformat()
+    expires = (datetime.now(timezone.utc) + timedelta(seconds=SESSION_LIFETIME_SECONDS)).isoformat()
     db.execute(
         "INSERT INTO sessions (id, user_id, created_at, expires_at) VALUES (?, ?, ?, ?)",
         (token_hash, user_id, now_iso(), expires),
@@ -127,17 +135,17 @@ def validate_session(token: str):
         "SELECT * FROM sessions WHERE id = ?", (token_hash,)
     ).fetchone()
     if not row:
-        print(f"[AUTH] Session not found in DB for token hash: {token_hash[:16]}...")
+        _log.debug("Session not found for token hash prefix=%s", token_hash[:16])
         return None
     expires_at = row["expires_at"]
     now = datetime.now(timezone.utc).isoformat()
     if expires_at < now:
-        print(f"[AUTH] Session expired: {expires_at} < {now}")
+        _log.debug("Session expired for token hash prefix=%s", token_hash[:16])
         # Expired — clean up
         db.execute("DELETE FROM sessions WHERE id = ?", (token_hash,))
         db.commit()
         return None
-    print(f"[AUTH] Session valid: user_id={row['user_id']}, expires={expires_at}")
+    _log.debug("Session valid for user_id=%s", row["user_id"])
     return row
 
 
@@ -154,16 +162,13 @@ def get_current_user_id():
 
     token = request.cookies.get(SESSION_COOKIE_NAME)
     if not token:
-        print(f"[AUTH] No session cookie found. Available cookies: {request.cookies}")
         abort(401, description="Authentication required: no session cookie")
     
     session_row = validate_session(token)
     if not session_row:
-        print(f"[AUTH] Session token invalid or expired. Token hash: {_hash_token(token)[:16]}...")
         abort(401, description="Authentication required: invalid session")
 
     g.current_user_id = session_row["user_id"]
-    print(f"[AUTH] Session validated for user_id={session_row['user_id']}")
     return g.current_user_id
 
 
