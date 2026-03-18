@@ -31,10 +31,10 @@ def get_projects():
     """Get all projects for the user."""
     user_id = default_user_id()
     rows = ProjectRepository.get_all(user_id)
+    subtask_map = ProjectRepository.get_subtasks_for_projects([r["id"] for r in rows], user_id)
     projects = []
     for r in rows:
-        # Get subtasks for each project
-        subtasks = ProjectRepository.get_subtasks(r["id"], user_id)
+        subtasks = subtask_map.get(r["id"], [])
         projects.append({
             "id": r["id"],
             "name": r["name"],
@@ -62,7 +62,7 @@ def get_projects():
 def create_project():
     """Create a new project."""
     user_id = default_user_id()
-    data = request.get_json()
+    data = request.get_json(silent=True) or {}
     
     name = (data.get("name") or "").strip()
     if not name:

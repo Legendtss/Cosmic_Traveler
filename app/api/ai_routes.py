@@ -24,6 +24,7 @@ from flask import Blueprint, jsonify, request
 
 from ..ai_avatar import get_gemini_analytics, process_avatar_message
 from ..db import get_db
+from ..middleware import rate_limit
 from ..mappers import map_task
 from ..points_engine import get_or_create_progress, level_progress
 from ..repositories.nutrition_repo import NutritionRepository
@@ -37,6 +38,7 @@ ai_bp = Blueprint("ai", __name__)
 
 
 @ai_bp.route("/api/mentor/context", methods=["GET"])
+@rate_limit(max_requests=30, window_seconds=60)
 def mentor_context():
     db = get_db()
     user_id = default_user_id()
@@ -104,6 +106,7 @@ def mentor_context():
 
 
 @ai_bp.route("/api/ai/chat", methods=["POST"])
+@rate_limit(max_requests=20, window_seconds=60)
 def ai_avatar_chat():
     user_id = default_user_id()  # Require auth
     req_data = request.get_json(silent=True) or {}
@@ -123,12 +126,14 @@ def ai_avatar_chat():
 
 
 @ai_bp.route("/api/ai/analytics", methods=["GET"])
+@rate_limit(max_requests=30, window_seconds=60)
 def ai_avatar_analytics():
     default_user_id()  # Require auth
     return jsonify(get_gemini_analytics()), 200
 
 
 @ai_bp.route("/api/ai/execute", methods=["POST"])
+@rate_limit(max_requests=20, window_seconds=60)
 def ai_avatar_execute():
     user_id = default_user_id()  # Require auth before payload validation
     req_data = request.get_json(silent=True) or {}

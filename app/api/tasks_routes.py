@@ -108,6 +108,7 @@ def create_task():
 
 
 @tasks_bp.route("/api/tasks/<int:task_id>", methods=["PUT"])
+@rate_limit(max_requests=30, window_seconds=60)
 def update_task(task_id):
     uid = default_user_id()
     row = TaskRepository.get_by_id(task_id, uid)
@@ -185,7 +186,13 @@ def update_task(task_id):
 
     # Sync linked note: create if newly checked, update if already exists
     if save_note and note_content_val:
-        NoteLinker.upsert_linked_note(uid, task_id, title, note_content_val, json.dumps(json.loads(tags_json)))
+        try:
+            parsed_tags = json.loads(tags_json)
+            if not isinstance(parsed_tags, list):
+                parsed_tags = []
+        except (TypeError, ValueError):
+            parsed_tags = []
+        NoteLinker.upsert_linked_note(uid, task_id, title, note_content_val, json.dumps(parsed_tags))
     else:
         NoteLinker.delete_linked_note(uid, task_id)
 
@@ -194,6 +201,7 @@ def update_task(task_id):
 
 
 @tasks_bp.route("/api/tasks/<int:task_id>", methods=["DELETE"])
+@rate_limit(max_requests=30, window_seconds=60)
 def delete_task(task_id):
     deleted = TaskRepository.delete(task_id, default_user_id())
     if not deleted:
@@ -202,6 +210,7 @@ def delete_task(task_id):
 
 
 @tasks_bp.route("/api/tasks/<int:task_id>/toggle", methods=["PATCH"])
+@rate_limit(max_requests=60, window_seconds=60)
 def toggle_task(task_id):
     updated_row = TaskRepository.toggle_completed(task_id, default_user_id())
     if not updated_row:

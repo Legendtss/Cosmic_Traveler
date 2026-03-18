@@ -120,6 +120,43 @@ class ProjectRepository:
         ).fetchall()
 
     @staticmethod
+    def get_subtasks_for_projects(project_ids, user_id):
+        """Fetch subtasks for multiple projects in one query.
+
+        Returns a dict keyed by project_id -> list[subtask rows].
+        """
+        if not project_ids:
+            return {}
+
+        db = get_db()
+        normalized_ids = []
+        for pid in project_ids:
+            try:
+                normalized_ids.append(int(pid))
+            except (TypeError, ValueError):
+                continue
+        if not normalized_ids:
+            return {}
+
+        placeholders = ",".join("?" for _ in normalized_ids)
+        params = normalized_ids + [user_id]
+        rows = db.execute(
+            f"""
+            SELECT ps.*
+            FROM project_subtasks ps
+            JOIN projects p ON p.id = ps.project_id
+            WHERE ps.project_id IN ({placeholders}) AND p.user_id = ?
+            ORDER BY ps.project_id, ps.sort_order
+            """,
+            params,
+        ).fetchall()
+
+        grouped = {pid: [] for pid in normalized_ids}
+        for row in rows:
+            grouped.setdefault(row["project_id"], []).append(row)
+        return grouped
+
+    @staticmethod
     def delete(project_id, user_id):
         db = get_db()
         result = db.execute(

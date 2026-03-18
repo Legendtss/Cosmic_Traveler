@@ -19,6 +19,7 @@ Depends on:
 
 from flask import Blueprint, jsonify, request
 
+from ..middleware import rate_limit
 from ..repositories.focus_repo import FocusRepository
 from ..utils import today_str
 from .helpers import default_user_id
@@ -52,6 +53,7 @@ def get_focus_sessions():
 
 
 @focus_bp.route("/api/focus/sessions", methods=["POST"])
+@rate_limit(max_requests=30, window_seconds=60)
 def create_focus_session():
     user_id = default_user_id()
     data = request.get_json(silent=True) or {}
@@ -76,6 +78,7 @@ def create_focus_session():
 
 
 @focus_bp.route("/api/focus/sessions/<int:session_id>", methods=["DELETE"])
+@rate_limit(max_requests=30, window_seconds=60)
 def delete_focus_session(session_id):
     user_id = default_user_id()
     FocusRepository.delete(session_id, user_id)
@@ -83,6 +86,7 @@ def delete_focus_session(session_id):
 
 
 @focus_bp.route("/api/focus/sessions/<int:session_id>", methods=["PUT"])
+@rate_limit(max_requests=30, window_seconds=60)
 def update_focus_session(session_id):
     user_id = default_user_id()
     existing = FocusRepository.get_by_id(session_id, user_id)

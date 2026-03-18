@@ -20,6 +20,7 @@ import json
 from flask import Blueprint, jsonify, request
 
 from ..repositories.notes_repo import NoteRepository
+from ..middleware import rate_limit
 from .helpers import default_user_id, normalize_tags
 
 notes_bp = Blueprint("notes", __name__)
@@ -42,6 +43,7 @@ def get_notes():
 
 
 @notes_bp.route("/api/notes", methods=["POST"])
+@rate_limit(max_requests=30, window_seconds=60)
 def create_note():
     data = request.get_json(silent=True) or {}
     uid = default_user_id()
@@ -91,6 +93,7 @@ def get_note(note_id):
 
 
 @notes_bp.route("/api/notes/<int:note_id>", methods=["PUT"])
+@rate_limit(max_requests=30, window_seconds=60)
 def update_note(note_id):
     uid = default_user_id()
     existing = NoteRepository.get_by_id(note_id, uid)
@@ -112,6 +115,7 @@ def update_note(note_id):
 
 
 @notes_bp.route("/api/notes/<int:note_id>", methods=["DELETE"])
+@rate_limit(max_requests=30, window_seconds=60)
 def delete_note(note_id):
     deleted = NoteRepository.delete(note_id, default_user_id())
     if not deleted:

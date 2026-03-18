@@ -73,6 +73,7 @@ def create_meal():
 
 
 @nutrition_bp.route("/api/meals/<int:meal_id>", methods=["PUT"])
+@rate_limit(max_requests=30, window_seconds=60)
 def update_meal(meal_id):
     uid = default_user_id()
     row = NutritionRepository.get_by_id(meal_id, uid)
@@ -100,6 +101,7 @@ def update_meal(meal_id):
 
 
 @nutrition_bp.route("/api/meals/<int:meal_id>", methods=["DELETE"])
+@rate_limit(max_requests=30, window_seconds=60)
 def delete_meal(meal_id):
     deleted = NutritionRepository.delete(meal_id, default_user_id())
     if not deleted:

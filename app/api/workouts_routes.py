@@ -86,6 +86,7 @@ def create_workout():
 
 
 @workouts_bp.route("/api/workouts/<int:workout_id>", methods=["PUT"])
+@rate_limit(max_requests=30, window_seconds=60)
 def update_workout(workout_id):
     uid = default_user_id()
     row = WorkoutRepository.get_by_id(workout_id, uid)
@@ -123,6 +124,7 @@ def update_workout(workout_id):
 
 
 @workouts_bp.route("/api/workouts/<int:workout_id>", methods=["DELETE"])
+@rate_limit(max_requests=30, window_seconds=60)
 def delete_workout(workout_id):
     deleted = WorkoutRepository.delete(workout_id, default_user_id())
     if not deleted:
@@ -131,6 +133,7 @@ def delete_workout(workout_id):
 
 
 @workouts_bp.route("/api/workouts/<int:workout_id>/toggle", methods=["PATCH"])
+@rate_limit(max_requests=60, window_seconds=60)
 def toggle_workout(workout_id):
     updated = WorkoutRepository.toggle_completed(workout_id, default_user_id())
     if not updated:
@@ -172,6 +175,7 @@ def create_workout_template():
 
 
 @workouts_bp.route("/api/workout-templates/<int:template_id>", methods=["PUT"])
+@rate_limit(max_requests=30, window_seconds=60)
 def update_workout_template(template_id):
     uid = default_user_id()
     row = WorkoutTemplateRepository.get_by_id(template_id, uid)
@@ -206,6 +210,7 @@ def update_workout_template(template_id):
 
 
 @workouts_bp.route("/api/workout-templates/<int:template_id>", methods=["DELETE"])
+@rate_limit(max_requests=30, window_seconds=60)
 def delete_workout_template(template_id):
     deleted = WorkoutTemplateRepository.delete(template_id, default_user_id())
     if not deleted:
