@@ -839,66 +839,50 @@ const goalsHandler = {
   // Create Goal Card DOM Element
   createGoalCard: function(goal) {
     const template = document.getElementById('goal-card-template');
-    const clone = template.content.cloneNode(true);
+    const goalId = goal.id;
+    const rawClone = template.content.cloneNode(true);
 
-    const card = clone.querySelector('.goal-card');
+    const tempDiv = document.createElement('div');
+    tempDiv.appendChild(rawClone);
+    tempDiv.innerHTML = tempDiv.innerHTML.replace(/\{\{goalId\}\}/g, goalId);
+
+    const card = tempDiv.querySelector('.goal-card');
     card.dataset.goalId = goal.id;
     card.dataset.status = goal.status;
-
-    // Set data for interactions
     card.dataset.title = goal.title;
     card.dataset.category = goal.category;
 
-    // Replace template placeholders with actual goal ID
-    const goalId = goal.id;
-    const placeholdersToReplace = [
-      'scene', 'card3d', 'mainCanvas', 'pCanvas', 'holo', 'shine', 'goldBorder', 'starBadge', 'snippetRow'
-    ];
-    
-    placeholdersToReplace.forEach(id => {
-      const elements = clone.querySelectorAll(`#${id}-{{goalId}}`);
-      elements.forEach(el => {
-        el.id = `${id}-${goalId}`;
-      });
-    });
-
-    // Background image (for shared view compatibility)
-    const bgImg = clone.querySelector('.card-image');
+    const bgImg = card.querySelector('.card-image');
     if (bgImg) {
       bgImg.src = goal.card_image_url || 'https://via.placeholder.com/800x600/e0e7ff/6366f1?text=Goal';
       bgImg.alt = goal.title;
     }
 
-    // Content
-    clone.querySelector('.goal-title').textContent = goal.title;
-    const categoryEl = clone.querySelector('.goal-category');
+    card.querySelector('.goal-title').textContent = goal.title;
+    const categoryEl = card.querySelector('.goal-category');
     if (categoryEl) {
       categoryEl.innerHTML = `<span class="goal-category-icon">${crCardSystem.categoryEmoji(goal.category)}</span><span>${goal.category}</span>`;
     }
 
-    // Progress
-    const progressFill = clone.querySelector('.progress-fill');
+    const progressFill = card.querySelector('.progress-fill');
     progressFill.style.width = goal.current_progress + '%';
-    clone.querySelector('.progress-text').textContent = Math.round(goal.current_progress) + '%';
+    card.querySelector('.progress-text').textContent = Math.round(goal.current_progress) + '%';
 
-    // Deadline (only shown for certain views)
-    const deadlineEl = clone.querySelector('.goal-deadline');
+    const deadlineEl = card.querySelector('.goal-deadline');
     if (deadlineEl) {
       if (goal.time_limit) {
         const deadline = new Date(goal.time_limit);
-        clone.querySelector('.deadline-date').textContent = deadline.toLocaleDateString();
+        card.querySelector('.deadline-date').textContent = deadline.toLocaleDateString();
       } else {
         deadlineEl.style.display = 'none';
       }
     }
 
-    // Status badge
-    const badge = clone.querySelector('.status-badge');
+    const badge = card.querySelector('.status-badge');
     if (badge) {
       badge.textContent = goal.status === 'completed' ? 'Completed' : goal.status === 'archived' ? 'Archived' : 'Active';
     }
 
-    // Setup CR 3D canvas reveal system
     const imageUrl = goal.card_image_url || null;
     setTimeout(() => {
       crCardSystem.initGoalCanvas(goalId, imageUrl, goal.current_progress, {
@@ -907,17 +891,15 @@ const goalsHandler = {
       });
     }, 0);
 
-    // Action buttons
-    clone.querySelector('.edit-btn')?.addEventListener('click', (e) => { e.stopPropagation(); this.openEditModal(goal.id); });
-    clone.querySelector('.share-btn')?.addEventListener('click', (e) => { e.stopPropagation(); this.openShareModal(goal.id); });
-    clone.querySelector('.download-btn')?.addEventListener('click', (e) => { e.stopPropagation(); this.downloadCard(goal.id); });
-    clone.querySelector('.delete-btn')?.addEventListener('click', (e) => { e.stopPropagation(); this.deleteGoal(goal.id); });
+    card.querySelector('.edit-btn')?.addEventListener('click', (e) => { e.stopPropagation(); this.openEditModal(goal.id); });
+    card.querySelector('.share-btn')?.addEventListener('click', (e) => { e.stopPropagation(); this.openShareModal(goal.id); });
+    card.querySelector('.download-btn')?.addEventListener('click', (e) => { e.stopPropagation(); this.downloadCard(goal.id); });
+    card.querySelector('.delete-btn')?.addEventListener('click', (e) => { e.stopPropagation(); this.deleteGoal(goal.id); });
 
-    // Click to update progress
-    const cardContainer = clone.querySelector('.card-container');
+    const cardContainer = card.querySelector('.card-container');
     cardContainer.addEventListener('click', () => this.openProgressModal(goal.id));
 
-    return clone;
+    return card;
   },
 
   /**
