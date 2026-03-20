@@ -1989,27 +1989,14 @@ function calendarWeekStartMonday(dateInput) {
 }
 
 function calendarWeekDayKeys(anchorDate) {
-  const start = calendarWeekStartMonday(anchorDate);
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   
-  // Check if we're viewing the current week
-  const weekEnd = new Date(start);
-  weekEnd.setDate(start.getDate() + 6);
-  
-  let displayStart = start;
-  let daysToShow = 7;
-  
-  // If viewing current week and today is not Monday, start from today
-  if (today >= start && today <= weekEnd && today.getTime() !== start.getTime()) {
-    displayStart = new Date(today);
-    daysToShow = 7 - Math.floor((today.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
-  }
-  
+  // Always show 7 days starting from today (rolling week view)
   const keys = [];
-  for (let i = 0; i < daysToShow; i += 1) {
-    const d = new Date(displayStart);
-    d.setDate(displayStart.getDate() + i);
+  for (let i = 0; i < 7; i += 1) {
+    const d = new Date(today);
+    d.setDate(today.getDate() + i);
     keys.push(toLocalDateKey(d));
   }
   return keys;
@@ -2340,20 +2327,7 @@ function renderCalendarWeekBoard() {
   const anchor = calendarState.selectedDate ? dateFromKey(calendarState.selectedDate) : new Date();
   const weekKeys = calendarWeekDayKeys(anchor);
   const todayKey = toLocalDateKey(new Date());
-  const dayLabels = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-  
-  // Get the week start to determine which day indices we're showing
-  const weekStart = calendarWeekStartMonday(anchor);
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  
-  // Calculate which day index to start from
-  let startDayIdx = 0;
-  const weekEnd = new Date(weekStart);
-  weekEnd.setDate(weekStart.getDate() + 6);
-  if (today >= weekStart && today <= weekEnd && today.getTime() !== weekStart.getTime()) {
-    startDayIdx = Math.floor((today.getTime() - weekStart.getTime()) / (1000 * 60 * 60 * 24));
-  }
+  const dayLabels = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
   monthLabelEl.innerHTML = `<i class="fas fa-calendar-alt"></i> ${calendarWeekRangeLabel(anchor)}`;
 
@@ -2369,8 +2343,8 @@ function renderCalendarWeekBoard() {
       ? dayTasks.map(calendarWeekTaskCardHtml).join('')
       : '';
     const niceDate = dateFromKey(dateKey).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-    const dayLabelIdx = startDayIdx + idx;
-    const dayLabel = dayLabels[dayLabelIdx % 7];
+    const dateObj = dateFromKey(dateKey);
+    const dayLabel = dayLabels[dateObj.getDay()]; // Get actual day of week for this date
     return `
       <section class="calendar-week-column ${isToday ? 'is-today' : ''}">
         <header class="calendar-week-column-head">
