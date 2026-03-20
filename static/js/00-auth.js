@@ -24,8 +24,18 @@ window.AuthModule = (() => {
   'use strict';
 
   let _currentUser = null;
+  const DEMO_LOGIN_EMAIL = 'instant.demo@fittrack.local';
+  const DEMO_LOGIN_PASSWORD = 'demo1demo';
 
   // ── API helpers ──────────────────────────────────────────
+
+  async function _jsonSafe(res) {
+    try {
+      return await res.json();
+    } catch (_err) {
+      return { ok: res.ok, errors: ['Unexpected server response.'] };
+    }
+  }
 
   async function _post(url, body) {
     const res = await fetch(url, {
@@ -33,8 +43,9 @@ window.AuthModule = (() => {
       headers: { 'Content-Type': 'application/json' },
       credentials: 'same-origin',
       body: JSON.stringify(body),
+      keepalive: url === '/api/auth/logout',
     });
-    return res.json();
+    return _jsonSafe(res);
   }
 
   async function _put(url, body) {
@@ -44,12 +55,12 @@ window.AuthModule = (() => {
       credentials: 'same-origin',
       body: JSON.stringify(body),
     });
-    return res.json();
+    return _jsonSafe(res);
   }
 
   async function _get(url) {
     const res = await fetch(url, { credentials: 'same-origin' });
-    return res.json();
+    return _jsonSafe(res);
   }
 
   // ── Public API ───────────────────────────────────────────
@@ -114,12 +125,16 @@ window.AuthModule = (() => {
   }
 
   async function logout() {
-    await _post('/api/auth/logout', {});
-    _clearBrowserState();
-    _currentUser = null;
-    // Reload page to clear all in-memory state (AppState, task lists, etc.)
-    // This prevents any data leaking to the next user on the same device.
-    window.location.reload();
+    try {
+      await _post('/api/auth/logout', {});
+    } finally {
+      _clearBrowserState();
+      _currentUser = null;
+    }
+  }
+
+  async function loginDemo() {
+    return login(DEMO_LOGIN_EMAIL, DEMO_LOGIN_PASSWORD);
   }
 
   async function updateProfile(fields) {
@@ -150,6 +165,7 @@ window.AuthModule = (() => {
     checkSession,
     signup,
     login,
+    loginDemo,
     logout,
     updateProfile,
     updateOnboarding,
@@ -247,6 +263,8 @@ window.AuthModule = (() => {
     const getStartedBtn = document.getElementById('intro-get-started');
     const loginBtn = document.getElementById('intro-login');
     const footerCta = document.getElementById('intro-footer-cta');
+    const demoAccessBtn = document.getElementById('intro-demo-access');
+    const demoAccessError = document.getElementById('intro-demo-error');
 
     if (getStartedBtn) {
       getStartedBtn.addEventListener('click', () => {
@@ -277,6 +295,31 @@ window.AuthModule = (() => {
         if (signupForm) signupForm.classList.remove('hidden');
         if (loginError) loginError.classList.add('hidden');
         if (signupError) signupError.classList.add('hidden');
+      });
+    }
+
+    if (demoAccessBtn) {
+      demoAccessBtn.addEventListener('click', async () => {
+        if (demoAccessError) demoAccessError.classList.add('hidden');
+        demoAccessBtn.disabled = true;
+        const originalText = demoAccessBtn.textContent;
+        demoAccessBtn.textContent = 'Opening demo...';
+        try {
+          const data = await AuthModule.loginDemo();
+          if (data.ok) {
+            _routeToCorrectScreen(data.user, false);
+            return;
+          }
+          _showError(
+            demoAccessError,
+            data.errors || ['Demo user is not available. Ensure showcase seeding is enabled.']
+          );
+        } catch (_err) {
+          _showError(demoAccessError, ['Could not open demo right now. Please try again.']);
+        } finally {
+          demoAccessBtn.disabled = false;
+          demoAccessBtn.textContent = originalText;
+        }
       });
     }
   }

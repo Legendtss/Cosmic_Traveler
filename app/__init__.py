@@ -93,7 +93,8 @@ def _seed_showcase_users_if_enabled(app, logger):
     """
     seed_env_value = os.environ.get("SEED_SHOWCASE_USERS_ON_STARTUP")
     if seed_env_value is None:
-        enabled = is_production_env()
+        # Default ON so demo/QA credentials are always available unless explicitly disabled.
+        enabled = True
     else:
         enabled = _is_truthy_env(seed_env_value)
 

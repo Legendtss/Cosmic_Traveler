@@ -5,6 +5,7 @@ Creates or updates the following accounts:
 - d@gmail.com (password: demo1demo)
 - d1@gmail.com (password: demo1demo)
 - demo@gmail.com (password: demo1demo)
+- instant.demo@fittrack.local (password: demo1demo)
 - testgoals@test.com (password: password123)
 
 For each account, this script replaces only that user's data with a
@@ -64,6 +65,19 @@ SHOWCASE_VARIANTS = {
         "workout_calorie_shift": 35,
         "snapshot_tasks_base": 6,
         "snapshot_minutes_base": 48,
+    },
+    "instant.demo@fittrack.local": {
+        "project_prefix": "Instant Demo Engine",
+        "task_track": "Demo Momentum",
+        "deep_work_label": "Demo Focus Session",
+        "meal_style": "Performance Fuel",
+        "workout_style": "Power Mix",
+        "focus_line": "complete feature walkthrough readiness",
+        "note_tail": "Designed for instant product walkthrough and QA checks.",
+        "nutrition_calorie_shift": 180,
+        "workout_calorie_shift": 30,
+        "snapshot_tasks_base": 6,
+        "snapshot_minutes_base": 44,
     },
     "testgoals@test.com": {
         "project_prefix": "Goals Push",
@@ -128,6 +142,22 @@ SHOWCASE_USERS = [
         "daily_calorie_delta": 340.0,
         "activity_level": "very_active",
         "progress": {"total_points": 1985, "current_streak": 13, "longest_streak": 24, "level": 7},
+    },
+    {
+        "email": "instant.demo@fittrack.local",
+        "display_name": "Instant Demo User",
+        "level": "Intermediate",
+        "goal": "General Fitness",
+        "weekly_workout_target": 5,
+        "calorie_goal": 2520,
+        "age": 30,
+        "height": 177,
+        "current_weight": 74.5,
+        "target_weight": 72.0,
+        "weight_goal_duration_weeks": 12,
+        "daily_calorie_delta": -120.0,
+        "activity_level": "active",
+        "progress": {"total_points": 1560, "current_streak": 11, "longest_streak": 19, "level": 6},
     },
     {
         "email": "testgoals@test.com",

@@ -7450,15 +7450,18 @@ function setupProfileMenu() {
 
     if (action === 'sign-out') {
       closeProfileMenu();
-      AuthModule.logout().then(() => {
-        activeFeaturePrefs = { ...DEFAULT_FEATURE_PREFS };
-        // Use new auth routing state machine (unauthenticated → intro screen)
-        if (typeof window._authRouteToCorrectScreen === 'function') {
-          window._authRouteToCorrectScreen(null, false);
-        } else {
-          setSessionView('intro');
-        }
-      });
+      AuthModule.logout()
+        .catch((err) => {
+          console.warn('Logout API request failed, continuing with local sign-out:', err);
+        })
+        .finally(() => {
+          activeFeaturePrefs = { ...DEFAULT_FEATURE_PREFS };
+          if (typeof window._authRouteToCorrectScreen === 'function') {
+            window._authRouteToCorrectScreen(null, false);
+          } else {
+            setSessionView('intro');
+          }
+        });
       return;
     }
   });
