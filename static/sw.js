@@ -15,7 +15,7 @@
  */
 'use strict';
 
-const VER         = '4';
+const VER         = '5';
 const SHELL_CACHE = `ft-shell-v${VER}`;
 const DATA_CACHE  = `ft-data-v${VER}`;
 
