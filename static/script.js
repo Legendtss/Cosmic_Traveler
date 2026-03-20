@@ -1312,7 +1312,16 @@ async function addTask(title, priority, dueDate, repeat, tags = [], noteContent 
       ext.completedAtDates = ext.completedAtDates || {};
       ext.tags = normalizeTaskTags(tags);
       saveTaskEnhancements();
-      await loadTasks();
+      
+      // ✅ OPTIMIZATION: Add to local state instead of full reload
+      if (!taskUiState.tasks) taskUiState.tasks = [];
+      taskUiState.tasks.unshift(createdTask);
+      
+      // Only reload tasks for that specific date if needed
+      if (typeof renderCalendarTaskList === 'function') {
+        renderCalendarTaskList();
+      }
+      
       const modal = document.getElementById('add-task-modal');
       if (modal) modal.style.display = 'none';
     } else {

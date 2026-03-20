@@ -1011,7 +1011,15 @@ const goalsHandler = {
 
       if (response.ok) {
         this.closeModal('goal-modal');
-        this.loadGoals();
+        
+        // ✅ OPTIMIZATION: Add new goal to local state instead of full reload
+        if (!this.goalsState.editingGoalId) {
+          this.goalsState.goals.unshift(data.goal);
+          this.renderGoals();
+        } else {
+          this.loadGoals(); // For edits, reload to be safe
+        }
+        
         this.showNotification('Goal ' + (this.goalsState.editingGoalId ? 'updated' : 'created') + ' successfully!', 'success');
       } else {
         const errorMsg = data.error || data.message || 'Failed to save goal';
