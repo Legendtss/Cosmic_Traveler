@@ -15,7 +15,7 @@ ENV/
 *.swo
 
 # Data (local dev only)
-data/fitness.sqlite
+data/
 *.sqlite
 *.db
 
