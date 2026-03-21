@@ -6325,7 +6325,8 @@ function renderStatisticsDynamicLayout(enabledModules) {
         </section>
       </div>
       <section class="statistics-panel">
-        <h3>6-Month Progress</h3>
+        <h3>My Progress</h3>
+        <div id="statistics-dynamic-legend" class="statistics-legend-inline"></div>
         <div class="statistics-chart-wrap">
           <svg id="statistics-monthly-svg" class="statistics-line-svg tall" viewBox="0 0 680 320" preserveAspectRatio="none"></svg>
           <div id="statistics-monthly-labels" class="statistics-x-labels"></div>
@@ -6546,39 +6547,133 @@ function renderNutritionAreaChart() {
     window.setTimeout(() => area.classList.add('is-revealed'), 320);
   });
 }
-
-function renderMonthlyLineChart() {
+async function renderMonthlyLineChart() {
   const svg = document.getElementById('statistics-monthly-svg');
   const labels = document.getElementById('statistics-monthly-labels');
+  const legendEl = document.getElementById('statistics-dynamic-legend');
   if (!svg || !labels) return;
+
+  // ── 1. Fetch real data from API (last 90 days) ──────────────
+  const endDate = new Date();
+  const startDate = new Date();
+  startDate.setDate(endDate.getDate() - 89); // 90 days window
+
+  const fmt = d => d.toISOString().split('T')[0]; // → "2026-01-01"
+
+  let rows = [];
+  try {
+    const res = await fetch(
+      `/api/analytics/weekly?start_date=${fmt(startDate)}&end_date=${fmt(endDate)}&granularity=daily`,
+      { credentials: 'same-origin' }
+    );
+    if (!res.ok) throw new Error('Failed to fetch');
+    rows = await res.json();
+  } catch (err) {
+    console.warn('Progress chart: API error', err);
+    svg.innerHTML = `<text x="50%" y="50%" text-anchor="middle" fill="#94a3b8">No data available</text>`;
+    return;
+  }
+
+  // ── 2. Trim leading days where user had zero activity ────────
+  const firstActiveIdx = rows.findIndex(row =>
+    row.workouts_completed > 0 ||
+    row.calories_consumed > 0 ||
+    row.tasks_completed > 0 ||
+    row.calories_burned > 0
+  );
+
+  // If no activity at all, show empty state
+  if (firstActiveIdx === -1) {
+    svg.innerHTML = `<text x="50%" y="50%" text-anchor="middle" fill="#94a3b8" font-size="14">Start logging to see your progress!</text>`;
+    labels.innerHTML = '';
+    if (legendEl) legendEl.innerHTML = '';
+    return;
+  }
+
+  // Slice from first active day onwards
+  const activeRows = rows.slice(firstActiveIdx);
+
+  // ── 3. Define which metrics to show ─────────────────────────
+  const metrics = [
+    { key: 'workouts_completed', label: 'Workouts',        color: '#3B82F6' }, // blue
+    { key: 'calories_burned',    label: 'Calories Burned', color: '#F59E0B' }, // orange
+    { key: 'tasks_completed',    label: 'Tasks Done',      color: '#A855F7' }, // purple
+    { key: 'calories_consumed',  label: 'Calories Eaten',  color: '#10B981' }, // green
+    { key: 'workout_minutes',    label: 'Active Minutes',  color: '#06B6D4' }, // teal
+  ];
+
+  // ── 4. Calculate chart dimensions ───────────────────────────
   const width = 680;
   const height = 320;
-  const padding = 28;
-  const workouts = statisticsState.monthlyProgress.map(row => row.workouts);
-  const calories = statisticsState.monthlyProgress.map(row => row.calories);
-  const wPoints = createPolylinePoints(workouts, width, height, padding, Math.min(...workouts) - 2, Math.max(...workouts) + 2);
-  const cPoints = createPolylinePoints(calories, width, height, padding, Math.min(...calories) - 600, Math.max(...calories) + 600);
+  const padding = 40;
 
-  const wDots = wPoints.map(point => `<circle class="statistics-svg-dot" cx="${point.x.toFixed(2)}" cy="${point.y.toFixed(2)}" fill="#3B82F6"></circle>`).join('');
-  const cDots = cPoints.map(point => `<circle class="statistics-svg-dot" cx="${point.x.toFixed(2)}" cy="${point.y.toFixed(2)}" fill="#F59E0B"></circle>`).join('');
+  // ── 5. Build SVG paths for each metric ──────────────────────
+  // Each metric needs its OWN min/max scale otherwise
+  // workouts (0-5) would be invisible next to calories (0-2000)
+  const metricPaths = metrics.map(metric => {
+    const values = activeRows.map(row => Number(row[metric.key]) || 0);
+    const min = Math.min(...values);
+    const max = Math.max(...values);
 
+    // If all values are zero, skip this metric
+    if (max === 0) return null;
+
+    const points = createPolylinePoints(
+      values, width, height, padding,
+      Math.max(0, min - (max * 0.1)),  // 10% padding below
+      max + (max * 0.1)                 // 10% padding above
+    );
+
+    const dots = points.map(p =>
+      `<circle class="statistics-svg-dot" cx="${p.x.toFixed(2)}" cy="${p.y.toFixed(2)}" fill="${metric.color}" r="3"></circle>`
+    ).join('');
+
+    return {
+      ...metric,
+      path: `<path class="statistics-svg-path" d="${pathFromPoints(points)}" stroke="${metric.color}" stroke-width="2" fill="none"></path>`,
+      dots,
+    };
+  }).filter(Boolean); // remove null (zero) metrics
+
+  // ── 6. Build grid lines ──────────────────────────────────────
+  const gridLines = [0, 0.33, 0.66, 1].map(pct => {
+    const y = padding + ((height - padding * 2) * pct);
+    return `<line x1="${padding}" y1="${y.toFixed(2)}" x2="${width - padding}" y2="${y.toFixed(2)}"></line>`;
+  }).join('');
+
+  // ── 7. Render SVG ────────────────────────────────────────────
   svg.innerHTML = `
-    <g class="statistics-svg-grid">
-      <line x1="${padding}" y1="${padding}" x2="${width - padding}" y2="${padding}"></line>
-      <line x1="${padding}" y1="${padding + ((height - padding * 2) * 0.33)}" x2="${width - padding}" y2="${padding + ((height - padding * 2) * 0.33)}"></line>
-      <line x1="${padding}" y1="${padding + ((height - padding * 2) * 0.66)}" x2="${width - padding}" y2="${padding + ((height - padding * 2) * 0.66)}"></line>
-      <line x1="${padding}" y1="${height - padding}" x2="${width - padding}" y2="${height - padding}"></line>
-    </g>
-    <path class="statistics-svg-path" d="${pathFromPoints(wPoints)}" stroke="#3B82F6"></path>
-    <path class="statistics-svg-path" d="${pathFromPoints(cPoints)}" stroke="#F59E0B"></path>
-    ${wDots}
-    ${cDots}
+    <g class="statistics-svg-grid">${gridLines}</g>
+    ${metricPaths.map(m => m.path).join('')}
+    ${metricPaths.map(m => m.dots).join('')}
   `;
 
-  labels.classList.add('months');
-  labels.innerHTML = statisticsState.monthlyProgress.map(row => `<span>${row.month}</span>`).join('');
-}
+  // ── 8. Render X axis labels (show ~6 evenly spaced dates) ───
+  const totalPoints = activeRows.length;
+  const labelCount = Math.min(6, totalPoints);
+  const step = Math.floor(totalPoints / labelCount);
 
+  labels.classList.remove('months');
+  labels.innerHTML = activeRows
+    .filter((_, i) => i % step === 0 || i === totalPoints - 1)
+    .map(row => {
+      // Format "2026-03-21" → "Mar 21"
+      const d = new Date(row.date + 'T00:00:00');
+      const label = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      return `<span>${label}</span>`;
+    })
+    .join('');
+
+  // ── 9. Render legend ─────────────────────────────────────────
+  if (legendEl) {
+    legendEl.innerHTML = metricPaths.map(m => `
+      <span class="statistics-legend-chip" style="--chip-color:${m.color}">
+        <span class="statistics-dot" style="background:${m.color}"></span>
+        ${m.label}
+      </span>
+    `).join('');
+  }
+}
 function renderStatistics() {
   const enabledModules = getEnabledStatisticsModules();
   renderStatisticsSummary(enabledModules);
