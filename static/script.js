@@ -3333,11 +3333,9 @@ function renderSavedMeals() {
     return acc;
   }, {});
 
-  if (!(byType[nutritionState.activeMealType] || []).length) {
-    const firstTypeWithMeals = orderedTypes.find((type) => (byType[type] || []).length > 0);
-    if (firstTypeWithMeals) {
-      nutritionState.activeMealType = firstTypeWithMeals;
-    }
+  // Keep the user-selected tab even when there are no meals in that category.
+  if (!orderedTypes.includes(nutritionState.activeMealType)) {
+    nutritionState.activeMealType = orderedTypes[0];
   }
 
   const activeType = nutritionState.activeMealType;
