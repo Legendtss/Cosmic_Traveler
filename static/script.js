@@ -7028,9 +7028,10 @@ function renderStatisticsDynamicLayout(enabledModules) {
   container.innerHTML = rows.join('');
 }
 
-function renderStatisticsPie(pieEl, legendEl, data) {
+function renderStatisticsPie(pieEl, legendEl, data, options = {}) {
   if (!pieEl || !legendEl) return;
   const total = Math.max(1, data.reduce((sum, item) => sum + (Number(item.value) || 0), 0));
+  const showLargestByDefault = !!options.showLargestByDefault;
   const size = 210;
   const radius = 78;
   const stroke = 24;
@@ -7087,6 +7088,11 @@ function renderStatisticsPie(pieEl, legendEl, data) {
   const center = pieEl.querySelector('.statistics-pie-center');
   const centerStrong = center?.querySelector('.statistics-pie-percentage');
   const centerSpan = center?.querySelector('.statistics-pie-label');
+  const largestDataIndex = data.reduce((bestIndex, item, index, all) => {
+    const current = Number(item?.value) || 0;
+    const best = Number(all[bestIndex]?.value) || 0;
+    return current > best ? index : bestIndex;
+  }, 0);
 
   const clearCenter = () => {
     if (!center) return;
@@ -7113,7 +7119,11 @@ function renderStatisticsPie(pieEl, legendEl, data) {
     center.classList.add('has-hover-content');
   };
 
-  clearCenter();
+  if (showLargestByDefault && arcs[largestDataIndex]) {
+    showCenter(arcs[largestDataIndex]);
+  } else {
+    clearCenter();
+  }
 
   // Show contextual center content for the active slice only.
   arcs.forEach((arc) => {
@@ -7122,7 +7132,13 @@ function renderStatisticsPie(pieEl, legendEl, data) {
     });
   });
 
-  pieEl.addEventListener('mouseleave', clearCenter);
+  pieEl.addEventListener('mouseleave', () => {
+    if (showLargestByDefault && arcs[largestDataIndex]) {
+      showCenter(arcs[largestDataIndex]);
+      return;
+    }
+    clearCenter();
+  });
 
   if (prefersReducedMotion) {
     arcs.forEach((arc, index) => {
@@ -7250,7 +7266,8 @@ function renderStatistics() {
     renderStatisticsPie(
       document.getElementById('statistics-workout-pie'),
       document.getElementById('statistics-workout-legend'),
-      statisticsState.workoutTypeData
+      statisticsState.workoutTypeData,
+      { showLargestByDefault: true }
     );
     renderMonthlyLineChart();
   }
