@@ -97,6 +97,17 @@ function ftDebugWarn(...args) {
   if (_ftDebugEnabled) console.warn(...args);
 }
 
+function isAuthFailureStatus(status) {
+  return status === 401 || status === 403;
+}
+
+function hasAuthenticatedUserContext() {
+  const user = (typeof AuthModule !== 'undefined' && AuthModule.currentUser)
+    ? AuthModule.currentUser
+    : null;
+  return !!(user && user.id != null);
+}
+
 function navIconAnimationClass(pageName) {
   if (pageName === 'tasks') return 'icon-anim-task';
   if (pageName === 'projects') return 'icon-anim-project';
@@ -3820,7 +3831,14 @@ async function loadMeals() {
   try {
     let meals;
     const response = await fetch('/api/meals', { credentials: 'same-origin' });
-    if (!response.ok) throw new Error('Failed to load meals');
+    if (!response.ok) {
+      if (isAuthFailureStatus(response.status)) {
+        if (requestId !== mealsLoadRequestId) return;
+        nutritionState.entries = [];
+        return;
+      }
+      throw new Error('Failed to load meals');
+    }
     meals = await response.json();
     if (requestId !== mealsLoadRequestId) return;
     nutritionState.entries = Array.isArray(meals) ? meals : [];
@@ -4411,11 +4429,13 @@ function toggleDashboardTimer() {
 }
 
 async function refreshDashboardMetrics() {
+  if (!hasAuthenticatedUserContext()) return;
   try {
     let summary;
     let workouts;
     const summaryRes = await fetch('/api/analytics/summary', { credentials: 'same-origin' });
     const workoutsRes = await fetch('/api/workouts', { credentials: 'same-origin' });
+    if (isAuthFailureStatus(summaryRes.status) || isAuthFailureStatus(workoutsRes.status)) return;
     if (!summaryRes.ok || !workoutsRes.ok) return;
     summary = await summaryRes.json();
     workouts = await workoutsRes.json();
@@ -4950,14 +4970,18 @@ function _normalizeDayEval(day) {
  */
 async function streakFetchFromApi() {
   try {
+    if (!hasAuthenticatedUserContext()) return null;
     const proteinGoal = nutritionState.baseGoals.protein || 140;
     // Trigger server-side evaluation first
-    await fetch('/api/streaks/evaluate', { credentials: 'same-origin', method: 'POST',
+    const evalRes = await fetch('/api/streaks/evaluate', { credentials: 'same-origin', method: 'POST',
       headers: { 'Content-Type': 'application/json'},
       body: JSON.stringify({ protein_goal: proteinGoal }),
     });
+    if (isAuthFailureStatus(evalRes.status)) return null;
+    if (!evalRes.ok) throw new Error('Failed to evaluate streaks');
     // Then fetch progress
     const res = await fetch(`/api/streaks/progress?protein_goal=${proteinGoal}`, { credentials: 'same-origin' });
+    if (isAuthFailureStatus(res.status)) return null;
     if (!res.ok) throw new Error('Failed to fetch streaks progress');
     const data = await res.json();
     // Normalize server snake_case keys â†’ camelCase for renderStreaksUI
@@ -5245,6 +5269,7 @@ function formatStreakActivityTime(timeStr) {
 
 async function setupStreaks() {
   if (!document.getElementById('streaks')) return;
+  if (!hasAuthenticatedUserContext()) return;
   // Render from cache immediately for instant, non-zero display
   const cached = loadStreakCache();
   if (cached) renderStreaksUI(cached);
@@ -6049,7 +6074,13 @@ async function loadWorkoutsForPage() {
   try {
     let rows;
     const res = await fetch('/api/workouts', { credentials: 'same-origin' });
-    if (!res.ok) throw new Error('Failed to load workouts');
+    if (!res.ok) {
+      if (isAuthFailureStatus(res.status)) {
+        workoutState.workouts = [];
+        return;
+      }
+      throw new Error('Failed to load workouts');
+    }
     rows = await res.json();
     workoutState.workouts = (Array.isArray(rows) ? rows : []).map((w, index) => {
       const meta = workoutMeta(w.id);
@@ -7262,6 +7293,12 @@ async function renderMonthlyLineChart() {
   const labels = document.getElementById('statistics-monthly-labels');
   const legendEl = document.getElementById('statistics-dynamic-legend');
   if (!svg || !labels) return;
+  if (!hasAuthenticatedUserContext()) {
+    svg.innerHTML = `<text x="50%" y="50%" text-anchor="middle" fill="#94a3b8">Sign in to view progress</text>`;
+    labels.innerHTML = '';
+    if (legendEl) legendEl.innerHTML = '';
+    return;
+  }
 
   // ── 1. Fetch real data from API (last 90 days) ──────────────
   const endDate = new Date();
@@ -7276,6 +7313,12 @@ async function renderMonthlyLineChart() {
       `/api/analytics/weekly?start_date=${fmt(startDate)}&end_date=${fmt(endDate)}&granularity=daily`,
       { credentials: 'same-origin' }
     );
+    if (isAuthFailureStatus(res.status)) {
+      svg.innerHTML = `<text x="50%" y="50%" text-anchor="middle" fill="#94a3b8">Sign in to view progress</text>`;
+      labels.innerHTML = '';
+      if (legendEl) legendEl.innerHTML = '';
+      return;
+    }
     if (!res.ok) throw new Error('Failed to fetch');
     rows = await res.json();
   } catch (err) {
@@ -7399,6 +7442,7 @@ function animateStatisticsEntry() {
 
 function setupStatistics() {
   if (!document.getElementById('statistics')) return;
+  if (!hasAuthenticatedUserContext()) return;
   updateStatisticsForActiveUser();
   renderStatistics();
 }
@@ -10729,8 +10773,17 @@ function _focusLoadSessions() {
     _focusRenderSessions();
     _focusUpdateSummary();
   } else {
+    if (!hasAuthenticatedUserContext()) {
+      _focus.sessions = [];
+      _focusRenderSessions();
+      _focusUpdateSummary();
+      return;
+    }
     fetch(`/api/focus/sessions?date=${today}`, { credentials: 'same-origin' })
-      .then(r => r.json())
+      .then((r) => {
+        if (isAuthFailureStatus(r.status)) return [];
+        return r.json();
+      })
       .then(data => {
         _focus.sessions = data || [];
         _focusRenderSessions();

@@ -786,12 +786,24 @@ const goalsHandler = {
 
   // Load Goals from API
   loadGoals: async function() {
+    if (!(window.AuthModule && window.AuthModule.currentUser && window.AuthModule.currentUser.id != null)) {
+      this.goalsState.goals = [];
+      this.renderGoals();
+      return;
+    }
+
     try {
       const response = await fetch('/api/goals', {
         method: 'GET',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include'
       });
+
+      if (response.status === 401 || response.status === 403) {
+        this.goalsState.goals = [];
+        this.renderGoals();
+        return;
+      }
 
       if (response.ok) {
         const data = await response.json();
