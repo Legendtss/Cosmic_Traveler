@@ -6745,6 +6745,39 @@ function updateStatisticsForActiveUser() {
     }
   };
 }
+
+function renderStatistics() {
+  if (!document.getElementById('statistics')) return;
+
+  const enabledModules = getEnabledStatisticsModules();
+  renderStatisticsDynamicLayout(enabledModules);
+  renderStatisticsSummary(enabledModules);
+
+  if (enabledModules.workout || enabledModules.nutrition || enabledModules.tasks) {
+    renderStatisticsBars(enabledModules);
+  }
+
+  if (enabledModules.workout) {
+    const workoutPie = document.getElementById('statistics-workout-pie');
+    const workoutLegend = document.getElementById('statistics-workout-legend');
+    renderStatisticsPie(workoutPie, workoutLegend, statisticsState.workoutTypeData, { showLargestByDefault: true });
+    void renderMonthlyLineChart();
+  }
+
+  if (enabledModules.nutrition) {
+    renderNutritionAreaChart();
+    const macroPie = document.getElementById('statistics-macro-pie');
+    const macroLegend = document.getElementById('statistics-macro-legend');
+    renderStatisticsPie(macroPie, macroLegend, statisticsState.macroDistribution, { showLargestByDefault: true });
+  }
+
+  if (enabledModules.tasks) {
+    renderStatisticsTaskOverview();
+  }
+
+  animateStatisticsEntry();
+}
+
 function statisticsSummaryCards(enabledModules) {
   const weeklyWorkouts = statisticsState.weeklyData.reduce((sum, row) => sum + row.workouts, 0);
   const totalMinutes = statisticsState.weeklyData.reduce((sum, row) => sum + row.time, 0);
