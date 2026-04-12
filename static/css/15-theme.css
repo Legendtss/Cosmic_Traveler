@@ -467,6 +467,14 @@ body.theme-dark .tasks-matrix-quadrant {
   border-color: var(--border-subtle);
 }
 
+body.theme-dark .tasks-matrix-unassigned-dropdown {
+  border-top-color: var(--border-subtle);
+}
+
+body.theme-dark .tasks-matrix-unassigned-toggle {
+  color: #93c5fd;
+}
+
 body.theme-dark .tasks-matrix-quadrant--urgent_important {
   background: rgba(127, 29, 29, 0.24);
   border-color: #b91c1c;

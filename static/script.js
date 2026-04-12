@@ -1130,6 +1130,10 @@ function renderTasksMatrixView({ sortedActive, sortedOverdue }) {
     unassigned = [];
   }
 
+  const unassignedPreviewCount = 2;
+  const unassignedPreview = unassigned.slice(0, unassignedPreviewCount);
+  const unassignedOverflow = unassigned.slice(unassignedPreviewCount);
+
   const unassignedHtml = unassigned.length
     ? `
       <section class="tasks-matrix-unassigned">
@@ -1137,9 +1141,21 @@ function renderTasksMatrixView({ sortedActive, sortedOverdue }) {
           <h4>Unassigned Tasks</h4>
           <span>${unassigned.length}</span>
         </header>
-        <div class="tasks-matrix-unassigned-list">
-          ${unassigned.map((task) => taskCardHtml(task, { usePriorityClass: false, draggable: true, extraClass: 'task-matrix-card' })).join('')}
+        <div class="tasks-matrix-unassigned-list tasks-matrix-unassigned-list--preview">
+          ${unassignedPreview.map((task) => taskCardHtml(task, { usePriorityClass: false, draggable: true, extraClass: 'task-matrix-card' })).join('')}
         </div>
+        ${unassignedOverflow.length
+          ? `
+            <details class="tasks-matrix-unassigned-dropdown">
+              <summary class="tasks-matrix-unassigned-toggle">
+                Show ${unassignedOverflow.length} more unassigned ${unassignedOverflow.length === 1 ? 'task' : 'tasks'}
+              </summary>
+              <div class="tasks-matrix-unassigned-list tasks-matrix-unassigned-list--overflow">
+                ${unassignedOverflow.map((task) => taskCardHtml(task, { usePriorityClass: false, draggable: true, extraClass: 'task-matrix-card' })).join('')}
+              </div>
+            </details>
+          `
+          : ''}
       </section>
     `
     : '';

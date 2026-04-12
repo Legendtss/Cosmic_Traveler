@@ -463,6 +463,44 @@
   gap: 10px;
 }
 
+.tasks-matrix-unassigned-list--preview {
+  margin-bottom: 8px;
+}
+
+.tasks-matrix-unassigned-dropdown {
+  border-top: 1px dashed #dbe6ef;
+  padding-top: 8px;
+}
+
+.tasks-matrix-unassigned-toggle {
+  list-style: none;
+  cursor: pointer;
+  color: #2563eb;
+  font-size: 0.84rem;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tasks-matrix-unassigned-toggle::-webkit-details-marker {
+  display: none;
+}
+
+.tasks-matrix-unassigned-toggle::before {
+  content: '\25B8';
+  font-size: 0.72rem;
+  transition: transform 160ms ease;
+}
+
+.tasks-matrix-unassigned-dropdown[open] .tasks-matrix-unassigned-toggle::before {
+  transform: rotate(90deg);
+}
+
+.tasks-matrix-unassigned-list--overflow {
+  margin-top: 10px;
+}
+
 .tasks-matrix-grid {
   position: relative;
   z-index: 3;
